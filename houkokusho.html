@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>作業報告書</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 画面表示用の基本スタイル */
+        .img-container {
+            position: relative;
+            background-color: #f8fafc;
+            border: 2px dashed #cbd5e1;
+            aspect-ratio: 4 / 3;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border-radius: 0.375rem;
+            transition: all 0.2s ease;
+        }
+        .img-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+        }
+        .img-container img[data-loaded="1"] { cursor: zoom-in; }
+
+        /* 写真なしのときの表示（画面用CTAと印刷用ラベルを切り替え） */
+        .slot-noimg { display: none; font-size: 10px; color: #cbd5e1; }
+
+        /* 各写真枠の「写真を変更」ボタン */
+        .photo-edit-btn {
+            position: absolute; top: 6px; right: 6px; z-index: 20;
+            background: rgba(15, 23, 42, 0.78); color: #fff; font-size: 11px;
+            padding: 4px 9px; border-radius: 4px; border: none; cursor: pointer;
+            opacity: 0; transition: opacity 0.15s ease;
+        }
+        .img-container:hover .photo-edit-btn { opacity: 1; }
+        @media (hover: none) { .photo-edit-btn { opacity: 1; } }
+
+        /* 施工箇所の並べ替え・削除ボタン */
+        .sec-ctrl-btn { font-size: 11px; padding: 2px 7px; border-radius: 4px; border: 1px solid #cbd5e1; background:#fff; color:#475569; cursor:pointer; }
+        .sec-ctrl-btn:hover { background:#f1f5f9; }
+        .sec-ctrl-btn.del:hover { background:#fee2e2; color:#b91c1c; border-color:#fecaca; }
+
+        /* 拡大表示（ライトボックス） */
+        #lightbox { position: fixed; inset: 0; z-index: 1000; background: rgba(15,23,42,0.92); display: none; align-items: center; justify-content: center; padding: 20px; }
+        #lightbox.open { display: flex; }
+        #lightbox img { max-width: 96vw; max-height: 92vh; object-fit: contain; border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        #lightbox .lb-close { position: absolute; top: 16px; right: 20px; color: #fff; font-size: 34px; line-height: 1; cursor: pointer; background: none; border: none; }
+        #lightbox .lb-caption { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; color: #e2e8f0; font-size: 14px; }
+
+        /* トースト */
+        #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: #0f172a; color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); opacity: 0; pointer-events: none; transition: all 0.25s ease; z-index: 1100; }
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        /* 履歴パネル */
+        #historyPanel { position: fixed; inset: 0; z-index: 900; display: none; }
+        #historyPanel.open { display: block; }
+        #historyPanel .hp-backdrop { position: absolute; inset: 0; background: rgba(15,23,42,0.5); }
+        #historyPanel .hp-sheet { position: absolute; top: 0; right: 0; height: 100%; width: 100%; max-width: 460px; background: #fff; box-shadow: -6px 0 24px rgba(0,0,0,0.15); display: flex; flex-direction: column; }
+
+        /* A4印刷・PDF出力用CSS */
+        @media print {
+            @page { size: A4 portrait; margin: 12mm 15mm 12mm 15mm; }
+            body { background-color: #fff !important; color: #0f172a !important; font-size: 11.5px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .no-print { display: none !important; }
+            .report-card { box-shadow: none !important; border: none !important; padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+
+            .print-avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; margin-bottom: 1.25rem !important; }
+            .first-page-cover { margin-bottom: 1.5rem !important; }
+            .print-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 1.25rem !important; }
+
+            /* 標準：A4に上下2セット（写真4枚）が入るサイズ */
+            .img-container { width: 100% !important; height: auto !important; aspect-ratio: 4 / 3 !important; max-height: 205px !important; border: 1px solid #94a3b8 !important; background-color: #fff !important; }
+
+            /* 写真を入れていない枠：画面用CTAは消し、控えめに「写真なし」だけ */
+            .slot-cta { display: none !important; }
+            .slot-noimg { display: block !important; }
+
+            p, td, th { line-height: 1.45 !important; }
+            table th, table td { padding: 6px 10px !important; }
+            h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; }
+            h3 { font-size: 1.15rem !important; margin-bottom: 0.5rem !important; }
+            h4 { font-size: 0.95rem !important; padding: 5px 8px !important; background-color: #f1f5f9 !important; border-left: 4px solid #475569 !important; }
+
+            /* ▼「大きい写真（1枚に1箇所）」モード：before/afterを縦に並べ、余白なく大きく */
+            body.layout-large .section-block { page-break-before: always !important; break-before: page !important; page-break-inside: auto !important; break-inside: auto !important; }
+            body.layout-large .print-grid { grid-template-columns: 1fr !important; gap: 7mm !important; }
+            body.layout-large .img-container { aspect-ratio: auto !important; height: 108mm !important; max-height: 108mm !important; }
+            body.layout-large .sec-cap { font-size: 12.5px !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-12 layout-compact">
+
+    <!-- ==================== 操作ツールバー ==================== -->
+    <div class="no-print sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
+        <div class="max-w-5xl mx-auto px-4 py-2.5 flex flex-wrap items-center gap-2">
+            <span class="text-sm font-bold text-slate-700 mr-1">作業報告書クラウド</span>
+
+            <button onclick="saveDraft(true)" class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded text-xs font-semibold shadow-sm">💾 一時保存</button>
+            <button onclick="saveNamed()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-semibold shadow-sm">📁 名前を付けて保存</button>
+            <button onclick="openHistory()" class="bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-semibold shadow-sm">🗂 保存した報告書一覧</button>
+            <button onclick="newReport()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-3 py-1.5 rounded text-xs font-semibold">🆕 新規作成</button>
+
+            <span class="mx-1 text-slate-300">|</span>
+
+            <span class="text-xs text-slate-500">印刷サイズ:</span>
+            <div class="inline-flex rounded overflow-hidden border border-slate-300">
+                <button id="btnLayoutCompact" onclick="setLayout('compact')" class="px-2.5 py-1.5 text-xs font-semibold bg-slate-700 text-white">標準（1枚に2箇所）</button>
+                <button id="btnLayoutLarge" onclick="setLayout('large')" class="px-2.5 py-1.5 text-xs font-semibold bg-white text-slate-700">大きい写真（1枚に1箇所）</button>
+            </div>
+
+            <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-semibold shadow-sm">🖨 印刷 / PDF保存</button>
+
+            <span class="mx-1 text-slate-300">|</span>
+
+            <button onclick="saveToDrive()" class="bg-green-600 hover:bg-green-700 text-white px-2.5 py-1.5 rounded text-xs font-semibold shadow-sm">🟢 Googleドライブに保存</button>
+            <button onclick="driveTest()" title="Googleドライブ連携の接続テスト" class="text-slate-600 hover:text-slate-900 border border-slate-300 px-2.5 py-1.5 rounded text-xs">🔌 接続テスト</button>
+            <button onclick="driveSetup()" title="Googleドライブ連携の設定" class="text-slate-500 hover:text-slate-800 border border-slate-300 px-2 py-1.5 rounded text-xs">⚙</button>
+            <button onclick="exportAll()" class="text-slate-600 hover:text-slate-900 border border-slate-300 px-2.5 py-1.5 rounded text-xs">⬇ 全データのバックアップ</button>
+            <label class="text-slate-600 hover:text-slate-900 border border-slate-300 px-2.5 py-1.5 rounded text-xs cursor-pointer">⬆ 読み込み
+                <input type="file" accept="application/json,.json" class="hidden" onchange="importFile(event)">
+            </label>
+
+            <span id="saveState" class="ml-auto text-[11px] text-slate-400"></span>
+        </div>
+    </div>
+
+    <!-- 操作ガイド -->
+    <div class="max-w-4xl mx-auto mt-6 px-4 no-print">
+        <div class="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded shadow-sm">
+            <p class="text-sm text-emerald-800 font-bold mb-1">【使い方】</p>
+            <ul class="text-xs text-emerald-700 list-disc list-inside space-y-1">
+                <li><strong>写真：</strong> 空の枠をクリックで登録。登録済みの写真はクリックで<strong>大きく拡大表示</strong>。右上「写真を変更」で差し替え。</li>
+                <li><strong>施工箇所の増減：</strong> 各箇所の「＋箇所を追加」「削除」「↑↓」で、報告する件数を自由に変えられます（少なければ余分なページは出ません）。</li>
+                <li><strong>一時保存（自動）：</strong> 入力・写真は自動でこの端末に保存され、次回「前回の続き」から再開できます。</li>
+                <li><strong>名前を付けて保存＝Googleドライブ：</strong> 「📁 名前を付けて保存」で、<strong>再編集できるデータ</strong>としてGoogleドライブに保存します。「🗂 保存した報告書一覧」はドライブと連動し、そこから<strong>開いて再編集</strong>できます。</li>
+                <li><strong>Googleドライブに保存＝PDF：</strong> 「🟢 Googleドライブに保存」で、完成した報告書を <span class="font-mono">作業報告書_作業年月日_物件名.pdf</span> として指定フォルダに保存します。</li>
+                <li><strong>総合所見：</strong> 「所見を自動作成」ボタンで、入力した施工箇所の内容から所見の下書きを自動生成します。</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 報告書メインコンテナ -->
+    <div class="max-w-4xl mx-auto bg-white mt-6 p-8 md:p-12 shadow-md rounded-lg report-card">
+
+        <!-- ===== 表紙・概要 ===== -->
+        <div class="first-page-cover pb-6 border-b border-slate-200 mb-8">
+            <div class="border-b-2 border-slate-800 pb-3 mb-6">
+                <h1 class="text-2xl font-bold text-slate-900 text-center tracking-wider" contenteditable="true" data-key="title">作業報告書</h1>
+                <p class="text-right text-xs text-slate-500 mt-2" contenteditable="true" data-key="subdate">提出日：2026年 6月 30日</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <div class="border-b border-slate-300 pb-1.5">
+                        <span class="text-[10px] text-slate-500 block">ご依頼主様（貸主様）</span>
+                        <h2 class="text-lg font-bold text-slate-900 focus:outline-none" contenteditable="true" data-key="client">【 貸主・管理会社 様 】</h2>
+                    </div>
+                    <p class="text-xs text-slate-600 mt-2 leading-relaxed" contenteditable="true" data-key="clientnote">いつも大変お世話になっております。ご依頼いただきました賃貸物件の樹木伐採および除草作業が完了いたしましたので、ここに施工前後の写真を添えてご報告申し上げます。</p>
+                </div>
+                <div class="bg-slate-50 p-4 rounded border border-slate-200">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[10px] text-slate-500 block">施工業者</span>
+                        <select onchange="applyCompanyPreset(this.value)" class="no-print text-[11px] border border-slate-300 rounded px-1.5 py-1 bg-white text-slate-600">
+                            <option value="">▼ 会社情報を選択</option>
+                            <option value="omori">有限会社仁方大森マリーナー（三条本店）</option>
+                            <option value="manual">手入力（自由に記入）</option>
+                        </select>
+                    </div>
+                    <p class="font-bold text-slate-800 text-base mt-1" contenteditable="true" data-key="cName">有限会社仁方大森マリーナー</p>
+                    <div class="text-xs text-slate-600 mt-1 space-y-0.5">
+                        <p contenteditable="true" data-key="cPerson">代表・担当者：【 担当者 氏名 】</p>
+                        <p contenteditable="true" data-key="cAddr">住所：〒737-0024 広島県呉市三条4丁目7-20 大森第5ビル</p>
+                        <p contenteditable="true" data-key="cTel">電話：0823-27-7600</p>
+                        <p contenteditable="true" data-key="cMail">メール：【 メールアドレス 】</p>
+                        <p class="text-[10px] text-slate-400" contenteditable="true" data-key="cLicense">宅地建物取引業　広島県知事(3)第10326号</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-2">
+                <h3 class="text-sm font-bold text-slate-800 mb-2.5 flex items-center">
+                    <span class="w-1.5 h-4 bg-emerald-600 mr-2 rounded-sm"></span>作業概要
+                </h3>
+                <table class="w-full border-collapse border border-slate-300 text-xs">
+                    <tbody>
+                        <tr>
+                            <th class="w-1/4 bg-slate-50 border border-slate-300 px-3 py-2 text-left font-bold text-slate-700">対象物件名</th>
+                            <td class="border border-slate-300 px-3 py-2" contenteditable="true" data-key="sProperty">【 賃貸物件名（例：コーポ木漏れ日） 】</td>
+                        </tr>
+                        <tr>
+                            <th class="bg-slate-50 border border-slate-300 px-3 py-2 text-left font-bold text-slate-700">施工場所</th>
+                            <td class="border border-slate-300 px-3 py-2" contenteditable="true" data-key="sPlace">物件敷地内</td>
+                        </tr>
+                        <tr>
+                            <th class="bg-slate-50 border border-slate-300 px-3 py-2 text-left font-bold text-slate-700">作業日程</th>
+                            <td class="border border-slate-300 px-3 py-2" contenteditable="true" data-key="sSchedule">2026年 6月 【◯】日 〜 6月 【◯】日</td>
+                        </tr>
+                        <tr>
+                            <th class="bg-slate-50 border border-slate-300 px-3 py-2 text-left font-bold text-slate-700">作業内容</th>
+                            <td class="border border-slate-300 px-3 py-2 leading-relaxed" contenteditable="true" data-key="sContent">樹木伐採・除草作業一式（伐採木・雑草等の積込・処分費含む）</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ===== 施工箇所（JSで生成・自由に追加/削除） ===== -->
+        <div id="sections"></div>
+
+        <div class="no-print my-6 text-center">
+            <button onclick="addSection()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded text-sm font-semibold shadow">＋ 施工箇所を追加する</button>
+            <p class="text-[11px] text-slate-400 mt-2">報告する箇所の数だけ追加・削除できます。</p>
+        </div>
+
+        <!-- ===== 総合所見 ===== -->
+        <div class="print-avoid-break pt-4 border-t border-slate-200">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold text-slate-800 flex items-center">
+                    <span class="w-1.5 h-4 bg-emerald-600 mr-2 rounded-sm"></span>総合所見・完了報告
+                </h3>
+                <button onclick="generateRemarks()" class="no-print bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-3 py-1.5 rounded text-xs font-semibold">✍ 所見を自動作成</button>
+            </div>
+            <div class="text-xs text-slate-700 leading-relaxed space-y-3" contenteditable="true" data-key="remarks">
+                <p>この度ご依頼をいただきました、当物件敷地内の樹木伐採および除草作業の一切が、計画通り無事完了いたしました。上部の「所見を自動作成」ボタンを押すと、入力された施工箇所の内容から所見の下書きを自動で作成します。</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ライトボックス -->
+    <div id="lightbox" class="no-print" onclick="closeLightbox()">
+        <button class="lb-close" onclick="closeLightbox()" aria-label="閉じる">&times;</button>
+        <img id="lightboxImg" src="" alt="">
+        <div class="lb-caption" id="lightboxCaption"></div>
+    </div>
+
+    <!-- 保存した報告書一覧 -->
+    <div id="historyPanel" class="no-print">
+        <div class="hp-backdrop" onclick="closeHistory()"></div>
+        <div class="hp-sheet">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+                <h3 class="font-bold text-slate-800">🗂 保存した報告書</h3>
+                <button onclick="closeHistory()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+            </div>
+            <div id="historyList" class="flex-1 overflow-y-auto p-4 space-y-2 text-sm"></div>
+            <div class="px-4 py-3 border-t border-slate-200 text-[11px] text-slate-500">
+                この一覧は<strong>Googleドライブの指定フォルダ</strong>と連動しています。「開いて編集」で呼び出し、修正して再度「名前を付けて保存」で上書きできます。（ドライブに接続できないときは、この端末内の保存を表示します）
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="no-print"></div>
+
+    <script>
+    /* =========================================================
+       会社情報プリセット
+       ========================================================= */
+    const COMPANY_PRESETS = {
+        omori: {
+            cName: '有限会社仁方大森マリーナー',
+            cPerson: '代表・担当者：【 担当者 氏名 】',
+            cAddr: '住所：〒737-0024 広島県呉市三条4丁目7-20 大森第5ビル',
+            cTel: '電話：0823-27-7600',
+            cMail: 'メール：【 メールアドレス 】',
+            cLicense: '宅地建物取引業　広島県知事(3)第10326号'
+        }
+    };
+    function applyCompanyPreset(key) {
+        if (key === 'manual' || key === '') return; // 手入力はそのまま
+        const p = COMPANY_PRESETS[key];
+        if (!p) return;
+        Object.keys(p).forEach((k) => { const el = document.querySelector('[data-key="' + k + '"]'); if (el) el.innerHTML = p[k]; });
+        scheduleDraftSave();
+        showToast('会社情報を入力しました');
+    }
+
+    /* =========================================================
+       施工箇所（セクション）を作る／並べ替え／削除
+       ========================================================= */
+    const DEFAULT_SECTIONS = [
+        { title: '道路側・擁壁上部の不要木伐採', imgBefore: '20652_0.jpg', imgAfter: '20661_0.jpg', capBefore: '擁壁上から道路へ大きく飛び出し、通行を妨げる恐れのある状態でした。', capAfter: '枝を根元からすっきりと伐採し、道路境界の安全と見通しを確保しました。' },
+        { title: '外階段手すり付近の樹木撤去', imgBefore: '20653_0.jpg', imgAfter: '20662_0.jpg', capBefore: '共有階段のすぐ脇に樹木がせり出し、手すりに干渉して通行が危険でした。', capAfter: '階段側を完全に開口し、手すり周辺も安全な歩行環境になりました。' },
+        { title: '主庭（テラス・窓前）のうっそうとした庭木の伐採', imgBefore: '20654_0.jpg', imgAfter: '20663_0.jpg', capBefore: '1階居室の掃き出し窓の目の前を庭木が塞ぎ、光が入らない状態でした。', capAfter: '高木・低木をすべてクリアし、陽光が取り込め開放感が増しました。' },
+        { title: '共用アプローチ（門扉側）からの視界改善', imgBefore: '20655_0.jpg', imgAfter: '20664_0.jpg', capBefore: '入口から見て茂みが重なり、死角を生じさせていました。', capAfter: '不要な枝や草木を一掃し、防犯上の見通しが格段に良くなりました。' },
+        { title: '庭内通路（和風植込み部）の開拓・剪定', imgBefore: '20656_0.jpg', imgAfter: '20665_0.jpg', capBefore: '庭スペースが密集した庭木で満たされ、歩行がほぼできませんでした。', capAfter: '不要な低木を地際で処分し、歩行・換気しやすい環境を再構築しました。' },
+        { title: '主庭奥の密集した庭木の根本伐採', imgBefore: '20657_0.jpg', imgAfter: '20667_0.jpg', capBefore: '立派な庭石や石組みが、繁茂した樹木に完全に隠れていました。', capAfter: '地際で伐採し、和風庭園本来の見事な石組みが再び現れました。' },
+        { title: 'エアコン室外機裏・壁際の庭木伐採', imgBefore: '20658_0.jpg', imgAfter: '20668_0.jpg', capBefore: '室外機の背後から雑木が急成長し、故障の原因を招いていました。', capAfter: '室外機周りの雑木を除去し、機器の寿命や安全性を改善しました。' },
+        { title: '外壁際・犬走り通路の除草作業', imgBefore: '20659_0.jpg', imgAfter: '20669_0.jpg', capBefore: '基礎沿いに雑草やシダ類が生い茂り、害虫が巣食いやすい環境でした。', capAfter: '根から除草し土間を清掃、清潔感のある通路に戻りました。' },
+        { title: '軒下石積壁面の密生シダ除草', imgBefore: '20660_0.jpg', imgAfter: '20666_0.jpg', capBefore: '日陰の石壁一面にシダ類が寄生し、陰湿な印象を与えていました。', capAfter: '手作業でこそぎ落とし、乾燥した明るい外壁環境へ改善しました。' }
+    ];
+
+    function el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+
+    const IMG_ICON = '<svg class="mx-auto h-7 w-7 mb-1 text-slate-300 group-hover:text-emerald-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>';
+
+    function makeSlot(kind, imgSrc, capHtml) {
+        const isBefore = kind === 'before';
+        const wrap = el('div', '');
+        wrap.innerHTML = isBefore
+            ? '<span class="text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded inline-block mb-1.5">施工前 (Before)</span>'
+            : '<span class="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded inline-block mb-1.5">施工後 (After)</span>';
+        const cont = el('div', 'img-container group cursor-pointer hover:border-emerald-500 hover:shadow-inner');
+        const img = document.createElement('img'); img.className = 'slot-img'; img.alt = isBefore ? '施工前' : '施工後';
+        const ph = el('div', 'slot-ph text-center p-3 z-0 text-slate-300');
+        ph.innerHTML = '<div class="slot-cta">' + IMG_ICON +
+            '<span class="text-[10px] font-semibold block text-slate-400 group-hover:text-emerald-600">' + (isBefore ? '施工前' : '施工後') + '写真を登録</span>' +
+            '<span class="text-[9px] block text-slate-400">(クリックして画像を選択)</span></div>' +
+            '<span class="slot-noimg">（写真なし）</span>';
+        const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.className = 'hidden';
+        const editBtn = el('button', 'photo-edit-btn no-print'); editBtn.type = 'button'; editBtn.textContent = '写真を変更';
+        cont.append(img, ph, input, editBtn);
+        const cap = el('p', 'text-[11px] text-slate-500 mt-1.5 leading-relaxed sec-cap'); cap.contentEditable = 'true'; cap.innerHTML = capHtml || '';
+        wrap.append(cont, cap);
+
+        cont.addEventListener('click', () => { if (img.dataset.loaded === '1') openLightbox(img.src, img.alt); else input.click(); });
+        editBtn.addEventListener('click', (e) => { e.stopPropagation(); input.click(); });
+        input.addEventListener('change', async (e) => { const f = e.target.files[0]; if (!f) return; const d = await fileToResizedDataURL(f); setImg(img, ph, d); input.value = ''; scheduleDraftSave(); });
+        img.addEventListener('load', () => { if (img.getAttribute('src')) { img.dataset.loaded = '1'; img.style.display = 'block'; ph.classList.add('hidden'); } });
+        img.addEventListener('error', () => { img.style.display = 'none'; img.dataset.loaded = ''; ph.classList.remove('hidden'); });
+        if (imgSrc) { img.src = imgSrc; } else { ph.classList.remove('hidden'); }
+        return { wrap, img };
+    }
+    function setImg(img, ph, src) { img.src = src; img.style.display = 'block'; img.dataset.loaded = '1'; ph.classList.add('hidden'); }
+
+    function makeSection(data) {
+        data = data || {};
+        const sec = el('div', 'section-block print-avoid-break border-b border-slate-200 pb-6 mb-6');
+
+        const head = el('div', 'flex items-start gap-2 mb-3');
+        const titleWrap = el('div', 'flex-1 flex items-stretch bg-slate-100 border-l-4 border-slate-500 rounded-r');
+        const no = el('span', 'sec-no text-xs font-bold text-slate-700 px-2.5 py-1.5 whitespace-nowrap', '【1】');
+        const title = el('span', 'sec-title flex-1 text-xs font-bold text-slate-700 py-1.5 pr-2 focus:outline-none'); title.contentEditable = 'true'; title.innerHTML = data.title || '作業内容を入力してください';
+        titleWrap.append(no, title);
+        const ctrl = el('div', 'no-print flex gap-1 flex-shrink-0 items-start pt-0.5');
+        const bUp = el('button', 'sec-ctrl-btn', '↑'); bUp.title = '上へ';
+        const bDown = el('button', 'sec-ctrl-btn', '↓'); bDown.title = '下へ';
+        const bAdd = el('button', 'sec-ctrl-btn', '＋箇所'); bAdd.title = 'この下に追加';
+        const bDel = el('button', 'sec-ctrl-btn del', '削除');
+        ctrl.append(bUp, bDown, bAdd, bDel);
+        head.append(titleWrap, ctrl);
+
+        const grid = el('div', 'grid grid-cols-1 md:grid-cols-2 print-grid gap-4');
+        grid.append(makeSlot('before', data.imgBefore, data.capBefore).wrap, makeSlot('after', data.imgAfter, data.capAfter).wrap);
+
+        sec.append(head, grid);
+
+        bUp.addEventListener('click', () => { const p = sec.previousElementSibling; if (p) sec.parentNode.insertBefore(sec, p); renumber(); scheduleDraftSave(); });
+        bDown.addEventListener('click', () => { const n = sec.nextElementSibling; if (n) sec.parentNode.insertBefore(n, sec); renumber(); scheduleDraftSave(); });
+        bAdd.addEventListener('click', () => { const ns = makeSection({}); sec.parentNode.insertBefore(ns, sec.nextElementSibling); renumber(); scheduleDraftSave(); ns.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+        bDel.addEventListener('click', () => { if (confirm('この施工箇所を削除します。よろしいですか？')) { sec.remove(); renumber(); scheduleDraftSave(); } });
+
+        return sec;
+    }
+    function renumber() { document.querySelectorAll('#sections .sec-no').forEach((n, i) => { n.textContent = '【' + (i + 1) + '】'; }); }
+    function addSection() { const ns = makeSection({}); document.getElementById('sections').append(ns); renumber(); scheduleDraftSave(); ns.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    function getSections() { return Array.from(document.querySelectorAll('#sections .section-block')); }
+    function renderSections(list) {
+        const box = document.getElementById('sections');
+        box.innerHTML = '';
+        (list || []).forEach((d) => box.append(makeSection(d)));
+        renumber();
+    }
+
+    /* =========================================================
+       状態の保存／復元
+       ========================================================= */
+    function captureState() {
+        const meta = {};
+        document.querySelectorAll('.report-card [data-key]').forEach((e) => { meta[e.getAttribute('data-key')] = e.innerHTML; });
+        const sections = getSections().map((sec) => {
+            const imgs = sec.querySelectorAll('.slot-img');
+            const caps = sec.querySelectorAll('.sec-cap');
+            const src = (im) => (im && im.src && im.src.startsWith('data:')) ? im.src : null;
+            return {
+                title: sec.querySelector('.sec-title').innerHTML,
+                capBefore: caps[0] ? caps[0].innerHTML : '',
+                capAfter: caps[1] ? caps[1].innerHTML : '',
+                imgBefore: src(imgs[0]),
+                imgAfter: src(imgs[1])
+            };
+        });
+        return { meta, sections, layout: currentLayout };
+    }
+    function restoreState(state) {
+        if (!state) return;
+        if (state.meta) Object.keys(state.meta).forEach((k) => { const e = document.querySelector('.report-card [data-key="' + k + '"]'); if (e) e.innerHTML = state.meta[k]; });
+        if (state.sections) renderSections(state.sections);
+        if (state.layout) setLayout(state.layout, true);
+    }
+
+    /* =========================================================
+       IndexedDB（この端末のブラウザ内に保存）
+       ========================================================= */
+    const DB_NAME = 'houkokushoDB', STORE = 'reports', DRAFT_ID = '__draft__';
+    let _dbPromise = null;
+    function openDB() {
+        if (_dbPromise) return _dbPromise;
+        _dbPromise = new Promise((resolve, reject) => {
+            const req = indexedDB.open(DB_NAME, 1);
+            req.onupgradeneeded = (e) => { const db = e.target.result; if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' }); };
+            req.onsuccess = (e) => resolve(e.target.result);
+            req.onerror = (e) => reject(e.target.error);
+        });
+        return _dbPromise;
+    }
+    async function idbPut(rec) { const db = await openDB(); return new Promise((res, rej) => { const tx = db.transaction(STORE, 'readwrite'); tx.objectStore(STORE).put(rec); tx.oncomplete = () => res(); tx.onerror = (e) => rej(e.target.error); }); }
+    async function idbGet(id) { const db = await openDB(); return new Promise((res, rej) => { const r = db.transaction(STORE, 'readonly').objectStore(STORE).get(id); r.onsuccess = () => res(r.result); r.onerror = (e) => rej(e.target.error); }); }
+    async function idbGetAll() { const db = await openDB(); return new Promise((res, rej) => { const r = db.transaction(STORE, 'readonly').objectStore(STORE).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = (e) => rej(e.target.error); }); }
+    async function idbDelete(id) { const db = await openDB(); return new Promise((res, rej) => { const tx = db.transaction(STORE, 'readwrite'); tx.objectStore(STORE).delete(id); tx.oncomplete = () => res(); tx.onerror = (e) => rej(e.target.error); }); }
+
+    /* =========================================================
+       一時保存（自動＋手動）
+       ========================================================= */
+    let _saveTimer = null;
+    function scheduleDraftSave() { clearTimeout(_saveTimer); setSaveState('入力中…'); _saveTimer = setTimeout(() => saveDraft(false), 1000); }
+    async function saveDraft(manual) {
+        try { await idbPut({ id: DRAFT_ID, name: '（自動保存の下書き）', updatedAt: Date.now(), state: captureState() }); setSaveState('✓ 一時保存済み ' + timeStr()); if (manual) showToast('この端末に一時保存しました'); }
+        catch (e) { setSaveState('保存エラー'); if (manual) showToast('保存に失敗：' + e.message); }
+    }
+
+    /* =========================================================
+       名前を付けて保存／履歴／新規
+       ========================================================= */
+    function propertyName() {
+        const e = document.querySelector('[data-key="sProperty"]');
+        let t = e ? (e.innerText || '').trim() : '';
+        t = t.replace(/[【】\[\]\/／\\:：*?"<>|]/g, '').trim();
+        if (!t || t.indexOf('賃貸物件名') !== -1) t = '物件名未入力';
+        return t;
+    }
+    function suggestName() { return dateStamp() + '_' + propertyName(); }
+    async function saveNamed() {
+        const name = prompt('保存名を入力してください（既定：作業年月日＋物件名）', suggestName());
+        if (name === null) return;
+        const finalName = (name.trim() || suggestName());
+        const state = captureState();
+        // 端末内にもバックアップ保存
+        await idbPut({ id: 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), name: finalName, updatedAt: Date.now(), state });
+        // Googleドライブへ「編集できるデータ」として保存
+        setSaveState('ドライブへ保存中…');
+        try {
+            await drivePost({ action: 'saveData', filename: finalName + '.json', folderId: driveFolderId(), dataBase64: utf8ToBase64(JSON.stringify({ name: finalName, updatedAt: Date.now(), state })) });
+        } catch (e) {
+            setSaveState('ドライブ保存エラー');
+            showToast('ドライブへの送信に失敗しました（端末内には保存済み）');
+            return;
+        }
+        // 実際にドライブへ保存されたか確認
+        const v = await verifyOnDrive(finalName + '.json');
+        if (v === true) { setSaveState('✓ ドライブ保存 ' + timeStr()); showToast('Googleドライブに保存しました：' + finalName); }
+        else { setSaveState('⚠ ドライブ未確認'); showToast('⚠️ ドライブに保存できていない可能性があります。上部「🔌接続テスト」でご確認ください（端末内には保存済み）'); }
+    }
+    async function openHistory() {
+        const list = document.getElementById('historyList');
+        list.innerHTML = '<p class="text-slate-400 text-center py-8">Googleドライブを読み込み中…</p>';
+        document.getElementById('historyPanel').classList.add('open');
+        let files = null;
+        try { const res = await jsonp({ action: 'list', folderId: driveFolderId() }); if (res && res.ok) files = res.files || []; } catch (e) { files = null; }
+        if (files) {
+            const reports = files.filter((f) => /\.json$/i.test(f.name)).sort((a, b) => b.updated - a.updated);
+            if (!reports.length) { list.innerHTML = '<p class="text-slate-400 text-center py-8">Googleドライブに保存された報告書はまだありません。<br>「名前を付けて保存」で残せます。</p>'; return; }
+            list.innerHTML = reports.map((f) => {
+                const disp = f.name.replace(/\.json$/i, '');
+                const nm = escapeHtml(disp), safe = nm.replace(/'/g, '');
+                return '<div class="border border-slate-200 rounded p-3 hover:bg-slate-50">' +
+                    '<div class="font-semibold text-slate-800 break-all">' + nm + '</div>' +
+                    '<div class="text-[11px] text-slate-400 mt-0.5">' + fullTimeStr(f.updated) + ' ・ Googleドライブ</div>' +
+                    '<div class="flex gap-2 mt-2">' +
+                    '<button onclick="loadFromDrive(\'' + f.id + '\',\'' + safe + '\')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-xs">開いて編集</button>' +
+                    '<button onclick="deleteFromDrive(\'' + f.id + '\',\'' + safe + '\')" class="ml-auto text-red-500 hover:text-red-700 px-2 py-1 rounded text-xs">削除</button>' +
+                    '</div></div>';
+            }).join('');
+        } else {
+            const all = (await idbGetAll()).filter((r) => r.id !== DRAFT_ID).sort((a, b) => b.updatedAt - a.updatedAt);
+            let head = '<p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 mb-2">Googleドライブに接続できませんでした。この端末内の保存を表示しています。<br>上部の「🔌接続テスト」で原因（多くはデプロイのアクセス権が「全員」でない）を確認できます。</p>';
+            if (!all.length) { list.innerHTML = head + '<p class="text-slate-400 text-center py-6">保存された報告書はありません。</p>'; return; }
+            list.innerHTML = head + all.map((r) => {
+                return '<div class="border border-slate-200 rounded p-3 hover:bg-slate-50">' +
+                    '<div class="font-semibold text-slate-800 break-all">' + escapeHtml(r.name) + '</div>' +
+                    '<div class="text-[11px] text-slate-400 mt-0.5">' + fullTimeStr(r.updatedAt) + ' ・ 端末内</div>' +
+                    '<div class="flex gap-2 mt-2">' +
+                    '<button onclick="loadReport(\'' + r.id + '\')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-xs">開いて編集</button>' +
+                    '<button onclick="deleteReport(\'' + r.id + '\')" class="ml-auto text-red-500 hover:text-red-700 px-2 py-1 rounded text-xs">削除</button>' +
+                    '</div></div>';
+            }).join('');
+        }
+    }
+    function closeHistory() { document.getElementById('historyPanel').classList.remove('open'); }
+    async function loadReport(id) {
+        const rec = await idbGet(id); if (!rec) return;
+        if (!confirm('「' + rec.name + '」を開きます。現在の内容は上書きされます。よろしいですか？')) return;
+        restoreState(rec.state); await saveDraft(false); closeHistory(); showToast('「' + rec.name + '」を開きました'); window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    async function duplicateReport(id) {
+        const rec = await idbGet(id); if (!rec) return;
+        await idbPut({ id: 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), name: rec.name + '（コピー）', updatedAt: Date.now(), state: rec.state });
+        openHistory(); showToast('複製しました');
+    }
+    async function deleteReport(id) {
+        const rec = await idbGet(id); if (!rec) return;
+        if (!confirm('「' + rec.name + '」を削除します。元に戻せません。よろしいですか？')) return;
+        await idbDelete(id); openHistory(); showToast('削除しました');
+    }
+    async function newReport() {
+        if (!confirm('新しい報告書を作成します。現在の内容は消えます（保存済みは残ります）。よろしいですか？')) return;
+        loadDefaults(); await idbDelete(DRAFT_ID); setSaveState(''); showToast('新規作成しました'); window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    /* =========================================================
+       バックアップ 書き出し／読み込み
+       ========================================================= */
+    async function exportAll() {
+        const all = (await idbGetAll()).filter((r) => r.id !== DRAFT_ID);
+        const draft = await idbGet(DRAFT_ID);
+        const blob = new Blob([JSON.stringify({ app: 'houkokusho', version: 2, exportedAt: Date.now(), reports: all, draft: draft || null })], { type: 'application/json' });
+        downloadBlob(blob, '作業報告書バックアップ_' + dateStamp() + '.json');
+        showToast('バックアップを書き出しました（' + all.length + '件）');
+    }
+    async function importFile(event) {
+        const file = event.target.files[0]; if (!file) return;
+        try { const obj = JSON.parse(await file.text()); const reports = obj.reports || []; for (const r of reports) if (r && r.id) await idbPut(r); event.target.value = ''; showToast(reports.length + '件を読み込みました。一覧から開けます。'); }
+        catch (e) { showToast('読み込みに失敗しました：ファイル形式をご確認ください'); }
+    }
+
+    /* =========================================================
+       Googleドライブ用に保存（作業年月日_物件名 の報告書ファイルを書き出し）
+       ========================================================= */
+    function buildStandaloneHTML() {
+        const clone = document.querySelector('.report-card').cloneNode(true);
+        clone.querySelectorAll('.no-print').forEach((n) => n.remove());
+        clone.classList.remove('shadow-md', 'rounded-lg');
+        const title = (document.querySelector('[data-key="title"]').innerText || '作業報告書').trim();
+        const css = '.img-container{position:relative;aspect-ratio:4/3;overflow:hidden;border:1px solid #94a3b8;border-radius:.375rem;background:#fff}' +
+            '.img-container img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}' +
+            '.slot-cta{display:none}.slot-noimg{display:block;text-align:center;color:#cbd5e1;font-size:11px;padding-top:40%}' +
+            '.print-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}' +
+            '@media print{@page{size:A4 portrait;margin:12mm 15mm}.section-block{page-break-inside:avoid}}';
+        return '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>' +
+            escapeHtml(title) + '</title><script src="https://cdn.tailwindcss.com"><\/script><style>' + css +
+            '</style></head><body class="bg-white text-slate-800 font-sans"><div class="max-w-4xl mx-auto p-8">' +
+            clone.innerHTML + '</div></body></html>';
+    }
+    function pdfFileName() { return '作業報告書_' + dateStamp() + '_' + propertyName() + '.pdf'; }
+
+    /* ---- Googleドライブ連携の設定（URL・フォルダID） ---- */
+    // デプロイ済みウェブアプリURL（初期値。⚙から変更可）
+    const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNGyNrCRFLp3s1RGJbkIKf8kDkDyK9RFNb0BsfP2cJuzHEGVfBEQaIWh3aO49orjAl_g/exec';
+    const DEFAULT_DRIVE_FOLDER = '1uT5gNcaKjflrQhoOw7dNMxNoRlBZwe9Z';
+    function driveScriptUrl() { return (localStorage.getItem('driveScriptUrl') || DEFAULT_SCRIPT_URL).trim(); }
+    function driveFolderId() { return (localStorage.getItem('driveFolderId') || DEFAULT_DRIVE_FOLDER).trim(); }
+    function driveSetup() {
+        const url = prompt('【Googleドライブ連携の設定】\nGoogle Apps Script で発行した「ウェブアプリのURL」を貼り付けてください。', driveScriptUrl());
+        if (url === null) return false;
+        localStorage.setItem('driveScriptUrl', url.trim());
+        const fid = prompt('保存先フォルダのID（このままでOK）', driveFolderId());
+        if (fid !== null) localStorage.setItem('driveFolderId', (fid.trim() || DEFAULT_DRIVE_FOLDER));
+        showToast('Googleドライブ連携を設定しました');
+        return true;
+    }
+    function utf8ToBase64(str) { return btoa(unescape(encodeURIComponent(str))); }
+
+    // ドライブへ送信（POST・応答は読めないため保存系専用）
+    async function drivePost(payload) {
+        await fetch(driveScriptUrl(), { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+    }
+    // ドライブから読み出し（JSONP・一覧/取得用）
+    function jsonp(params) {
+        return new Promise((resolve, reject) => {
+            const cb = '__cb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+            const s = document.createElement('script');
+            const to = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 30000);
+            function cleanup() { clearTimeout(to); try { delete window[cb]; } catch (e) {} s.remove(); }
+            window[cb] = (data) => { cleanup(); resolve(data); };
+            const q = Object.assign({}, params, { callback: cb });
+            s.src = driveScriptUrl() + '?' + Object.keys(q).map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(q[k])).join('&');
+            s.onerror = () => { cleanup(); reject(new Error('network')); };
+            document.body.appendChild(s);
+        });
+    }
+
+    // 接続テスト（新スクリプトが正しく公開デプロイされているか確認）
+    async function driveTest() {
+        showToast('Googleドライブ連携を確認中…');
+        setSaveState('接続確認中…');
+        try {
+            const res = await jsonp({ action: 'status' });
+            if (res && res.ok && res.version >= 3) {
+                setSaveState('✓ 連携OK');
+                alert('✅ Googleドライブ連携は正常です（スクリプト v' + res.version + '）。\n\n「名前を付けて保存」「報告書一覧」「PDF保存」すべて使えます。');
+            } else if (res && res.ok) {
+                setSaveState('△ 古い版');
+                alert('⚠️ 接続はできましたが、スクリプトが古い版です。\n\nお渡しした新しいコード（第2版）に差し替えて、\n「デプロイ → デプロイを管理 → 編集 → バージョン：新バージョン → デプロイ」\nで再デプロイしてください。');
+            } else {
+                setSaveState('△ 応答異常');
+                alert('⚠️ 応答が正しくありません。再デプロイ内容をご確認ください。');
+            }
+        } catch (e) {
+            setSaveState('× 接続不可');
+            alert('❌ Googleドライブに接続できませんでした。\n\n【最も多い原因】デプロイの「アクセスできるユーザー」が『全員』になっていません。\n\n[直し方]\nApps Script →「デプロイ」→「デプロイを管理」→ 鉛筆マーク（編集）\n・次のユーザーとして実行：自分\n・アクセスできるユーザー：全員 ←ここが重要\n・バージョン：新バージョン\n→「デプロイ」\n\n※「全員」以外（自分のみ／Googleアカウントを持つ全員）だと、この画面からは保存できません。');
+        }
+    }
+    // 保存後にドライブ上に実在するか確認（true=確認 / false=見当たらない / 'error'=接続不可）
+    async function verifyOnDrive(fullname) {
+        try {
+            const res = await jsonp({ action: 'list', folderId: driveFolderId() });
+            if (res && res.ok) return (res.files || []).some((f) => f.name === fullname);
+            return 'error';
+        } catch (e) { return 'error'; }
+    }
+
+    // ドライブから報告書を開いて再編集
+    async function loadFromDrive(id, name) {
+        if (!confirm('「' + name + '」を開きます。現在の内容は上書きされます。よろしいですか？')) return;
+        showToast('ドライブから読み込み中…');
+        try {
+            const res = await jsonp({ action: 'get', id: id });
+            if (!res || !res.ok) throw new Error(res && res.error ? res.error : 'not found');
+            const obj = JSON.parse(res.content);
+            restoreState(obj.state);
+            await saveDraft(false);
+            closeHistory();
+            showToast('「' + name + '」を開きました');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } catch (e) { showToast('読み込みに失敗しました：' + e.message); }
+    }
+    async function deleteFromDrive(id, name) {
+        if (!confirm('「' + name + '」をドライブから削除します（ゴミ箱へ移動）。よろしいですか？')) return;
+        try { await drivePost({ action: 'delete', id: id, folderId: driveFolderId() }); showToast('削除しました'); setTimeout(openHistory, 800); }
+        catch (e) { showToast('削除に失敗しました'); }
+    }
+
+    // 「Googleドライブに保存」＝ PDFにして指定フォルダへ保存
+    async function saveToDrive() {
+        setSaveState('PDFを作成してドライブへ保存中…');
+        try {
+            await drivePost({ action: 'savePdf', filename: pdfFileName(), folderId: driveFolderId(), htmlBase64: utf8ToBase64(buildPdfHTML(captureState())) });
+        } catch (e) {
+            setSaveState('ドライブ保存エラー');
+            if (confirm('Googleドライブへの送信に失敗しました。\n代わりに印刷画面を開いてPDF保存しますか？')) window.print();
+            return;
+        }
+        // PDF生成に少し時間がかかるので待ってから確認
+        await sleep(2000);
+        const v = await verifyOnDrive(pdfFileName());
+        if (v === true) { setSaveState('✓ ドライブPDF保存 ' + timeStr()); showToast('GoogleドライブにPDFを保存しました：' + pdfFileName()); }
+        else { setSaveState('⚠ PDF未確認'); showToast('⚠️ PDFがドライブに見つかりません。上部「🔌接続テスト」で連携をご確認ください'); }
+    }
+
+    /* ---- PDF用のHTMLを作る（Apps Script側でPDFへ変換） ---- */
+    function metaVal(k) { const e = document.querySelector('.report-card [data-key="' + k + '"]'); return e ? e.innerHTML : ''; }
+    function buildPdfHTML(state) {
+        const m = (state && state.meta) || {};
+        const secs = (state && state.sections) || [];
+        const css =
+            "@page{size:A4 portrait;margin:12mm 14mm;}" +
+            "*{box-sizing:border-box;} body{font-family:'Noto Sans JP','Hiragino Kaku Gothic ProN',sans-serif;color:#0f172a;font-size:12px;margin:0;padding:0;}" +
+            "h1{font-size:22px;text-align:center;font-weight:700;border-bottom:2px solid #1e293b;padding-bottom:8px;margin:0 0 6px;letter-spacing:2px;}" +
+            ".date{text-align:right;font-size:11px;color:#64748b;margin-bottom:16px;}" +
+            "table{border-collapse:collapse;width:100%;}" +
+            ".cols td{vertical-align:top;width:50%;padding:0 8px;}" +
+            ".lbl{font-size:10px;color:#64748b;display:block;}" +
+            ".client{font-size:16px;font-weight:700;border-bottom:1px solid #cbd5e1;padding-bottom:4px;}" +
+            ".note{font-size:11px;color:#475569;margin-top:6px;line-height:1.7;}" +
+            ".company{background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:10px;}" +
+            ".company .cn{font-weight:700;font-size:14px;} .company p{margin:2px 0;font-size:11px;color:#475569;}" +
+            "table.summary{margin:6px 0 20px;} table.summary th,table.summary td{border:1px solid #cbd5e1;padding:6px 10px;text-align:left;font-size:11px;vertical-align:top;} table.summary th{background:#f8fafc;width:26%;font-weight:700;}" +
+            "h3.sec-h{font-size:14px;font-weight:700;display:flex;align-items:center;margin:0 0 8px;}" +
+            ".section{page-break-inside:avoid;margin-bottom:18px;border-bottom:1px solid #e2e8f0;padding-bottom:14px;}" +
+            ".sec-title{font-size:13px;font-weight:700;background:#f1f5f9;border-left:4px solid #475569;padding:6px 10px;margin-bottom:10px;}" +
+            "table.ba{table-layout:fixed;} table.ba td{width:50%;vertical-align:top;padding:0 8px;}" +
+            ".badge{display:inline-block;font-size:9px;font-weight:700;padding:2px 8px;border-radius:3px;margin-bottom:6px;}" +
+            ".badge.b{color:#dc2626;background:#fef2f2;border:1px solid #fecaca;} .badge.a{color:#059669;background:#ecfdf5;border:1px solid #a7f3d0;}" +
+            ".photo{width:100%;height:auto;border:1px solid #94a3b8;border-radius:4px;display:block;}" +
+            ".noimg{width:100%;height:150px;border:1px dashed #cbd5e1;border-radius:4px;color:#94a3b8;text-align:center;line-height:150px;font-size:11px;}" +
+            ".cap{font-size:11px;color:#475569;margin-top:6px;line-height:1.7;}" +
+            "h3.rem-h{font-size:14px;font-weight:700;margin:18px 0 8px;} .remarks{font-size:11px;line-height:1.8;color:#334155;} .remarks p{margin:0 0 8px;}" +
+            // ▼「大きい写真（1枚に1箇所）」モード用
+            ".section.big{page-break-before:always;page-break-inside:auto;border-bottom:none;}" +
+            ".slotL{margin-bottom:7mm;text-align:center;}" +
+            ".slotL .badge{display:inline-block;margin:0 0 5px;}" +
+            ".photoL{display:block;max-width:100%;max-height:98mm;border:1px solid #94a3b8;border-radius:4px;margin:0 auto;}" +
+            ".noimgL{width:100%;height:98mm;border:1px dashed #cbd5e1;border-radius:4px;color:#94a3b8;line-height:98mm;font-size:12px;}" +
+            ".slotL .cap{text-align:left;font-size:12px;}";
+        const large = state && state.layout === 'large';
+        function slot(kind, img, cap) {
+            const label = kind === 'b' ? '施工前 (Before)' : '施工後 (After)';
+            const pic = img ? '<img class="photo" src="' + img + '">' : '<div class="noimg">（写真なし）</div>';
+            return '<span class="badge ' + kind + '">' + label + '</span>' + pic + '<div class="cap">' + (cap || '') + '</div>';
+        }
+        function slotLarge(kind, img, cap) {
+            const label = kind === 'b' ? '施工前 (Before)' : '施工後 (After)';
+            const pic = img ? '<img class="photoL" src="' + img + '">' : '<div class="noimgL">（写真なし）</div>';
+            return '<div class="slotL"><span class="badge ' + kind + '">' + label + '</span>' + pic + '<div class="cap">' + (cap || '') + '</div></div>';
+        }
+        let html = '<h1>' + (m.title || '作業報告書') + '</h1><div class="date">' + (m.subdate || '') + '</div>';
+        html += '<table class="cols"><tr><td>' +
+            '<span class="lbl">ご依頼主様（貸主様）</span><div class="client">' + (m.client || '') + '</div>' +
+            '<div class="note">' + (m.clientnote || '') + '</div></td><td>' +
+            '<div class="company"><span class="lbl">施工業者</span><div class="cn">' + (m.cName || '') + '</div>' +
+            '<p>' + (m.cPerson || '') + '</p><p>' + (m.cAddr || '') + '</p><p>' + (m.cTel || '') + '</p><p>' + (m.cMail || '') + '</p><p style="font-size:10px;color:#94a3b8;">' + (m.cLicense || '') + '</p>' +
+            '</div></td></tr></table>';
+        html += '<table class="summary"><tr><th>対象物件名</th><td>' + (m.sProperty || '') + '</td></tr>' +
+            '<tr><th>施工場所</th><td>' + (m.sPlace || '') + '</td></tr>' +
+            '<tr><th>作業日程</th><td>' + (m.sSchedule || '') + '</td></tr>' +
+            '<tr><th>作業内容</th><td>' + (m.sContent || '') + '</td></tr></table>';
+        secs.forEach((s, i) => {
+            const head = '<div class="sec-title">【' + (i + 1) + '】' + (s.title || '') + '</div>';
+            if (large) {
+                // 大きい写真：1箇所を1ページに、施工前・施工後を縦に大きく
+                html += '<div class="section big">' + head +
+                    slotLarge('b', s.imgBefore, s.capBefore) + slotLarge('a', s.imgAfter, s.capAfter) + '</div>';
+            } else {
+                // 標準：施工前・施工後を横並び（1ページに2箇所）
+                html += '<div class="section">' + head +
+                    '<table class="ba"><tr><td>' + slot('b', s.imgBefore, s.capBefore) + '</td><td>' + slot('a', s.imgAfter, s.capAfter) + '</td></tr></table></div>';
+            }
+        });
+        html += '<h3 class="rem-h">総合所見・完了報告</h3><div class="remarks">' + (m.remarks || '') + '</div>';
+        return '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><style>' + css + '</style></head><body>' + html + '</body></html>';
+    }
+
+    /* =========================================================
+       写真：拡大・縮小保存
+       ========================================================= */
+    function fileToResizedDataURL(file, maxDim, quality) {
+        maxDim = maxDim || 1600; quality = quality || 0.85;
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const im = new Image();
+                im.onload = () => {
+                    let w = im.naturalWidth, h = im.naturalHeight;
+                    if (Math.max(w, h) > maxDim) { const s = maxDim / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
+                    try { const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(im, 0, 0, w, h); resolve(c.toDataURL('image/jpeg', quality)); }
+                    catch (err) { resolve(e.target.result); }
+                };
+                im.onerror = () => resolve(e.target.result);
+                im.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+    function openLightbox(src, caption) { document.getElementById('lightboxImg').src = src; document.getElementById('lightboxCaption').textContent = (caption || '') + '　（画面クリックで閉じる）'; document.getElementById('lightbox').classList.add('open'); }
+    function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLightbox(); });
+
+    /* =========================================================
+       総合所見の自動作成（施工箇所の内容から下書き生成）
+       ========================================================= */
+    function improvementLine(title) {
+        if (/道路|擁壁|境界/.test(title)) return '道路側へはみ出していた樹木を伐採し、通行の安全と良好な見通しを確保しました。';
+        if (/階段|手すり|アプローチ|通路|動線|視界/.test(title)) return '通路にせり出した枝葉を撤去し、歩行の安全性と防犯上の見通しを改善しました。';
+        if (/室外機|エアコン/.test(title)) return '室外機周りの雑木を除去し、吸排気を妨げないよう機器周辺のスペースを確保しました。';
+        if (/窓|居室|採光|主庭|庭木|剪定|植込/.test(title)) return '生い茂った庭木を整理し、採光・通風を確保して住環境を改善しました。';
+        if (/除草|雑草|シダ|犬走り|壁際|石壁|軒下/.test(title)) return '生い茂った雑草・シダ類を根から除草し、清潔で健全な状態に復元しました。';
+        return '不要な樹木・雑草を撤去し、安全で美観の良い状態へ改善しました。';
+    }
+    function generateRemarks() {
+        const secs = getSections();
+        const items = secs.map((s) => (s.querySelector('.sec-title').innerText || '').trim()).filter((t) => t && t.indexOf('作業内容を入力') === -1);
+        if (!items.length) { showToast('先に施工箇所の内容を入力してください'); return; }
+        if (!confirm('現在の総合所見を、入力内容から自動作成した文章で上書きします。よろしいですか？')) return;
+        let html = '<p>この度ご依頼をいただきました、当物件敷地内の作業一切が計画通り無事に完了いたしましたので、施工前後の写真を添えてご報告申し上げます。</p>';
+        html += '<p class="font-bold text-slate-800 border-b border-slate-200 pb-0.5 mt-3">【実施した作業と主な改善点】</p><div class="pl-3 space-y-2">';
+        items.forEach((t, i) => { html += '<p><strong>' + (i + 1) + '. ' + escapeHtml(t) + '：</strong><br>' + improvementLine(t) + '</p>'; });
+        html += '</div>';
+        html += '<p class="pt-2">作業に伴い発生した枝葉・幹・雑草等はすべて現地より完全に搬出し、処分場にて適正に処理を完了しております。近隣住民様・入居者様への配慮を行い、無事に作業を終えましたことを合わせてご報告いたします。</p>';
+        html += '<p class="text-right font-bold mt-6">以上をもって、本作業完了のご報告とさせていただきます。<br>この度のご用命、誠にありがとうございました。</p>';
+        document.querySelector('[data-key="remarks"]').innerHTML = html;
+        scheduleDraftSave();
+        showToast('総合所見の下書きを作成しました（内容はご確認・修正ください）');
+    }
+
+    /* =========================================================
+       印刷レイアウト切り替え
+       ========================================================= */
+    let currentLayout = 'compact';
+    function setLayout(mode, silent) {
+        currentLayout = mode;
+        document.body.classList.toggle('layout-large', mode === 'large');
+        document.body.classList.toggle('layout-compact', mode !== 'large');
+        const bc = document.getElementById('btnLayoutCompact'), bl = document.getElementById('btnLayoutLarge');
+        const on = 'bg-slate-700 text-white', off = 'bg-white text-slate-700';
+        if (bc && bl) { bc.className = 'px-2.5 py-1.5 text-xs font-semibold ' + (mode === 'large' ? off : on); bl.className = 'px-2.5 py-1.5 text-xs font-semibold ' + (mode === 'large' ? on : off); }
+        if (!silent) scheduleDraftSave();
+    }
+
+    /* =========================================================
+       ユーティリティ
+       ========================================================= */
+    function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+    function setSaveState(t) { document.getElementById('saveState').textContent = t; }
+    let _toastTimer = null;
+    function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(_toastTimer); _toastTimer = setTimeout(() => t.classList.remove('show'), 2800); }
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function timeStr() { const d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+    function fullTimeStr(ms) { const d = new Date(ms); return d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+    function dateStamp() { const d = new Date(); return '' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()); }
+    function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+    function downloadBlob(blob, filename) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
+
+    /* =========================================================
+       初期化
+       ========================================================= */
+    let _initialMeta = null;
+    function loadDefaults() {
+        if (_initialMeta) Object.keys(_initialMeta).forEach((k) => { const e = document.querySelector('.report-card [data-key="' + k + '"]'); if (e) e.innerHTML = _initialMeta[k]; });
+        renderSections(DEFAULT_SECTIONS);
+        setLayout('compact', true);
+    }
+    window.addEventListener('DOMContentLoaded', async () => {
+        _initialMeta = {};
+        document.querySelectorAll('.report-card [data-key]').forEach((e) => { _initialMeta[e.getAttribute('data-key')] = e.innerHTML; });
+        renderSections(DEFAULT_SECTIONS);
+
+        document.querySelector('.report-card').addEventListener('input', () => scheduleDraftSave());
+
+        setTimeout(async () => {
+            const draft = await idbGet(DRAFT_ID);
+            if (draft && draft.state && draft.state.sections) {
+                restoreState(draft.state);
+                setSaveState('✓ 前回の続きを復元しました');
+                showToast('前回の続きを復元しました');
+            }
+        }, 300);
+    });
+    </script>
+</body>
+</html>
