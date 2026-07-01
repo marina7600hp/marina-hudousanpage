@@ -2,8 +2,15 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>作業報告書</title>
+    <!-- スマホでアプリのように使うための設定（ホーム画面に追加で全画面起動） -->
+    <meta name="theme-color" content="#059669">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="作業報告書">
+    <meta name="format-detection" content="telephone=no">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -61,6 +68,18 @@
         #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: #0f172a; color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); opacity: 0; pointer-events: none; transition: all 0.25s ease; z-index: 1100; }
         #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+        /* パスワード入口（簡易ロック） */
+        #gate { position: fixed; inset: 0; z-index: 3000; background: #0f172a; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        #gate.hidden { display: none; }
+        .gate-card { background: #fff; border-radius: 12px; padding: 28px 24px; width: 100%; max-width: 340px; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+        .gate-title { font-size: 18px; font-weight: 700; color: #0f172a; }
+        .gate-sub { font-size: 13px; color: #64748b; margin: 6px 0 16px; }
+        #gatePw { width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; text-align: center; }
+        #gateBtn { width: 100%; margin-top: 12px; background: #059669; color: #fff; border: none; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+        #gateBtn:hover { background: #047857; }
+        .gate-rem { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: #64748b; margin-top: 12px; }
+        .gate-err { color: #dc2626; font-size: 13px; font-weight: 600; margin-top: 10px; min-height: 18px; }
+
         /* 履歴パネル */
         #historyPanel { position: fixed; inset: 0; z-index: 900; display: none; }
         #historyPanel.open { display: block; }
@@ -100,6 +119,18 @@
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-12 layout-compact">
+
+    <!-- ==================== パスワード入口（簡易ロック） ==================== -->
+    <div id="gate" class="no-print">
+        <div class="gate-card">
+            <div class="gate-title">🔒 作業報告書クラウド</div>
+            <p class="gate-sub">パスワードを入力してください</p>
+            <input id="gatePw" type="password" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="パスワード">
+            <button id="gateBtn" type="button">開く</button>
+            <label class="gate-rem"><input type="checkbox" id="gateRemember" checked> この端末では次回から省略</label>
+            <p id="gateErr" class="gate-err"></p>
+        </div>
+    </div>
 
     <!-- ==================== 操作ツールバー ==================== -->
     <div class="no-print sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
@@ -263,6 +294,43 @@
     <div id="toast" class="no-print"></div>
 
     <script>
+    /* =========================================================
+       パスワード入口（簡易ロック）
+       ※静的サイト用の簡易ロックです。強固な認証ではありません。
+       ========================================================= */
+    const GATE_SHA = '805d153531a69704a677be68ad70fd5b801b6caf5dfe8594d357c065e5a990aa';
+    const GATE_DJB2 = 'c70a71c';
+    const GATE_KEY = 'houkokushoAuthed';
+    async function gateHashCheck(pw) {
+        try {
+            if (window.crypto && crypto.subtle) {
+                const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+                const hex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+                return hex === GATE_SHA;
+            }
+        } catch (e) { /* fallthrough */ }
+        let h = 5381; for (let i = 0; i < pw.length; i++) { h = ((h * 33) ^ pw.charCodeAt(i)) >>> 0; }
+        return h.toString(16) === GATE_DJB2;
+    }
+    function gateInit() {
+        const gate = document.getElementById('gate');
+        if (!gate) return;
+        if (localStorage.getItem(GATE_KEY) === '1' || sessionStorage.getItem(GATE_KEY) === '1') { gate.classList.add('hidden'); return; }
+        const input = document.getElementById('gatePw');
+        const err = document.getElementById('gateErr');
+        const btn = document.getElementById('gateBtn');
+        const rem = document.getElementById('gateRemember');
+        async function tryUnlock() {
+            err.textContent = '';
+            const ok = await gateHashCheck(input.value);
+            if (ok) { (rem && rem.checked ? localStorage : sessionStorage).setItem(GATE_KEY, '1'); gate.classList.add('hidden'); }
+            else { err.textContent = 'パスワードが違います'; input.value = ''; input.focus(); }
+        }
+        btn.addEventListener('click', tryUnlock);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); tryUnlock(); } });
+        setTimeout(() => input.focus(), 100);
+    }
+
     /* =========================================================
        会社情報プリセット
        ========================================================= */
@@ -820,6 +888,7 @@
         setLayout('compact', true);
     }
     window.addEventListener('DOMContentLoaded', async () => {
+        gateInit();
         _initialMeta = {};
         document.querySelectorAll('.report-card [data-key]').forEach((e) => { _initialMeta[e.getAttribute('data-key')] = e.innerHTML; });
         renderSections(DEFAULT_SECTIONS);
