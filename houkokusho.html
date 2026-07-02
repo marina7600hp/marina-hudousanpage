@@ -623,7 +623,15 @@
 
     /* ---- Googleドライブ連携の設定（URL・フォルダID） ---- */
     // デプロイ済みウェブアプリURL（初期値。⚙から変更可）
-    const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNGyNrCRFLp3s1RGJbkIKf8kDkDyK9RFNb0BsfP2cJuzHEGVfBEQaIWh3aO49orjAl_g/exec';
+    const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw2ypHosr4uisLEdkkgy7Hzky6IGlDDiLHYvtfJ5ieFUkzJW9mxDeZhZJZqH1Jk3zRyXQ/exec';
+    // 過去に保存された古いURLが残っていれば自動的に新しい既定URLへ切り替える
+    const OLD_SCRIPT_URLS = [
+        'https://script.google.com/macros/s/AKfycbxNGyNrCRFLp3s1RGJbkIKf8kDkDyK9RFNb0BsfP2cJuzHEGVfBEQaIWh3aO49orjAl_g/exec'
+    ];
+    (function migrateScriptUrl() {
+        const saved = (localStorage.getItem('driveScriptUrl') || '').trim();
+        if (saved && OLD_SCRIPT_URLS.indexOf(saved) !== -1) localStorage.removeItem('driveScriptUrl');
+    })();
     const DEFAULT_DRIVE_FOLDER = '1uT5gNcaKjflrQhoOw7dNMxNoRlBZwe9Z';
     function driveScriptUrl() { return (localStorage.getItem('driveScriptUrl') || DEFAULT_SCRIPT_URL).trim(); }
     function driveFolderId() { return (localStorage.getItem('driveFolderId') || DEFAULT_DRIVE_FOLDER).trim(); }
