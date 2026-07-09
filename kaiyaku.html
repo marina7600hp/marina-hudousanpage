@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <title>解約通知フォーム | 有限会社仁方大森マリーナー</title>
+    <meta name="theme-color" content="#005f73">
+    <meta name="format-detection" content="telephone=no">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        coastal: {
+                            50: '#f4fbfb',
+                            100: '#e5f6f6',
+                            200: '#ceecee',
+                            500: '#028090',
+                            600: '#005f73',
+                            900: '#0a1d25',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans JP', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Tailwind CDNが読み込めない場合のフォールバック（表示切替が壊れないように） */
+        .hidden { display: none !important; }
+        .field-label { display: block; font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 4px; }
+        .field-label .req { color: #dc2626; font-size: 11px; margin-left: 4px; }
+        .field-label .opt { color: #94a3b8; font-size: 11px; margin-left: 4px; font-weight: 500; }
+        .field-input {
+            width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 8px;
+            font-size: 16px; background: #fff; color: #0f172a;
+        }
+        .field-input:focus { outline: 2px solid #028090; outline-offset: -1px; border-color: #028090; }
+        .section-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 16px; }
+        .section-title {
+            font-size: 15px; font-weight: 700; color: #005f73; margin-bottom: 14px;
+            padding-left: 10px; border-left: 4px solid #028090;
+        }
+        .confirm-row { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 13.5px; }
+        .confirm-row dt { flex: 0 0 118px; color: #64748b; }
+        .confirm-row dd { flex: 1; color: #0f172a; font-weight: 500; white-space: pre-wrap; word-break: break-all; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen">
+
+    <!-- ヘッダー -->
+    <header class="bg-coastal-600 text-white">
+        <div class="max-w-xl mx-auto px-4 py-4">
+            <p class="text-[10px] tracking-[0.25em] text-coastal-200">NIGATA MARINA</p>
+            <h1 class="text-base font-bold tracking-wider">有限会社仁方大森マリーナー</h1>
+            <p id="headerSubtitle" class="text-sm mt-1 text-coastal-100">解約通知フォーム</p>
+        </div>
+    </header>
+
+    <main class="max-w-xl mx-auto px-4 py-6 pb-16">
+
+        <!-- ==================== 種別選択（URLに種別指定がない場合のみ表示） ==================== -->
+        <div id="typeSelect" class="hidden space-y-4">
+            <p class="text-sm text-slate-600">お手続きの種類を選択してください。</p>
+            <button type="button" onclick="selectType('k')" class="w-full bg-white border-2 border-coastal-500 text-coastal-600 rounded-xl p-5 text-left shadow-sm hover:bg-coastal-50">
+                <span class="block text-lg font-bold">🏠 賃貸物件の解約</span>
+                <span class="block text-xs text-slate-500 mt-1">アパート・マンション・戸建て等の賃貸借契約の解約通知</span>
+            </button>
+            <button type="button" onclick="selectType('p')" class="w-full bg-white border-2 border-coastal-500 text-coastal-600 rounded-xl p-5 text-left shadow-sm hover:bg-coastal-50">
+                <span class="block text-lg font-bold">🚗 月極駐車場の解約</span>
+                <span class="block text-xs text-slate-500 mt-1">月極駐車場の賃貸借契約の解約通知</span>
+            </button>
+        </div>
+
+        <!-- ==================== 入力フォーム ==================== -->
+        <div id="formWrap" class="hidden">
+
+            <div class="bg-coastal-50 border border-coastal-200 rounded-xl p-4 mb-5 text-sm text-slate-700 leading-relaxed">
+                <p class="font-bold text-coastal-600 mb-1" id="introTitle">解約通知書（管理物件用）</p>
+                <p>下記フォームにご入力のうえ送信してください。<strong>フォームの送信をもって解約通知のお手続きが完了します。</strong>送信後、受付完了画面が表示されます。</p>
+            </div>
+
+            <form id="kaiyakuForm" novalidate class="space-y-5">
+
+                <!-- 契約者情報 -->
+                <section class="section-card">
+                    <h2 class="section-title">ご契約者さま情報</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="field-label" for="name">ご契約者名<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="name" required autocomplete="name" placeholder="例）大森 太郎">
+                        </div>
+                        <div>
+                            <label class="field-label" for="kana">フリガナ<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="kana" required placeholder="例）オオモリ タロウ">
+                        </div>
+                        <div>
+                            <label class="field-label" for="tel">お電話番号<span class="req">必須</span></label>
+                            <input class="field-input" type="tel" id="tel" required autocomplete="tel" inputmode="tel" placeholder="例）090-1234-5678">
+                        </div>
+                        <div>
+                            <label class="field-label" for="email">メールアドレス<span class="opt">任意・受付控えをお送りします</span></label>
+                            <input class="field-input" type="email" id="email" autocomplete="email" inputmode="email" placeholder="例）taro@example.com">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 物件情報 -->
+                <section class="section-card">
+                    <h2 class="section-title" id="bukkenSectionTitle">解約する物件</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="field-label" for="bukken"><span id="bukkenLabel">物件名</span><span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="bukken" required placeholder="例）○○ハイツ">
+                        </div>
+                        <div>
+                            <label class="field-label" for="room"><span id="roomLabel">部屋番号</span><span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="room" required placeholder="例）101">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 解約について -->
+                <section class="section-card">
+                    <h2 class="section-title">解約について</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="field-label" for="endDate">解約日（<span id="endDateLabel">退去予定日</span>）<span class="req">必須</span></label>
+                            <input class="field-input" type="date" id="endDate" required>
+                            <p id="endDateWarn" class="hidden text-xs text-amber-600 mt-1.5 leading-relaxed">⚠ 解約日まで1ヶ月未満です。ご契約により解約予告期間（通常1ヶ月前）が定められている場合、解約日が調整となることがあります。詳細は担当者よりご連絡いたします。</p>
+                        </div>
+                        <div id="tachiaiWrap">
+                            <p class="field-label">退去立会いのご希望日時<span class="req">必須</span></p>
+                            <p class="text-xs text-slate-500 mb-2 leading-relaxed">立会いは <strong>9時〜17時</strong> の間で行います。第1候補は必須です。第2・第3候補までご入力いただけます。<br>※立会日は荷物が無い状態で行います。</p>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="field-label" for="t1d">第1候補<span class="req">必須</span></label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <input class="field-input" type="date" id="t1d" required>
+                                        <select class="field-input tachiai-time" id="t1t" required><option value="">時間を選択</option></select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="field-label" for="t2d">第2候補<span class="opt">任意</span></label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <input class="field-input" type="date" id="t2d">
+                                        <select class="field-input tachiai-time" id="t2t"><option value="">時間を選択</option></select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="field-label" for="t3d">第3候補<span class="opt">任意</span></label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <input class="field-input" type="date" id="t3d">
+                                        <select class="field-input tachiai-time" id="t3t"><option value="">時間を選択</option></select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="field-label" for="reason">解約理由<span class="opt">任意</span></label>
+                            <select class="field-input" id="reason">
+                                <option value="">選択してください</option>
+                                <option>転勤・転職</option>
+                                <option>住み替え</option>
+                                <option>ご家族の事情</option>
+                                <option id="reasonCarOpt">車の買い替え・手放し</option>
+                                <option>その他</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="field-label" for="reasonText">理由の詳細<span class="opt">任意</span></label>
+                            <input class="field-input" type="text" id="reasonText" placeholder="差し支えなければご記入ください">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 清掃代（管理物件のみ） -->
+                <section class="section-card" id="cleaningSection">
+                    <h2 class="section-title">退去時の清掃代について</h2>
+                    <div id="feeBox" class="rounded-lg bg-amber-50 border border-amber-200 p-4 mb-3">
+                        <p class="text-sm text-slate-700 font-bold mb-2">ご退去時の清掃代（税込）</p>
+                        <div id="feeBreakdown" class="text-sm text-slate-800 space-y-1"></div>
+                        <p class="text-xs text-slate-500 mt-2">※ご退去時に敷金からの精算またはご請求となります。<br>※入居期間に関わらず、貸主指定の清掃業者による清掃を借主負担で行います。</p>
+                    </div>
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" id="agreeCleaning" class="mt-1 w-5 h-5 accent-[#028090]" required>
+                        <span class="text-sm leading-relaxed">退去時清掃代について確認し、承諾しました。<span class="req" style="color:#dc2626;font-size:11px;">必須</span></span>
+                    </label>
+                </section>
+
+                <!-- 退去時の注意事項（管理物件のみ） -->
+                <section class="section-card" id="termsSection">
+                    <h2 class="section-title">退去時の注意事項</h2>
+                    <ul class="text-sm text-slate-700 leading-relaxed space-y-2 list-disc pl-5 mb-4">
+                        <li>立会日は荷物が無い状態で行います。</li>
+                        <li>退去に伴い出るゴミ等は外に放置せず、責任を持って処分して下さい。残存物とみなし撤去費用を頂戴する場合があります。</li>
+                        <li>設備品の取扱説明書ファイルは立会日にご返却お願い致します。</li>
+                        <li>入居キーは貸主が処分致しますので複製した入居キーもご返却をお願い致します。</li>
+                        <li>退去月の賃料は月割り計算と致します。</li>
+                        <li>入居期間に関わらず貸主が指定した清掃業者による清掃を借主負担により必須で行います。</li>
+                        <li>特殊清掃が必要な場合は別途費用を請求致します。</li>
+                        <li>その他、契約事項に従い原状回復費用の借主負担部分を借主が負担致します。クロス張替え1,900円/㎡（税別）と致します。残材処理費は処理費用により借主負担分を請求致します。</li>
+                    </ul>
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" id="agreeTerms" class="mt-1 w-5 h-5 accent-[#028090]" required>
+                        <span class="text-sm leading-relaxed">上記の退去時の注意事項を確認し、<strong>同意しました</strong>。<span style="color:#dc2626;font-size:11px;">必須</span></span>
+                    </label>
+                </section>
+
+                <!-- 車両情報（駐車場のみ） -->
+                <section class="section-card hidden" id="carSection">
+                    <h2 class="section-title">ご契約車両<span class="text-xs font-medium text-slate-400 ml-2">任意</span></h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="field-label" for="carModel">車種<span class="opt">任意</span></label>
+                            <input class="field-input" type="text" id="carModel" placeholder="例）トヨタ プリウス">
+                        </div>
+                        <div>
+                            <label class="field-label" for="carNumber">ナンバー<span class="opt">任意</span></label>
+                            <input class="field-input" type="text" id="carNumber" placeholder="例）広島 500 あ 12-34">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 転居先（管理物件のみ） -->
+                <section class="section-card" id="newAddressSection">
+                    <h2 class="section-title">お引越し先<span class="text-xs font-medium text-slate-400 ml-2">任意・決まっていれば</span></h2>
+                    <div>
+                        <label class="field-label" for="newAddress">転居先ご住所<span class="opt">任意</span></label>
+                        <input class="field-input" type="text" id="newAddress" placeholder="例）呉市○○町1-2-3">
+                        <p class="text-xs text-slate-500 mt-1.5">敷金精算書等の郵送先となります。未定の場合は後日お知らせください。</p>
+                    </div>
+                </section>
+
+                <!-- 返金先口座 -->
+                <section class="section-card">
+                    <h2 class="section-title"><span id="bankSectionTitle">敷金等</span>ご返金先口座<span class="text-xs font-medium text-slate-400 ml-2">任意</span></h2>
+                    <p class="text-xs text-slate-500 mb-3 leading-relaxed">ご返金が発生する場合の振込先です。後日のご連絡でも構いません。</p>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="field-label" for="bankName">銀行名</label>
+                                <input class="field-input" type="text" id="bankName" placeholder="例）広島銀行">
+                            </div>
+                            <div>
+                                <label class="field-label" for="bankBranch">支店名</label>
+                                <input class="field-input" type="text" id="bankBranch" placeholder="例）仁方支店">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="field-label" for="bankType">預金種別</label>
+                                <select class="field-input" id="bankType">
+                                    <option value="">選択</option>
+                                    <option>普通</option>
+                                    <option>当座</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label" for="bankNumber">口座番号</label>
+                                <input class="field-input" type="text" id="bankNumber" inputmode="numeric" placeholder="例）1234567">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="field-label" for="bankHolder">口座名義（カナ）</label>
+                            <input class="field-input" type="text" id="bankHolder" placeholder="例）オオモリ タロウ">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 備考 -->
+                <section class="section-card">
+                    <h2 class="section-title">備考・ご連絡事項<span class="text-xs font-medium text-slate-400 ml-2">任意</span></h2>
+                    <textarea class="field-input" id="note" rows="3" placeholder="その他ご連絡事項があればご記入ください"></textarea>
+                </section>
+
+                <!-- ハニーポット（スパム対策・非表示） -->
+                <input type="text" id="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;" aria-hidden="true">
+
+                <!-- 同意・送信 -->
+                <section class="section-card">
+                    <label class="flex items-start gap-3 cursor-pointer mb-4">
+                        <input type="checkbox" id="agreePrivacy" class="mt-1 w-5 h-5 accent-[#028090]" required>
+                        <span class="text-sm leading-relaxed">ご入力いただいた個人情報は、解約手続き・退去立会い・精算およびご連絡の目的にのみ利用し、その他の目的には使用しません。<strong>個人情報の取り扱いについて同意します。</strong><span style="color:#dc2626;font-size:11px;">必須</span></span>
+                    </label>
+                    <label class="flex items-start gap-3 cursor-pointer mb-4">
+                        <input type="checkbox" id="agreeWritten" class="mt-1 w-5 h-5 accent-[#028090]" required>
+                        <span class="text-sm leading-relaxed">契約書に「解約は書面により通知する」旨の定めがある場合においても、本フォームによる通知および送信内容をもとに作成・保存される解約通知書（電磁的記録）を、<strong>当該書面による解約通知と同等のものとして取り扱うことに同意します。</strong><span style="color:#dc2626;font-size:11px;">必須</span></span>
+                    </label>
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" id="agree" class="mt-1 w-5 h-5 accent-[#028090]" required>
+                        <span class="text-sm leading-relaxed">記載内容に相違ありません。<strong>本フォームの送信をもって解約通知とする</strong>ことに同意します。<span style="color:#dc2626;font-size:11px;">必須</span></span>
+                    </label>
+                    <p id="formError" class="hidden text-sm text-red-600 font-bold mt-3"></p>
+                    <button type="submit" id="submitBtn" class="w-full mt-4 bg-coastal-600 hover:bg-coastal-500 text-white font-bold text-base py-4 rounded-xl shadow-md disabled:opacity-50">
+                        入力内容を確認する
+                    </button>
+                </section>
+            </form>
+        </div>
+
+        <!-- ==================== 確認モーダル ==================== -->
+        <div id="confirmModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div class="bg-white w-full max-w-xl rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col">
+                <div class="px-5 py-4 border-b border-slate-200">
+                    <h3 class="font-bold text-coastal-600">入力内容のご確認</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">この内容で解約通知を送信します。よろしいですか？</p>
+                </div>
+                <div class="px-5 py-3 overflow-y-auto">
+                    <dl id="confirmList"></dl>
+                </div>
+                <div class="px-5 py-4 border-t border-slate-200 flex gap-3">
+                    <button type="button" onclick="closeConfirm()" class="flex-1 border border-slate-300 text-slate-600 font-bold py-3.5 rounded-xl">修正する</button>
+                    <button type="button" id="sendBtn" onclick="submitForm()" class="flex-1 bg-coastal-600 hover:bg-coastal-500 text-white font-bold py-3.5 rounded-xl disabled:opacity-50">送信する</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 受付完了画面 ==================== -->
+        <div id="doneScreen" class="hidden text-center py-8">
+            <div class="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
+                <div class="text-5xl mb-4">✅</div>
+                <h2 class="text-xl font-bold text-coastal-600 mb-2">解約通知を受け付けました</h2>
+                <p class="text-sm text-slate-600 leading-relaxed mb-4">解約通知のお手続きは<strong>これで完了</strong>です。<br>内容を確認のうえ、担当者よりご連絡いたします。</p>
+                <div class="bg-slate-50 rounded-lg py-3 px-4 inline-block">
+                    <p class="text-xs text-slate-500">受付番号</p>
+                    <p id="receiptNo" class="text-lg font-bold tracking-wider text-slate-800">-</p>
+                </div>
+                <p class="text-xs text-slate-400 mt-4">この画面をスクリーンショット等で保存いただくと安心です。</p>
+            </div>
+            <p class="text-sm text-slate-500 mt-6">ご不明な点はお電話ください<br>
+                <a href="tel:0823-27-7600" class="text-coastal-600 font-bold text-lg">0823-27-7600</a>
+            </p>
+        </div>
+
+        <!-- ==================== 送信中オーバーレイ ==================== -->
+        <div id="loading" class="hidden fixed inset-0 z-[60] bg-white/80 flex flex-col items-center justify-center">
+            <div class="w-10 h-10 border-4 border-coastal-200 border-t-coastal-500 rounded-full animate-spin"></div>
+            <p class="text-sm text-slate-600 mt-4 font-bold">送信しています…</p>
+        </div>
+    </main>
+
+    <footer class="text-center pb-10 px-4">
+        <p class="text-xs text-slate-400 leading-relaxed">有限会社仁方大森マリーナー<br>TEL <a href="tel:0823-27-7600" class="underline">0823-27-7600</a></p>
+    </footer>
+
+    <script>
+        // ================================================================
+        // ★★★ 設定：Google Apps Script のウェブアプリURLを貼り付けてください ★★★
+        // （KAIYAKU_SETUP.md の手順でデプロイしたURL）
+        // ================================================================
+        const GAS_URL = '';
+
+        // ================================================================
+        // ★ エアコン洗浄代（税込・円/台）
+        //   金額を変更する場合は kaiyaku-link.html 側の同名定数も合わせて変更
+        // ================================================================
+        const AC_PRICE_NORMAL = 12100; // 通常エアコン
+        const AC_PRICE_AUTO = 19800;   // お掃除機能付きエアコン
+
+        // ---------------- URLパラメータ ----------------
+        // t=k … 管理物件 / t=p … 月極駐車場
+        // fee=33000 … 退去時室内清掃代（円・税込）※管理物件のみ
+        // ac1=2 … 通常エアコン台数 / ac2=1 … お掃除機能付きエアコン台数
+        // b=物件名 / r=部屋番号 … 事前入力（任意）
+        const params = new URLSearchParams(location.search);
+        let TYPE = params.get('t') === 'p' ? 'parking' : (params.get('t') === 'k' ? 'kanri' : null);
+        const intParam = (k) => {
+            const n = parseInt(params.get(k), 10);
+            return Number.isFinite(n) && n > 0 ? n : 0;
+        };
+        const FEE = intParam('fee') || null;
+        const AC_N = intParam('ac1'); // 通常エアコン台数
+        const AC_A = intParam('ac2'); // お掃除機能付きエアコン台数
+        const FEE_TOTAL = (FEE || 0) + AC_N * AC_PRICE_NORMAL + AC_A * AC_PRICE_AUTO;
+
+        const $ = (id) => document.getElementById(id);
+        const yen = (n) => n.toLocaleString('ja-JP') + '円（税込）';
+
+        function selectType(t) {
+            params.set('t', t);
+            location.search = params.toString();
+        }
+
+        // ---------------- 画面初期化 ----------------
+        function init() {
+            if (!TYPE) {
+                $('typeSelect').classList.remove('hidden');
+                return;
+            }
+            $('formWrap').classList.remove('hidden');
+
+            const isParking = TYPE === 'parking';
+            $('headerSubtitle').textContent = isParking ? '解約通知フォーム（月極駐車場）' : '解約通知フォーム（賃貸物件）';
+            $('introTitle').textContent = isParking ? '解約通知書（月極駐車場用）' : '解約通知書（管理物件用）';
+            $('bukkenSectionTitle').textContent = isParking ? '解約する駐車場' : '解約する物件';
+            $('bukkenLabel').textContent = isParking ? '駐車場名' : '物件名';
+            $('roomLabel').textContent = isParking ? '区画番号' : '部屋番号';
+            $('bukken').placeholder = isParking ? '例）○○駐車場' : '例）○○ハイツ';
+            $('room').placeholder = isParking ? '例）3番' : '例）101';
+            $('endDateLabel').textContent = isParking ? '利用終了日' : '退去予定日';
+            $('bankSectionTitle').textContent = isParking ? '保証金等' : '敷金等';
+
+            // 種別ごとのセクション表示切替
+            if (isParking) {
+                $('cleaningSection').classList.add('hidden');
+                $('agreeCleaning').required = false;
+                $('termsSection').classList.add('hidden');
+                $('agreeTerms').required = false;
+                $('newAddressSection').classList.add('hidden');
+                $('tachiaiWrap').classList.add('hidden');
+                $('t1d').required = false;
+                $('t1t').required = false;
+                $('carSection').classList.remove('hidden');
+            } else {
+                // 「車の買い替え」は駐車場専用の選択肢（iOSではoptionのCSS非表示が効かないため削除）
+                $('reasonCarOpt').remove();
+                // 清掃代の内訳表示
+                renderFeeBox();
+                // 立会い時間の選択肢（9時〜17時・30分刻み）
+                fillTimeOptions();
+            }
+
+            // 事前入力
+            if (params.get('b')) $('bukken').value = params.get('b');
+            if (params.get('r')) $('room').value = params.get('r');
+
+            // 解約日・立会い候補日：今日以降のみ（端末ローカル日付で計算）
+            const today = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            const minDate = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+            ['endDate', 't1d', 't2d', 't3d'].forEach((id) => { $(id).min = minDate; });
+            $('endDate').addEventListener('change', () => {
+                const v = $('endDate').value;
+                if (!v) return $('endDateWarn').classList.add('hidden');
+                const limit = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
+                $('endDateWarn').classList.toggle('hidden', new Date(v + 'T00:00:00') >= limit);
+            });
+        }
+
+        // ---------------- 清掃代の内訳表示 ----------------
+        function renderFeeBox() {
+            const num = (n) => n.toLocaleString('ja-JP');
+            const rows = [['室内清掃代', FEE ? num(FEE) + '円' : '別途ご案内いたします']];
+            if (AC_N) rows.push([`エアコン洗浄代（通常 ${AC_N}台）`, `${num(AC_PRICE_NORMAL)}円 × ${AC_N} ＝ ${num(AC_PRICE_NORMAL * AC_N)}円`]);
+            if (AC_A) rows.push([`エアコン洗浄代（お掃除機能付き ${AC_A}台）`, `${num(AC_PRICE_AUTO)}円 × ${AC_A} ＝ ${num(AC_PRICE_AUTO * AC_A)}円`]);
+            let html = rows.map(([k, val]) =>
+                `<div class="flex justify-between gap-2"><span>${k}</span><span class="font-bold text-right whitespace-nowrap">${val}</span></div>`).join('');
+            if (FEE || AC_N || AC_A) {
+                const suffix = FEE ? '' : '<span class="text-xs font-normal">（＋室内清掃代 別途）</span>';
+                html += `<div class="flex justify-between gap-2 border-t border-amber-300 mt-2 pt-2"><span class="font-bold">合計（税込）</span><span class="font-bold text-lg">${num(FEE_TOTAL)}円${suffix}</span></div>`;
+            }
+            $('feeBreakdown').innerHTML = html;
+        }
+
+        // ---------------- 立会い時間の選択肢（9:00〜17:00・30分刻み） ----------------
+        function fillTimeOptions() {
+            const opts = [];
+            for (let h = 9; h <= 17; h++) {
+                opts.push(`${h}:00`);
+                if (h < 17) opts.push(`${h}:30`);
+            }
+            document.querySelectorAll('.tachiai-time').forEach((sel) => {
+                opts.forEach((t) => {
+                    const o = document.createElement('option');
+                    o.value = t;
+                    o.textContent = t;
+                    sel.appendChild(o);
+                });
+            });
+        }
+
+        // ---------------- 入力値の収集 ----------------
+        function collect() {
+            const v = (id) => $(id).value.trim();
+            const bank = [v('bankName'), v('bankBranch'), v('bankType'), v('bankNumber'), v('bankHolder')];
+            const cand = (d, t, label) => (v(d) && v(t)) ? `${label}：${fmtDate(v(d))} ${v(t)}` : '';
+            const tachiai = TYPE === 'kanri'
+                ? [cand('t1d', 't1t', '第1候補'), cand('t2d', 't2t', '第2候補'), cand('t3d', 't3t', '第3候補')].filter(Boolean).join('　／　')
+                : '';
+            return {
+                type: TYPE,
+                fee: TYPE === 'kanri' ? FEE : null,
+                acNormal: TYPE === 'kanri' ? AC_N : 0,
+                acAuto: TYPE === 'kanri' ? AC_A : 0,
+                acNormalUnit: AC_PRICE_NORMAL,
+                acAutoUnit: AC_PRICE_AUTO,
+                feeTotal: TYPE === 'kanri' && (FEE || AC_N || AC_A) ? FEE_TOTAL : null,
+                name: v('name'), kana: v('kana'), tel: v('tel'), email: v('email'),
+                bukken: v('bukken'), room: v('room'),
+                endDate: v('endDate'),
+                tachiai: tachiai,
+                reason: [v('reason'), v('reasonText')].filter(Boolean).join(' / '),
+                newAddress: TYPE === 'kanri' ? v('newAddress') : '',
+                bank: bank.some(Boolean) ? { name: bank[0], branch: bank[1], type: bank[2], number: bank[3], holder: bank[4] } : null,
+                car: TYPE === 'parking' && (v('carModel') || v('carNumber')) ? { model: v('carModel'), number: v('carNumber') } : null,
+                note: v('note'),
+                agreeCleaning: TYPE === 'kanri' ? $('agreeCleaning').checked : null,
+                agreeTerms: TYPE === 'kanri' ? $('agreeTerms').checked : null,
+                agreePrivacy: $('agreePrivacy').checked,
+                agreeWritten: $('agreeWritten').checked,
+                website: $('website').value, // ハニーポット
+                submittedFrom: location.href,
+            };
+        }
+
+        // ---------------- 確認モーダル ----------------
+        function fmtDate(s) {
+            if (!s) return '';
+            const [y, m, d] = s.split('-');
+            return `${y}年${Number(m)}月${Number(d)}日`;
+        }
+
+        function openConfirm() {
+            const d = collect();
+            const isParking = TYPE === 'parking';
+            const rows = [
+                ['ご契約者名', `${d.name}（${d.kana}）`],
+                ['お電話番号', d.tel],
+                ['メール', d.email || '（未入力）'],
+                [isParking ? '駐車場名' : '物件名', d.bukken],
+                [isParking ? '区画番号' : '部屋番号', d.room],
+                ['解約日', fmtDate(d.endDate)],
+            ];
+            if (!isParking) {
+                rows.push(['室内清掃代', d.fee ? yen(d.fee) : '別途ご案内']);
+                if (d.acNormal) rows.push(['エアコン洗浄（通常）', `${AC_PRICE_NORMAL.toLocaleString('ja-JP')}円 × ${d.acNormal}台`]);
+                if (d.acAuto) rows.push(['エアコン洗浄（お掃除機能付き）', `${AC_PRICE_AUTO.toLocaleString('ja-JP')}円 × ${d.acAuto}台`]);
+                if (d.feeTotal) rows.push(['清掃代等 合計', yen(d.feeTotal) + (d.fee ? '' : '（室内清掃代 別途）')]);
+                rows.push(['立会い希望', d.tachiai.replace(/　／　/g, '\n')]);
+                if (d.newAddress) rows.push(['転居先', d.newAddress]);
+            }
+            if (d.reason) rows.push(['解約理由', d.reason]);
+            if (d.car) rows.push(['ご契約車両', [d.car.model, d.car.number].filter(Boolean).join(' ')]);
+            if (d.bank) rows.push(['返金先口座', `${d.bank.name} ${d.bank.branch} ${d.bank.type} ${d.bank.number}\n${d.bank.holder}`]);
+            if (d.note) rows.push(['備考', d.note]);
+
+            $('confirmList').innerHTML = rows.map(([k, val]) =>
+                `<div class="confirm-row"><dt>${esc(k)}</dt><dd>${esc(val)}</dd></div>`).join('');
+            $('confirmModal').classList.remove('hidden');
+        }
+
+        function closeConfirm() { $('confirmModal').classList.add('hidden'); }
+        function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+        // ---------------- バリデーション → 確認 ----------------
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+            $('kaiyakuForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                $('formError').classList.add('hidden');
+                const form = $('kaiyakuForm');
+                // 非表示セクションの required は種別初期化で外している
+                if (!form.checkValidity()) {
+                    form.reportValidity();
+                    $('formError').textContent = '未入力の必須項目があります。ご確認ください。';
+                    $('formError').classList.remove('hidden');
+                    return;
+                }
+                // 立会い第2・第3候補：日付と時間はセットで入力
+                if (TYPE === 'kanri') {
+                    for (const [d, t, label] of [['t2d', 't2t', '第2候補'], ['t3d', 't3t', '第3候補']]) {
+                        const dd = $(d).value, tt = $(t).value;
+                        if ((dd && !tt) || (!dd && tt)) {
+                            $('formError').textContent = `退去立会い${label}は、日付と時間の両方をご入力ください。`;
+                            $('formError').classList.remove('hidden');
+                            $(dd ? t : d).focus();
+                            return;
+                        }
+                    }
+                }
+                openConfirm();
+            });
+        });
+
+        // ---------------- 送信 ----------------
+        async function submitForm() {
+            if (!GAS_URL) {
+                alert('送信先が未設定です。お手数ですが 0823-27-7600 までお電話にてご連絡ください。\n（管理者向け：kaiyaku.html 内の GAS_URL を設定してください）');
+                return;
+            }
+            $('sendBtn').disabled = true;
+            $('loading').classList.remove('hidden');
+            try {
+                const res = await fetch(GAS_URL, {
+                    method: 'POST',
+                    // Content-Type を text/plain にすることで CORS プリフライトを回避
+                    body: JSON.stringify(collect()),
+                });
+                const json = await res.json();
+                if (!json.ok) throw new Error(json.error || 'server error');
+                closeConfirm();
+                $('formWrap').classList.add('hidden');
+                $('receiptNo').textContent = json.receiptNo || '-';
+                $('doneScreen').classList.remove('hidden');
+                window.scrollTo(0, 0);
+            } catch (err) {
+                closeConfirm();
+                $('formError').textContent = '送信に失敗しました。通信環境をご確認のうえ再度お試しいただくか、0823-27-7600 までお電話ください。';
+                $('formError').classList.remove('hidden');
+            } finally {
+                $('sendBtn').disabled = false;
+                $('loading').classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

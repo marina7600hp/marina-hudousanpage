@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <title>解約フォーム リンク作成（管理者用）</title>
+    <meta name="theme-color" content="#005f73">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        coastal: { 50:'#f4fbfb', 100:'#e5f6f6', 200:'#ceecee', 500:'#028090', 600:'#005f73', 900:'#0a1d25' }
+                    },
+                    fontFamily: { sans: ['Noto Sans JP', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Tailwind CDNが読み込めない場合のフォールバック */
+        .hidden { display: none !important; }
+        .field-label { display:block; font-size:13px; font-weight:700; color:#334155; margin-bottom:4px; }
+        .field-input { width:100%; padding:11px 13px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; background:#fff; }
+        .field-input:focus { outline:2px solid #028090; outline-offset:-1px; }
+        .card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px 16px; }
+        .fee-btn { border:2px solid #cbd5e1; border-radius:10px; padding:10px 6px; text-align:center; cursor:pointer; background:#fff; font-size:13px; }
+        .fee-btn.active { border-color:#028090; background:#e5f6f6; color:#005f73; font-weight:700; }
+        .type-btn { flex:1; border:2px solid #cbd5e1; border-radius:10px; padding:12px 6px; text-align:center; cursor:pointer; background:#fff; font-weight:700; font-size:14px; }
+        .type-btn.active { border-color:#028090; background:#005f73; color:#fff; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-16">
+
+    <header class="bg-coastal-900 text-white">
+        <div class="max-w-xl mx-auto px-4 py-4">
+            <p class="text-[10px] tracking-[0.25em] text-coastal-200">ADMIN</p>
+            <h1 class="text-base font-bold tracking-wider">解約フォーム リンク作成</h1>
+            <p class="text-xs mt-1 text-slate-300">入居者・契約者さまへSMSで送るフォームURLを作成します</p>
+        </div>
+    </header>
+
+    <main class="max-w-xl mx-auto px-4 py-6 space-y-5">
+
+        <!-- 種別 -->
+        <div class="card">
+            <p class="field-label mb-2">① 種別を選択</p>
+            <div class="flex gap-3">
+                <button type="button" id="typeK" class="type-btn active" onclick="setType('k')">🏠 管理物件</button>
+                <button type="button" id="typeP" class="type-btn" onclick="setType('p')">🚗 月極駐車場</button>
+            </div>
+        </div>
+
+        <!-- 清掃代（管理物件のみ） -->
+        <div class="card" id="feeCard">
+            <p class="field-label mb-1">② 退去時清掃代を選択（税込）</p>
+            <p class="text-xs text-slate-500 mb-3">物件に応じたパターンを選ぶと、フォーム上に金額が表示され、入居者に承諾いただきます。</p>
+            <div class="grid grid-cols-3 gap-2" id="feeGrid"></div>
+            <div class="mt-3 flex items-center gap-2">
+                <label class="text-sm font-bold text-slate-600 whitespace-nowrap" for="feeCustom">自由入力：</label>
+                <input class="field-input" style="max-width:160px" type="number" id="feeCustom" inputmode="numeric" placeholder="例）38500" min="0" step="100">
+                <span class="text-sm text-slate-500">円</span>
+            </div>
+            <label class="flex items-center gap-2 mt-3 text-sm text-slate-600 cursor-pointer">
+                <input type="checkbox" id="feeNone" class="w-4 h-4 accent-[#028090]">
+                金額を表示しない（「別途ご案内」と表示されます）
+            </label>
+
+            <div class="mt-4 pt-4 border-t border-slate-200">
+                <p class="field-label mb-1">②-2 エアコン洗浄代（税込・台数を選択）</p>
+                <p class="text-xs text-slate-500 mb-3">台数を選ぶと清掃代に加算され、フォーム上に内訳が表示されます。</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="field-label" for="acNormal">通常エアコン<br><span class="text-coastal-600" id="acNormalPrice"></span></label>
+                        <select class="field-input" id="acNormal"></select>
+                    </div>
+                    <div>
+                        <label class="field-label" for="acAuto">お掃除機能付き<br><span class="text-coastal-600" id="acAutoPrice"></span></label>
+                        <select class="field-input" id="acAuto"></select>
+                    </div>
+                </div>
+                <p id="feeSummary" class="text-sm font-bold text-coastal-600 mt-3"></p>
+            </div>
+        </div>
+
+        <!-- 事前入力 -->
+        <div class="card">
+            <p class="field-label mb-1">③ 事前入力（任意）</p>
+            <p class="text-xs text-slate-500 mb-3">入力しておくと、フォームにあらかじめ表示されます（入居者側で修正も可能）。</p>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label" for="preBukken"><span id="preBukkenLabel">物件名</span></label>
+                    <input class="field-input" type="text" id="preBukken" placeholder="例）○○ハイツ">
+                </div>
+                <div>
+                    <label class="field-label" for="preRoom"><span id="preRoomLabel">部屋番号</span></label>
+                    <input class="field-input" type="text" id="preRoom" placeholder="例）101">
+                </div>
+            </div>
+        </div>
+
+        <!-- 生成結果 -->
+        <div class="card border-2 border-coastal-500">
+            <p class="field-label mb-2">④ 送信用リンク</p>
+            <textarea class="field-input text-xs" id="urlOut" rows="3" readonly onclick="this.select()"></textarea>
+            <button type="button" onclick="copyText('urlOut', this)" class="w-full mt-2 bg-coastal-600 hover:bg-coastal-500 text-white font-bold py-3 rounded-xl">📋 URLをコピー</button>
+
+            <p class="field-label mt-5 mb-2">SMS文面（例文・編集できます）</p>
+            <textarea class="field-input text-sm" id="smsOut" rows="9"></textarea>
+            <button type="button" onclick="copyText('smsOut', this)" class="w-full mt-2 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl">📋 SMS文面をコピー</button>
+        </div>
+
+        <p class="text-xs text-slate-400 leading-relaxed">※ このページはリンクを作るだけで、送信は行いません。コピーした文面をSMS（メッセージアプリ）に貼り付けて送信してください。<br>※ 清掃代パターンの金額は、このファイル（kaiyaku-link.html）内の <code>FEE_PATTERNS</code> を編集すると変更できます。</p>
+    </main>
+
+    <script>
+        // ================================================================
+        // ★ 清掃代パターン（税込・円）：物件に合わせて自由に編集してください
+        // ================================================================
+        const FEE_PATTERNS = [
+            { label: '1R・1K',   amount: 22000 },
+            { label: '1DK・1LDK', amount: 33000 },
+            { label: '2DK・2LDK', amount: 44000 },
+            { label: '3DK以上',  amount: 55000 },
+            { label: '戸建て',    amount: 66000 },
+        ];
+
+        // ================================================================
+        // ★ エアコン洗浄代（税込・円/台）
+        //   金額を変更する場合は kaiyaku.html 側の同名定数も合わせて変更
+        // ================================================================
+        const AC_PRICE_NORMAL = 12100; // 通常エアコン
+        const AC_PRICE_AUTO = 19800;   // お掃除機能付きエアコン
+        const AC_MAX_COUNT = 8;        // 選択できる最大台数
+
+        const $ = (id) => document.getElementById(id);
+        let type = 'k';
+        let selectedFee = null;
+
+        // フォーム本体（kaiyaku.html）のURL：このページと同じ場所に置く前提
+        const FORM_URL = new URL('kaiyaku.html', location.href).href;
+
+        function setType(t) {
+            type = t;
+            $('typeK').classList.toggle('active', t === 'k');
+            $('typeP').classList.toggle('active', t === 'p');
+            $('feeCard').classList.toggle('hidden', t === 'p');
+            $('preBukkenLabel').textContent = t === 'p' ? '駐車場名' : '物件名';
+            $('preRoomLabel').textContent = t === 'p' ? '区画番号' : '部屋番号';
+            $('preBukken').placeholder = t === 'p' ? '例）○○駐車場' : '例）○○ハイツ';
+            $('preRoom').placeholder = t === 'p' ? '例）3番' : '例）101';
+            update();
+        }
+
+        function renderFeeGrid() {
+            $('feeGrid').innerHTML = FEE_PATTERNS.map((p, i) =>
+                `<button type="button" class="fee-btn" id="fee${i}" onclick="pickFee(${i})">
+                    <span class="block text-[11px] text-slate-500">${p.label}</span>
+                    <span class="block font-bold">${p.amount.toLocaleString('ja-JP')}円</span>
+                </button>`).join('');
+        }
+
+        function pickFee(i) {
+            selectedFee = FEE_PATTERNS[i].amount;
+            $('feeCustom').value = '';
+            $('feeNone').checked = false;
+            FEE_PATTERNS.forEach((_, j) => $('fee' + j).classList.toggle('active', i === j));
+            update();
+        }
+
+        function currentFee() {
+            if (type === 'p' || $('feeNone').checked) return null;
+            const custom = parseInt($('feeCustom').value, 10);
+            if (Number.isFinite(custom) && custom > 0) return custom;
+            return selectedFee;
+        }
+
+        function acCount(id) {
+            if (type === 'p') return 0;
+            const n = parseInt($(id).value, 10);
+            return Number.isFinite(n) && n > 0 ? n : 0;
+        }
+
+        function buildUrl() {
+            const u = new URL(FORM_URL);
+            u.searchParams.set('t', type);
+            const fee = currentFee();
+            if (fee) u.searchParams.set('fee', String(fee));
+            const acN = acCount('acNormal'), acA = acCount('acAuto');
+            if (acN) u.searchParams.set('ac1', String(acN));
+            if (acA) u.searchParams.set('ac2', String(acA));
+            if ($('preBukken').value.trim()) u.searchParams.set('b', $('preBukken').value.trim());
+            if ($('preRoom').value.trim()) u.searchParams.set('r', $('preRoom').value.trim());
+            return u.href;
+        }
+
+        function buildSms(url) {
+            const kind = type === 'p' ? '月極駐車場の解約' : 'ご退去（解約）';
+            let feeLine = '';
+            if (type === 'k') {
+                const fee = currentFee();
+                const acN = acCount('acNormal'), acA = acCount('acAuto');
+                const total = (fee || 0) + acN * AC_PRICE_NORMAL + acA * AC_PRICE_AUTO;
+                if (total > 0) {
+                    feeLine = `\n※退去時清掃代等：合計${total.toLocaleString('ja-JP')}円（税込）` +
+                        (fee ? '' : '＋室内清掃代（別途ご案内）') +
+                        `\n（内訳はフォームに表示されます）`;
+                }
+            }
+            return `【仁方大森マリーナー】\n` +
+                `いつもお世話になっております。\n` +
+                `${kind}のお手続きは、下記フォームよりお願いいたします。` +
+                `フォームの送信をもって解約通知のお手続きが完了します。${feeLine}\n\n` +
+                `${url}\n\n` +
+                `ご不明な点は 0823-27-7600 までお電話ください。`;
+        }
+
+        function updateFeeSummary() {
+            const num = (n) => n.toLocaleString('ja-JP');
+            const fee = currentFee();
+            const acN = acCount('acNormal'), acA = acCount('acAuto');
+            const total = (fee || 0) + acN * AC_PRICE_NORMAL + acA * AC_PRICE_AUTO;
+            const parts = [];
+            if (fee) parts.push(`室内清掃 ${num(fee)}円`);
+            if (acN) parts.push(`エアコン洗浄(通常${acN}台) ${num(acN * AC_PRICE_NORMAL)}円`);
+            if (acA) parts.push(`エアコン洗浄(お掃除機能付${acA}台) ${num(acA * AC_PRICE_AUTO)}円`);
+            $('feeSummary').textContent = total > 0
+                ? `フォームに表示される合計：${num(total)}円（税込）${fee ? '' : '＋室内清掃代（別途ご案内）'}　＝ ${parts.join(' ＋ ')}`
+                : '';
+        }
+
+        function update() {
+            const url = buildUrl();
+            $('urlOut').value = url;
+            $('smsOut').value = buildSms(url);
+            updateFeeSummary();
+        }
+
+        async function copyText(id, btn) {
+            const el = $(id);
+            try {
+                await navigator.clipboard.writeText(el.value);
+            } catch (e) {
+                el.select();
+                document.execCommand('copy');
+            }
+            const orig = btn.textContent;
+            btn.textContent = '✅ コピーしました';
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+        }
+
+        function renderAcSelects() {
+            const num = (n) => n.toLocaleString('ja-JP');
+            $('acNormalPrice').textContent = `${num(AC_PRICE_NORMAL)}円/台`;
+            $('acAutoPrice').textContent = `${num(AC_PRICE_AUTO)}円/台`;
+            ['acNormal', 'acAuto'].forEach((id) => {
+                const sel = $(id);
+                for (let i = 0; i <= AC_MAX_COUNT; i++) {
+                    const o = document.createElement('option');
+                    o.value = String(i);
+                    o.textContent = i === 0 ? 'なし（0台）' : `${i}台`;
+                    sel.appendChild(o);
+                }
+                sel.addEventListener('change', update);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderFeeGrid();
+            renderAcSelects();
+            ['feeCustom', 'preBukken', 'preRoom'].forEach((id) => $(id).addEventListener('input', () => {
+                if (id === 'feeCustom' && $(id).value) {
+                    FEE_PATTERNS.forEach((_, j) => $('fee' + j).classList.remove('active'));
+                    selectedFee = null;
+                    $('feeNone').checked = false;
+                }
+                update();
+            }));
+            $('feeNone').addEventListener('change', () => {
+                if ($('feeNone').checked) {
+                    FEE_PATTERNS.forEach((_, j) => $('fee' + j).classList.remove('active'));
+                    selectedFee = null;
+                    $('feeCustom').value = '';
+                }
+                update();
+            });
+            update();
+        });
+    </script>
+</body>
+</html>
