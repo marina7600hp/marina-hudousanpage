@@ -300,12 +300,12 @@ function saveTachiai_(data) {
   // --- 退去立会い同意書：費用＋電子署名 ---
   const ch = data.charges || {};
   const rows = [];
-  if (Number(ch.cleaning) > 0) rows.push(['室内清掃費（借主負担）', fmtYen_(ch.cleaning)]);
-  if (Number(ch.acCount) > 0) rows.push(['エアコン洗浄費（借主負担）', fmtYen_(ch.acUnit) + ' × ' + Number(ch.acCount) + '台 ＝ ' + fmtYen_(Number(ch.acUnit) * Number(ch.acCount))]);
-  if (Number(ch.tatamiCount) > 0) rows.push(['畳表替え費用（借主負担）', fmtYen_(ch.tatamiUnit) + ' × ' + Number(ch.tatamiCount) + '枚 ＝ ' + fmtYen_(Number(ch.tatamiUnit) * Number(ch.tatamiCount))]);
+  if (Number(ch.cleaning) > 0) rows.push(['室内清掃費（借主負担）', fmtYen_(ch.cleaning) + '（税込）']);
+  if (Number(ch.acCount) > 0) rows.push(['エアコン洗浄費（借主負担）', fmtYen_(ch.acUnit) + ' × ' + Number(ch.acCount) + '台 ＝ ' + fmtYen_(Number(ch.acUnit) * Number(ch.acCount)) + '（税込）']);
+  if (Number(ch.tatamiCount) > 0) rows.push(['畳表替え費用（借主負担）', fmtYen_(ch.tatamiUnit) + ' × ' + Number(ch.tatamiCount) + '枚 ＝ ' + fmtYen_(Number(ch.tatamiUnit) * Number(ch.tatamiCount)) + '（税込）']);
   const fixedTotal = (Number(ch.cleaning) || 0) + (Number(ch.acUnit) || 0) * (Number(ch.acCount) || 0) + (Number(ch.tatamiUnit) || 0) * (Number(ch.tatamiCount) || 0);
   let chargeRows = rows.map(function (r) { return '<tr><th style="width:45%">' + esc_(r[0]) + '</th><td class="right">' + esc_(r[1]) + '</td></tr>'; }).join('');
-  chargeRows += '<tr><th>上記の借主負担 合計（確定分）</th><td class="right"><b>' + fmtYen_(fixedTotal) + '</b></td></tr>';
+  chargeRows += '<tr><th>上記の借主負担 合計（確定分・税込）</th><td class="right"><b>' + fmtYen_(fixedTotal) + '（税込）</b></td></tr>';
 
   const crossNote = ch.crossAgree
     ? '・クロス（壁紙）の借主負担補修が生じた場合は、㎡単価 ' + fmtYen_(ch.crossUnit || T_CONFIG.DEFAULT_CROSS_UNIT) + '（税別）を基準に実測のうえ精算することに同意します。'
@@ -331,7 +331,7 @@ function saveTachiai_(data) {
     '<div class="to">貸主様<br>' + esc_(T_CONFIG.COMPANY) + ' 御中</div>' +
     '<table><tr><th style="width:22%">物件名</th><td>' + esc_(c.bukken) + '</td>' +
     '<th style="width:14%">部屋番号</th><td>' + esc_(c.room) + '</td></tr></table>' +
-    '<p class="note" style="margin-top:10px">私は、退去立会いにおいて下記の借主負担費用を確認し、支払うことに同意いたします。</p>' +
+    '<p class="note" style="margin-top:10px">私は、退去立会いにおいて下記の借主負担費用（金額はすべて消費税込み）を確認し、支払うことに同意いたします。</p>' +
     '<table>' + chargeRows + '</table>' +
     laterBlock +
     '<div class="note" style="margin-top:8px">' +

@@ -87,7 +87,7 @@
                     </div>
 
                     <div class="border-t border-slate-100 pt-3">
-                        <p class="field-label mb-2">借主負担費用（署名で同意いただく項目）</p>
+                        <p class="field-label mb-2">借主負担費用（税込・署名で同意いただく項目）</p>
                         <div class="space-y-2">
                             <div class="flex items-center gap-2">
                                 <span class="text-sm w-32 shrink-0">室内清掃費</span>
@@ -431,7 +431,7 @@
         // ---------------- 立会い計算・送信 ----------------
         function calcTachiai(){
             const t = numv('chCleaning') + numv('chAcUnit')*numv('chAcCount') + numv('chTatamiUnit')*numv('chTatamiCount');
-            $('chTotal').textContent = '確定分 合計：'+yen(t);
+            $('chTotal').textContent = '確定分 合計（税込）：'+yen(t);
         }
         async function submitTachiai(){
             if(!requireBackend()) return;
