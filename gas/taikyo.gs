@@ -74,7 +74,9 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const action = data.action;
     if (action === 'newCase') return json_(createCase_(data));
-    if (action === 'tachiai') return json_(saveTachiai_(data));
+    if (action === 'report') return json_(saveReport_(data));
+    if (action === 'consent') return json_(saveConsent_(data));
+    if (action === 'tachiai') return json_(saveTachiaiCombined_(data)); // 後方互換
     if (action === 'estimate') return json_(saveEstimate_(data));
     if (action === 'settlement') return json_(saveSettlement_(data));
     if (action === 'complete') return json_(saveComplete_(data));
@@ -227,6 +229,12 @@ function esc_(s) {
 function safeName_(s) { return String(s || '').replace(/[\\\/:*?"<>|]/g, '_').trim(); }
 function today_() { return Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy年M月d日'); }
 function caseLabel_(c) { return safeName_(c.bukken) + '_' + safeName_(c.room) + '_' + safeName_(c.name); }
+/** 'yyyy-mm-dd' → 'yyyy年M月d日'（それ以外はそのまま返す） */
+function fmtD_(s) {
+  if (!s) return '';
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? (m[1] + '年' + Number(m[2]) + '月' + Number(m[3]) + '日') : String(s);
+}
 
 /** data URL (image/xxx;base64,....) を Blob に変換 */
 function dataUrlToBlob_(dataUrl, filename) {
@@ -260,8 +268,59 @@ function docHead_(title) {
     '</style></head><body>';
 }
 
-// ---------------- ② 退去立会い（写真＋署名） ----------------
-function saveTachiai_(data) {
+// ---------------- ①-A 原状回復箇所報告書（写真） ----------------
+function saveReport_(data) {
+  const caseId = data.caseId;
+  if (!caseId) return { ok: false, error: '案件IDがありません。' };
+  const c = { name: data.name, kana: data.kana, bukken: data.bukken, room: data.room };
+  const parent = parentFolder_();
+  const now = new Date();
+  const dateStr = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd');
+  const timeStr = Utilities.formatDate(now, 'Asia/Tokyo', 'HHmmss');
+  const label = caseLabel_(c);
+
+  // 写真をフォルダに保存（作成のたびにフォルダを分けて、追加写真にも対応）
+  const reportRoot = getOrCreateSubfolder_(parent, T_CONFIG.SUBFOLDERS.report);
+  const caseFolder = reportRoot.createFolder(label + '_' + dateStr + '_' + timeStr);
+  const photos = data.photos || [];
+  let cards = '';
+  photos.forEach(function (p, i) {
+    const blob = dataUrlToBlob_(p.dataUrl, label + '_' + (i + 1) + '.jpg');
+    if (blob) caseFolder.createFile(blob);
+    const badge = p.type ? '<span style="display:inline-block;background:#0891b2;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;margin-left:4px">' + esc_(p.type) + '</span>' : '';
+    cards += '<div class="photo"><img src="' + p.dataUrl + '">' +
+      '<div class="cap"><b>No.' + (i + 1) + '</b>　' + esc_(p.label || '（箇所未記入）') + badge +
+      (p.memo ? '<br>' + esc_(p.memo) : '') + '</div></div>';
+  });
+  const infoRows =
+    '<tr><th style="width:18%">物件名</th><td>' + esc_(c.bukken) + '</td><th style="width:14%">部屋番号</th><td>' + esc_(c.room) + '</td></tr>' +
+    '<tr><th>入居者氏名</th><td>' + esc_(c.name) + ' 様</td><th>入居期間</th><td>' + esc_(data.tenancy || '') + '</td></tr>' +
+    '<tr><th>退去日</th><td>' + esc_(fmtD_(data.moveoutDate)) + '</td><th>立会確認日</th><td>' + esc_(fmtD_(data.tachiaiDate) || today_()) + '</td></tr>' +
+    '<tr><th>立会担当者</th><td>' + esc_(data.staff || '') + '</td><th>写真枚数</th><td>' + photos.length + '枚</td></tr>';
+  const html = docHead_() +
+    '<div class="meta">案件ID：' + esc_(caseId) + '</div>' +
+    '<div class="meta">作成日：' + today_() + '</div>' +
+    '<h1>原状回復箇所報告書</h1>' +
+    '<div class="sub">退去時の室内確認・原状回復に関わる箇所の記録</div>' +
+    '<div class="to">貸主様<br>' + esc_(T_CONFIG.COMPANY) + ' 御中</div>' +
+    '<table>' + infoRows + '</table>' +
+    '<p class="note" style="margin-top:8px">退去時の室内確認の結果、原状回復に関わる主な箇所を写真にて記録しました。下記のとおりご確認をお願い申し上げます。</p>' +
+    '<div style="margin-top:8px">' + (cards || '（写真なし）') + '</div>' +
+    '<div class="foot">※本書は退去時の室内状況を記録した根拠資料です。原状回復費用の負担区分は、国土交通省「原状回復をめぐるトラブルとガイドライン」および賃貸借契約書に基づき、経年変化・通常損耗と借主の故意・過失等を勘案のうえ協議して決定いたします。<br>' +
+    esc_(T_CONFIG.COMPANY) + '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) + '</div></body></html>';
+  const pdf = htmlToPdf_(html, '原状回復箇所報告書_' + label + '_' + dateStr + '.pdf');
+  const file = caseFolder.createFile(pdf);
+
+  upsertCase_(caseId, {
+    name: c.name, kana: c.kana, bukken: c.bukken, room: c.room, reportUrl: file.getUrl(),
+    data: { moveoutDate: data.moveoutDate || '', tachiaiDate: data.tachiaiDate || '', staffTachiai: data.staff || '',
+            photoCount: photos.length, photoFolderUrl: caseFolder.getUrl(), tenancy: data.tenancy || '' },
+  });
+  return { ok: true, caseId: caseId, reportUrl: file.getUrl() };
+}
+
+// ---------------- ①-B 退去立会い同意書（費用＋署名） ----------------
+function saveConsent_(data) {
   const caseId = data.caseId;
   if (!caseId) return { ok: false, error: '案件IDがありません。' };
   const c = { name: data.name, kana: data.kana, bukken: data.bukken, room: data.room };
@@ -269,35 +328,8 @@ function saveTachiai_(data) {
   const now = new Date();
   const dateStr = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd');
   const label = caseLabel_(c);
+  const tachiaiDisp = fmtD_(data.tachiaiDate) || today_();
 
-  // --- 原状回復箇所報告書：写真をフォルダに保存＋報告書PDF ---
-  const reportRoot = getOrCreateSubfolder_(parent, T_CONFIG.SUBFOLDERS.report);
-  const caseFolder = reportRoot.createFolder(label + '_' + dateStr);
-  const photos = data.photos || [];
-  let photoHtml = '';
-  photos.forEach(function (p, i) {
-    const blob = dataUrlToBlob_(p.dataUrl, label + '_' + (i + 1) + '.jpg');
-    if (blob) caseFolder.createFile(blob);
-    photoHtml += '<div class="photo"><img src="' + p.dataUrl + '">' +
-      '<div class="cap">No.' + (i + 1) + '　' + esc_(p.label || '') +
-      (p.memo ? '<br>' + esc_(p.memo) : '') + '</div></div>';
-  });
-  const reportHtml = docHead_() +
-    '<div class="meta">案件ID：' + esc_(caseId) + '</div>' +
-    '<div class="meta">作成日：' + today_() + '</div>' +
-    '<h1>原状回復箇所報告書</h1>' +
-    '<div class="sub">退去立会いにて撮影・記録</div>' +
-    '<table><tr><th style="width:22%">物件名</th><td>' + esc_(c.bukken) + '</td>' +
-    '<th style="width:14%">部屋番号</th><td>' + esc_(c.room) + '</td></tr>' +
-    '<tr><th>退去者（借主）</th><td>' + esc_(c.name) + '</td>' +
-    '<th>写真枚数</th><td>' + photos.length + '枚</td></tr></table>' +
-    '<div style="margin-top:10px">' + (photoHtml || '（写真なし）') + '</div>' +
-    '<div class="foot">本報告書は退去立会い時に撮影した原状回復箇所の記録であり、修繕費用の根拠資料です。<br>' +
-    esc_(T_CONFIG.COMPANY) + '</div></body></html>';
-  const reportPdf = htmlToPdf_(reportHtml, '原状回復箇所報告書_' + label + '_' + dateStr + '.pdf');
-  const reportFile = caseFolder.createFile(reportPdf);
-
-  // --- 退去立会い同意書：費用＋電子署名 ---
   const ch = data.charges || {};
   const rows = [];
   if (Number(ch.cleaning) > 0) rows.push(['室内清掃費（借主負担）', fmtYen_(ch.cleaning) + '（税込）']);
@@ -326,11 +358,12 @@ function saveTachiai_(data) {
 
   const consentHtml = docHead_() +
     '<div class="meta">案件ID：' + esc_(caseId) + '</div>' +
-    '<div class="meta">立会い日：' + today_() + '</div>' +
+    '<div class="meta">立会い日：' + tachiaiDisp + '</div>' +
     '<h1>退去立会い同意書</h1>' +
     '<div class="to">貸主様<br>' + esc_(T_CONFIG.COMPANY) + ' 御中</div>' +
     '<table><tr><th style="width:22%">物件名</th><td>' + esc_(c.bukken) + '</td>' +
-    '<th style="width:14%">部屋番号</th><td>' + esc_(c.room) + '</td></tr></table>' +
+    '<th style="width:14%">部屋番号</th><td>' + esc_(c.room) + '</td></tr>' +
+    (data.staff ? '<tr><th>立会担当者</th><td colspan="3">' + esc_(data.staff) + '</td></tr>' : '') + '</table>' +
     '<p class="note" style="margin-top:10px">私は、退去立会いにおいて下記の借主負担費用（金額はすべて消費税込み）を確認し、支払うことに同意いたします。</p>' +
     '<table>' + chargeRows + '</table>' +
     laterBlock +
@@ -340,12 +373,13 @@ function saveTachiai_(data) {
     '・上記のほか、契約内容および原状回復に関する借主負担部分を負担することに同意します。' +
     '</div>' +
     '<div class="sign">' +
-    '<div>令和　　年　　月　　日　　　立会い日：' + today_() + '</div>' +
+    '<div>立会い日：' + tachiaiDisp + '</div>' +
     '<div style="margin-top:6px">氏名（署名）：' +
     (data.signature ? '<br><img src="' + data.signature + '">' : '＿＿＿＿＿＿＿＿') + '</div>' +
     (data.signerName ? '<div style="margin-top:4px">署名者：' + esc_(data.signerName) + '</div>' : '') +
     '</div>' +
     '<div class="foot">立会い会社：' + esc_(T_CONFIG.COMPANY) + '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) +
+    (data.staff ? '　立会担当者：' + esc_(data.staff) : '') +
     '<br>本書は退去立会い時に借主が電子的に署名し同意したものです。</div></body></html>';
   const consentFolder = getOrCreateSubfolder_(parent, T_CONFIG.SUBFOLDERS.consent);
   const consentPdf = htmlToPdf_(consentHtml, '退去立会い同意書_' + label + '_' + dateStr + '.pdf');
@@ -354,24 +388,30 @@ function saveTachiai_(data) {
   // 進捗更新（費用は見積へ引き継ぐ）
   upsertCase_(caseId, {
     status: '立会い済', name: c.name, kana: c.kana, bukken: c.bukken, room: c.room,
-    reportUrl: reportFile.getUrl(), consentUrl: consentFile.getUrl(),
-    data: { charges: ch, tachiaiDate: today_(), photoCount: photos.length,
-            photoFolderUrl: caseFolder.getUrl() },
+    consentUrl: consentFile.getUrl(),
+    data: { charges: ch, tachiaiDate: data.tachiaiDate || '', staffTachiai: data.staff || '' },
   });
 
   // 通知メール
   try {
     MailApp.sendEmail({
       to: T_CONFIG.NOTIFY_EMAIL,
-      subject: '【退去立会い完了】' + c.bukken + ' ' + c.room + '（' + c.name + '様）',
-      body: '退去立会いが完了しました。\n物件：' + c.bukken + ' ' + c.room + '\n借主：' + c.name +
-        '様\n借主負担（確定分）：' + fmtYen_(fixedTotal) + '\n\n原状回復箇所報告書：' + reportFile.getUrl() +
-        '\n退去立会い同意書：' + consentFile.getUrl() + '\n\n次は修繕見積書を作成してください。',
+      subject: '【退去立会い同意書】' + c.bukken + ' ' + c.room + '（' + c.name + '様）',
+      body: '退去立会い同意書を作成しました。\n物件：' + c.bukken + ' ' + c.room + '\n借主：' + c.name +
+        '様\n借主負担（確定分・税込）：' + fmtYen_(fixedTotal) +
+        '\n\n退去立会い同意書：' + consentFile.getUrl() + '\n\n次は修繕見積書を作成してください。',
       name: T_CONFIG.SENDER_NAME,
     });
   } catch (e) {}
 
-  return { ok: true, caseId: caseId, reportUrl: reportFile.getUrl(), consentUrl: consentFile.getUrl() };
+  return { ok: true, caseId: caseId, consentUrl: consentFile.getUrl() };
+}
+
+// 後方互換：旧「tachiai」アクション（報告書＋同意書を続けて作成）
+function saveTachiaiCombined_(data) {
+  const r = saveReport_(data);
+  const s = saveConsent_(data);
+  return { ok: (r.ok !== false && s.ok !== false), caseId: data.caseId, reportUrl: r.reportUrl, consentUrl: s.consentUrl };
 }
 
 // ---------------- ③ 修繕見積書 ----------------
@@ -413,7 +453,8 @@ function saveEstimate_(data) {
     '<table style="margin-top:8px"><tr><th style="width:50%">貸主負担 合計（税込）</th><td class="right">' + fmtYen_(ownerTotal) + '</td></tr>' +
     '<tr><th>借主負担 合計（税込）</th><td class="right"><b>' + fmtYen_(tenantTotal) + '</b></td></tr></table>' +
     (data.note ? '<div class="foot">【諸条件】' + esc_(data.note) + '</div>' : '') +
-    '<div class="foot">' + esc_(T_CONFIG.COMPANY) + '　' + esc_(T_CONFIG.COMPANY_ADDR) + '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) + '</div>' +
+    '<div class="foot">' + esc_(T_CONFIG.COMPANY) + '　' + esc_(T_CONFIG.COMPANY_ADDR) + '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) +
+    (data.staff ? '　見積作成者：' + esc_(data.staff) : '') + '</div>' +
     '</body></html>';
 
   const label = caseLabel_(c);
@@ -423,7 +464,7 @@ function saveEstimate_(data) {
 
   upsertCase_(caseId, {
     status: '見積済', estimateUrl: file.getUrl(),
-    data: { estimateItems: items, estimateNote: data.note || '',
+    data: { estimateItems: items, estimateNote: data.note || '', estimateStaff: data.staff || '',
             tenantTotal: tenantTotal, ownerTotal: ownerTotal, estimateTotal: totalA },
   });
   return { ok: true, caseId: caseId, estimateUrl: file.getUrl(), tenantTotal: tenantTotal };
@@ -462,6 +503,7 @@ function saveSettlement_(data) {
     '<table style="margin-top:10px"><tr><th style="width:22%">敷金返金口座</th><td>' + esc_(bankLine || '（後日ご連絡）') + '</td></tr></table>' +
     (data.note ? '<div class="foot">備考：' + esc_(data.note) + '</div>' : '') +
     '<div class="foot">貸主：' + esc_(T_CONFIG.COMPANY) + '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) +
+    (data.staff ? '　精算書作成者：' + esc_(data.staff) : '') +
     '<br>' + (shortage > 0 ? '不足金額を上記のとおりご請求いたします。' : '預かり敷金から相殺のうえ、上記返金額を指定口座へお振込みいたします。') +
     '（振込手数料は差引かせていただきます）</div></body></html>';
 
@@ -473,7 +515,8 @@ function saveSettlement_(data) {
   upsertCase_(caseId, {
     status: '精算済', settlementUrl: file.getUrl(),
     data: { deposit: deposit, penalty: penalty, unpaidRent: unpaidRent, restoreCost: restoreCost,
-            refund: refund, shortage: shortage },
+            refund: refund, shortage: shortage, settlementStaff: data.staff || '',
+            tenancy: data.tenancy || '', endDate: data.endDate || '', newAddress: data.newAddress || '', contact: data.contact || '' },
   });
   try {
     MailApp.sendEmail({
@@ -496,13 +539,16 @@ function saveComplete_(data) {
   const label = type === 'shortage' ? '着金完了' : '返金振込完了';
   upsertCase_(caseId, {
     status: '完了',
-    data: { completionType: type, completionDate: date, completionLabel: label },
+    data: { completionType: type, completionDate: date, completionLabel: label,
+            confirmer: data.confirmer || '', invoiceMailDate: data.invoiceMailDate || '' },
   });
   try {
     MailApp.sendEmail({
       to: T_CONFIG.NOTIFY_EMAIL,
       subject: '【退去精算 完了】' + (data.bukken || '') + ' ' + (data.room || '') + '（' + (data.name || '') + '様）',
-      body: label + 'を記録しました（' + date + '）。この案件は完了です。',
+      body: label + 'を記録しました（' + date + '）。この案件は完了です。' +
+        (data.invoiceMailDate ? '\n請求書郵送日：' + data.invoiceMailDate : '') +
+        (data.confirmer ? '\n確認者：' + data.confirmer : ''),
       name: T_CONFIG.SENDER_NAME,
     });
   } catch (e) {}
@@ -516,15 +562,21 @@ function saveComplete_(data) {
 function testTaikyo() {
   const r1 = createCase_({ name: 'テスト 太郎', kana: 'テスト タロウ', bukken: 'テストハイツ', room: '101', endDate: '2026年8月31日' });
   const id = r1.caseId;
-  saveTachiai_({ caseId: id, name: 'テスト 太郎', kana: 'テスト タロウ', bukken: 'テストハイツ', room: '101',
-    charges: { cleaning: 44000, acUnit: 11000, acCount: 1, tatamiUnit: 5000, tatamiCount: 0, crossAgree: true, crossUnit: 1800, otherNote: '' },
-    photos: [], signature: '', signerName: 'テスト 太郎' });
+  saveReport_({ caseId: id, name: 'テスト 太郎', kana: 'テスト タロウ', bukken: 'テストハイツ', room: '101',
+    moveoutDate: '2026-08-31', tachiaiDate: '2026-08-30', staff: '担当 花子', tenancy: '2024.4.1〜2026.8.31',
+    photos: [] });
+  saveConsent_({ caseId: id, name: 'テスト 太郎', kana: 'テスト タロウ', bukken: 'テストハイツ', room: '101',
+    tachiaiDate: '2026-08-30', staff: '担当 花子',
+    charges: { cleaning: 44000, acUnit: 11000, acCount: 1, tatamiUnit: 5000, tatamiCount: 0, crossAgree: true, crossUnit: 1800, otherNote: '', laterItems: ['柱損傷', '網戸破け'] },
+    signature: '', signerName: 'テスト 太郎' });
   saveEstimate_({ caseId: id, name: 'テスト 太郎', bukken: 'テストハイツ', room: '101',
     items: [{ name: 'クロス張替え LDK', qty: 20, unit: '㎡', unitPrice: 1400, burdenRate: 50 },
             { name: 'ハウスクリーニング', qty: 1, unit: '式', unitPrice: 42000, burdenRate: 100 },
-            { name: 'エアコン洗浄', qty: 1, unit: '台', unitPrice: 11000, burdenRate: 100 }], note: '' });
+            { name: 'エアコン洗浄', qty: 1, unit: '台', unitPrice: 11000, burdenRate: 100 }], note: '', staff: '見積 次郎' });
   saveSettlement_({ caseId: id, name: 'テスト 太郎', bukken: 'テストハイツ', room: '101',
     tenancy: '2024.4.1〜2026.8.31', endDate: '2026年8月31日', deposit: 70000, penalty: 0,
-    unpaidRent: 0, restoreCost: 60000, bank: { name: 'テスト銀行', branch: 'テスト支店', type: '普通', number: '1234567', holder: 'テスト タロウ' } });
+    unpaidRent: 0, restoreCost: 60000, staff: '精算 三郎', bank: { name: 'テスト銀行', branch: 'テスト支店', type: '普通', number: '1234567', holder: 'テスト タロウ' } });
+  saveComplete_({ caseId: id, name: 'テスト 太郎', bukken: 'テストハイツ', room: '101',
+    completionType: 'refund', completionDate: '2026-09-05', confirmer: '確認 四郎', invoiceMailDate: '' });
   Logger.log('テスト完了。案件ID: ' + id);
 }
