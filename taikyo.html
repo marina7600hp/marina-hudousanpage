@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <title>退去精算 管理コンソール | 有限会社仁方大森マリーナー</title>
+    <meta name="theme-color" content="#005f73">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: {
+            colors: { coastal: { 50:'#f4fbfb',100:'#e5f6f6',200:'#ceecee',500:'#028090',600:'#005f73',900:'#0a1d25' } },
+            fontFamily: { sans: ['Noto Sans JP','sans-serif'] }
+        } } }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        .hidden { display: none !important; }
+        .field-label { display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:3px; }
+        .field-input { width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; background:#fff; }
+        .field-input:focus { outline:2px solid #028090; outline-offset:-1px; }
+        .card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; }
+        .badge { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; }
+        .b-kaiyaku { background:#e0f2fe; color:#0369a1; }
+        .b-tachiai { background:#dcfce7; color:#15803d; }
+        .b-mitsumori { background:#fef9c3; color:#a16207; }
+        .b-seisan { background:#f3e8ff; color:#7e22ce; }
+        .b-done { background:#0f172a; color:#fff; }
+        .hint { font-size:11px; color:#0369a1; background:#e0f2fe; border-radius:6px; padding:1px 7px; display:inline-block; }
+        .stage-title { font-size:14px; font-weight:700; color:#005f73; border-left:4px solid #028090; padding-left:8px; margin-bottom:10px; }
+        #sigCanvas { touch-action:none; background:#fff; border:1px dashed #94a3b8; border-radius:8px; width:100%; height:160px; }
+        .btn { font-weight:700; border-radius:9px; padding:10px 14px; font-size:14px; cursor:pointer; }
+        .btn-primary { background:#005f73; color:#fff; } .btn-primary:hover{background:#028090;}
+        .btn-ghost { background:#fff; color:#475569; border:1px solid #cbd5e1; }
+        .thumb { position:relative; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden; }
+        .thumb img { width:100%; height:110px; object-fit:cover; display:block; }
+        .thumb .rm { position:absolute; top:4px; right:4px; background:rgba(15,23,42,.75); color:#fff; border:none; border-radius:6px; font-size:11px; padding:2px 7px; cursor:pointer; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-20">
+
+    <header class="bg-coastal-900 text-white sticky top-0 z-30">
+        <div class="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+            <button id="backBtn" onclick="showList()" class="hidden text-coastal-200 text-sm">‹ 一覧へ</button>
+            <div class="flex-1">
+                <p class="text-[10px] tracking-[0.25em] text-coastal-200">ADMIN CONSOLE</p>
+                <h1 class="text-base font-bold tracking-wider">退去精算 管理コンソール</h1>
+            </div>
+            <button onclick="loadCases()" class="text-coastal-200 text-sm">↻ 更新</button>
+        </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-4 py-5">
+
+        <!-- ============ 一覧ビュー ============ -->
+        <section id="listView">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="font-bold text-slate-700">退去案件一覧</h2>
+                <button onclick="openNewCase()" class="btn btn-primary text-sm">＋ 新規案件</button>
+            </div>
+            <div id="loadingList" class="text-center text-slate-400 py-10 text-sm">読み込み中…</div>
+            <div id="caseList" class="space-y-2"></div>
+            <div id="emptyList" class="hidden text-center text-slate-400 py-10 text-sm">案件がありません。「＋ 新規案件」から開始してください。</div>
+        </section>
+
+        <!-- ============ 案件詳細ビュー ============ -->
+        <section id="caseView" class="hidden space-y-4">
+            <div class="card">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p id="cvName" class="text-lg font-bold"></p>
+                        <p id="cvBukken" class="text-sm text-slate-500"></p>
+                    </div>
+                    <span id="cvStatus" class="badge"></span>
+                </div>
+                <div id="cvLinks" class="mt-3 flex flex-wrap gap-2 text-xs"></div>
+            </div>
+
+            <!-- ① 退去立会い -->
+            <div class="card">
+                <p class="stage-title">① 退去立会い（写真・費用同意・電子署名）</p>
+                <div class="space-y-4">
+                    <div>
+                        <p class="field-label">原状回復箇所の写真<span class="text-slate-400 font-normal ml-1">その場で撮影・複数可</span></p>
+                        <input id="photoInput" type="file" accept="image/*" capture="environment" multiple class="text-sm" onchange="addPhotos(event)">
+                        <div id="photoGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2"></div>
+                    </div>
+
+                    <div class="border-t border-slate-100 pt-3">
+                        <p class="field-label mb-2">借主負担費用（税込・署名で同意いただく項目）</p>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm w-32 shrink-0">室内清掃費</span>
+                                <input id="chCleaning" type="number" class="field-input" oninput="calcTachiai()" placeholder="44000">
+                                <span class="text-sm text-slate-500">円</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm w-32 shrink-0">エアコン洗浄費</span>
+                                <input id="chAcUnit" type="number" class="field-input" style="max-width:110px" oninput="calcTachiai()" placeholder="11000">
+                                <span class="text-sm text-slate-500">円 ×</span>
+                                <input id="chAcCount" type="number" class="field-input" style="max-width:70px" oninput="calcTachiai()" placeholder="0" min="0">
+                                <span class="text-sm text-slate-500">台</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm w-32 shrink-0">畳表替え費用</span>
+                                <input id="chTatamiUnit" type="number" class="field-input" style="max-width:110px" oninput="calcTachiai()" placeholder="5000">
+                                <span class="text-sm text-slate-500">円 ×</span>
+                                <input id="chTatamiCount" type="number" class="field-input" style="max-width:70px" oninput="calcTachiai()" placeholder="0" min="0">
+                                <span class="text-sm text-slate-500">枚</span>
+                            </div>
+                        </div>
+                        <p id="chTotal" class="text-right font-bold text-coastal-600 mt-2">確定分 合計：0円</p>
+
+                        <label class="flex items-start gap-2 mt-3 cursor-pointer text-sm">
+                            <input id="chCrossAgree" type="checkbox" class="mt-0.5 w-4 h-4 accent-[#028090]" checked>
+                            <span>クロス（壁紙）の借主負担補修が生じた場合、㎡単価
+                                <input id="chCrossUnit" type="number" class="border-b border-slate-400 w-16 text-center" value="1800"> 円（税別）を基準に実測後に精算することに同意</span>
+                        </label>
+                        <input id="chOtherNote" class="field-input mt-2 text-sm" placeholder="その他の同意事項（任意）">
+                    </div>
+
+                    <div class="border-t border-slate-100 pt-3">
+                        <p class="field-label">後日見積となる原状回復箇所<span class="text-slate-400 font-normal ml-1">該当を選択（費用は後日見積→支払いを約束）</span></p>
+                        <div id="laterItemsBox" class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-1"></div>
+                        <div id="laterCustomBox" class="space-y-1.5 mt-1.5"></div>
+                        <button type="button" onclick="addLaterCustom()" class="btn btn-ghost text-xs mt-2">＋ その他の箇所を追加</button>
+                        <p id="laterHint" class="text-xs text-slate-400 mt-1"></p>
+                    </div>
+
+                    <div class="border-t border-slate-100 pt-3">
+                        <p class="field-label">借主さま 署名<span class="text-slate-400 font-normal ml-1">指またはペンで記入</span></p>
+                        <canvas id="sigCanvas"></canvas>
+                        <div class="flex items-center gap-2 mt-2">
+                            <button type="button" onclick="clearSig()" class="btn btn-ghost text-xs">署名を消す</button>
+                            <input id="signerName" class="field-input text-sm" placeholder="署名者お名前（任意）">
+                        </div>
+                    </div>
+
+                    <button onclick="submitTachiai()" class="btn btn-primary w-full">立会い内容を保存（報告書・同意書を作成）</button>
+                </div>
+            </div>
+
+            <!-- ② 修繕見積書 -->
+            <div class="card">
+                <p class="stage-title">② 修繕見積書</p>
+                <div id="estItems" class="space-y-2"></div>
+                <button type="button" onclick="addEstItem()" class="btn btn-ghost text-xs mt-2">＋ 品目を追加</button>
+                <div id="estSummary" class="text-sm text-right mt-3 space-y-0.5 text-slate-600"></div>
+                <input id="estNote" class="field-input text-sm mt-2" placeholder="諸条件・備考（任意）">
+                <button onclick="submitEstimate()" class="btn btn-primary w-full mt-3">見積書を作成</button>
+            </div>
+
+            <!-- ③ 修繕精算書 -->
+            <div class="card">
+                <p class="stage-title">③ 修繕精算書（敷金精算）</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="field-label">入居期間</label><input id="stTenancy" class="field-input text-sm" placeholder="2024.4.1〜2026.8.31"></div>
+                    <div><label class="field-label">解約日</label><input id="stEndDate" class="field-input text-sm"></div>
+                    <div class="col-span-2"><label class="field-label">書類送付先（転居先）</label><input id="stNewAddress" class="field-input text-sm"></div>
+                    <div class="col-span-2"><label class="field-label">退去後連絡先</label><input id="stContact" class="field-input text-sm"></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-3">
+                    <div><label class="field-label">預かり敷金</label><input id="stDeposit" type="number" class="field-input" oninput="calcSettlement()" placeholder="0"></div>
+                    <div><label class="field-label">違約金</label><input id="stPenalty" type="number" class="field-input" oninput="calcSettlement()" placeholder="0"></div>
+                    <div><label class="field-label">未納賃料等</label><input id="stUnpaid" type="number" class="field-input" oninput="calcSettlement()" placeholder="0"></div>
+                    <div><label class="field-label">原状回復費（借主負担・税込）</label><input id="stRestore" type="number" class="field-input" oninput="calcSettlement()" placeholder="0"></div>
+                </div>
+                <p id="stBalance" class="text-right font-bold text-coastal-600 mt-2"></p>
+                <p class="field-label mt-3">敷金返金口座</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <input id="stBankName" class="field-input text-sm" placeholder="銀行名">
+                    <input id="stBankBranch" class="field-input text-sm" placeholder="支店名">
+                    <input id="stBankType" class="field-input text-sm" placeholder="種別（普通/当座）">
+                    <input id="stBankNumber" class="field-input text-sm" placeholder="口座番号">
+                    <input id="stBankHolder" class="field-input text-sm col-span-2" placeholder="口座名義（カナ）">
+                </div>
+                <input id="stNote" class="field-input text-sm mt-2" placeholder="備考（任意）">
+                <button onclick="submitSettlement()" class="btn btn-primary w-full mt-3">精算書を作成</button>
+            </div>
+
+            <!-- ④ 入金・完了 -->
+            <div class="card">
+                <p class="stage-title">④ 入金・完了</p>
+                <p id="cmpState" class="text-sm text-slate-600 mb-2"></p>
+                <div class="flex items-center gap-2">
+                    <span id="cmpLabel" class="text-sm w-32 shrink-0">完了日</span>
+                    <input id="cmpDate" type="date" class="field-input">
+                </div>
+                <button onclick="submitComplete()" class="btn btn-primary w-full mt-3">入金・振込の完了を記録（この案件を終了）</button>
+                <p id="cmpDone" class="hidden text-center text-sm font-bold text-emerald-600 mt-2"></p>
+            </div>
+        </section>
+    </main>
+
+    <!-- 新規案件モーダル -->
+    <div id="newCaseModal" class="hidden fixed inset-0 z-40 bg-slate-900/60 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md p-5">
+            <h3 class="font-bold text-coastal-600 mb-3">新規案件を開始</h3>
+            <div id="importArea" class="hidden mb-4">
+                <label class="field-label">解約済みから取り込む</label>
+                <select id="importSelect" class="field-input text-sm" onchange="applyImport()"><option value="">— 選択 —</option></select>
+                <p class="text-xs text-slate-400 mt-1">または下に手入力</p>
+            </div>
+            <div class="space-y-2">
+                <div class="grid grid-cols-2 gap-2">
+                    <input id="ncName" class="field-input text-sm" placeholder="氏名">
+                    <input id="ncKana" class="field-input text-sm" placeholder="フリガナ">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <input id="ncBukken" class="field-input text-sm" placeholder="物件名">
+                    <input id="ncRoom" class="field-input text-sm" placeholder="部屋番号">
+                </div>
+            </div>
+            <div class="flex gap-2 mt-4">
+                <button onclick="closeNewCase()" class="btn btn-ghost flex-1">キャンセル</button>
+                <button onclick="submitNewCase()" class="btn btn-primary flex-1">作成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ローディング -->
+    <div id="loading" class="hidden fixed inset-0 z-50 bg-white/80 flex flex-col items-center justify-center">
+        <div class="w-10 h-10 border-4 border-coastal-200 border-t-coastal-500 rounded-full animate-spin"></div>
+        <p class="text-sm text-slate-600 mt-3 font-bold">処理中…</p>
+    </div>
+    <div id="toast" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-sm px-4 py-2 rounded-full"></div>
+
+    <script>
+        // ================================================================
+        // ★★★ 設定：taikyo.gs をデプロイしたウェブアプリURLを貼り付け ★★★
+        // ================================================================
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbzcM7DUJM2EfljwHCEoP8BgER4zexT4iyv6KLbJfOCN0KYphWhPMyd6YOzcJcmRKMe_9g/exec';
+
+        const $ = (id) => document.getElementById(id);
+        let CASES = [], IMPORTABLE = [], CUR = null, PHOTOS = [];
+
+        // 後日見積となる原状回復箇所の定番項目
+        const LATER_ITEMS = ['鍵紛失のため交換費用','柱損傷','CFシート傷・汚損','剥がれ','フローリング破損・汚損','網戸破け','ヤニ汚れ'];
+        const STATUS_MAP = { '解約受付':'b-kaiyaku','立会い済':'b-tachiai','見積済':'b-mitsumori','精算済':'b-seisan','完了':'b-done' };
+        const NEXT_ACTION = { '解約受付':'立会い待ち','立会い済':'見積作成待ち','見積済':'精算書作成待ち','精算済':'返金振込／入金待ち','完了':'完了' };
+
+        function toast(msg) { const t=$('toast'); t.textContent=msg; t.classList.remove('hidden'); setTimeout(()=>t.classList.add('hidden'),2200); }
+        function show(el){ $(el).classList.remove('hidden'); }
+        function hide(el){ $(el).classList.add('hidden'); }
+        const yen = (n)=>Number(n||0).toLocaleString('ja-JP')+'円';
+        const numv = (id)=>{ const n=parseFloat($(id).value); return Number.isFinite(n)?n:0; };
+
+        // ---------------- API ----------------
+        async function apiGet(action){
+            const res = await fetch(GAS_URL + '?action=' + action);
+            return res.json();
+        }
+        async function apiPost(payload){
+            const res = await fetch(GAS_URL, { method:'POST', body: JSON.stringify(payload) });
+            return res.json();
+        }
+
+        function statusBadge(s){
+            return '<span class="badge '+(STATUS_MAP[s]||'b-kaiyaku')+'">'+(s||'解約受付')+'</span>';
+        }
+
+        // ---------------- 一覧 ----------------
+        async function loadCases(){
+            if(!GAS_URL){ hide('loadingList'); show('emptyList'); $('emptyList').textContent='送信先（GAS_URL）が未設定です。taikyo.html の GAS_URL を設定してください。'; return; }
+            show('loadingList'); hide('emptyList');
+            try{
+                const j = await apiGet('list');
+                if(!j.ok) throw new Error(j.error||'error');
+                CASES = j.cases||[]; IMPORTABLE = j.importable||[];
+                renderList();
+            }catch(e){ hide('loadingList'); toast('読み込みに失敗しました'); }
+        }
+        function renderList(){
+            hide('loadingList');
+            const box=$('caseList'); box.innerHTML='';
+            if(!CASES.length){ show('emptyList'); return; } hide('emptyList');
+            CASES.forEach((c)=>{
+                const d=c.data||{};
+                const div=document.createElement('div');
+                div.className='card flex items-center justify-between gap-2 cursor-pointer hover:border-coastal-300';
+                div.onclick=()=>openCase(c.id);
+                const rightInfo = c.status==='完了'
+                    ? '<span class="hint" style="background:#f1f5f9;color:#334155">'+esc(d.completionLabel||'完了')+' '+esc(d.completionDate||'')+'</span>'
+                    : '<span class="hint">'+esc(NEXT_ACTION[c.status]||'')+'</span>';
+                div.innerHTML='<div class="min-w-0"><p class="font-bold text-sm">'+esc(c.name||'（無名）')+'</p>'+
+                    '<p class="text-xs text-slate-500 truncate">'+esc(c.bukken||'')+' '+esc(c.room||'')+'</p>'+
+                    '<p class="text-[11px] text-slate-400 mt-0.5">更新 '+esc(c.updated||'')+'</p></div>'+
+                    '<div class="text-right shrink-0">'+statusBadge(c.status)+'<div class="mt-1">'+rightInfo+'</div></div>';
+                box.appendChild(div);
+            });
+        }
+        function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+        // ---------------- 詳細 ----------------
+        function showList(){ hide('caseView'); show('listView'); hide('backBtn'); window.scrollTo(0,0); }
+        function openCase(id){
+            CUR = CASES.find(c=>c.id===id); if(!CUR) return;
+            const d = CUR.data||{};
+            $('cvName').textContent = CUR.name || '（無名）';
+            $('cvBukken').textContent = (CUR.bukken||'')+' '+(CUR.room||'');
+            const hintTxt = CUR.status==='完了' ? (d.completionLabel||'完了')+' '+(d.completionDate||'') : '次：'+(NEXT_ACTION[CUR.status]||'');
+            $('cvStatus').outerHTML = '<div class="text-right"><span id="cvStatus" class="badge '+(STATUS_MAP[CUR.status]||'b-kaiyaku')+'">'+(CUR.status||'解約受付')+'</span>'+
+                '<div class="hint mt-1" '+(CUR.status==='完了'?'style="background:#f1f5f9;color:#334155"':'')+'>'+esc(hintTxt)+'</div></div>';
+            // リンク
+            const links=[];
+            if(CUR.reportUrl) links.push(['原状回復報告書',CUR.reportUrl]);
+            if(CUR.consentUrl) links.push(['立会い同意書',CUR.consentUrl]);
+            if(CUR.estimateUrl) links.push(['見積書',CUR.estimateUrl]);
+            if(CUR.settlementUrl) links.push(['精算書',CUR.settlementUrl]);
+            $('cvLinks').innerHTML = links.map(l=>'<a href="'+l[1]+'" target="_blank" class="bg-coastal-50 text-coastal-600 px-2 py-1 rounded">'+l[0]+' ↗</a>').join('') || '<span class="text-slate-400">まだ書類はありません</span>';
+
+            // 立会い プリフィル
+            PHOTOS=[]; renderPhotos(); clearSig();
+            const ch=d.charges||{};
+            $('chCleaning').value = ch.cleaning!=null?ch.cleaning:44000;
+            $('chAcUnit').value = ch.acUnit!=null?ch.acUnit:11000;
+            $('chAcCount').value = ch.acCount!=null?ch.acCount:0;
+            $('chTatamiUnit').value = ch.tatamiUnit!=null?ch.tatamiUnit:5000;
+            $('chTatamiCount').value = ch.tatamiCount!=null?ch.tatamiCount:0;
+            $('chCrossAgree').checked = ch.crossAgree!==false;
+            $('chCrossUnit').value = ch.crossUnit!=null?ch.crossUnit:1800;
+            $('chOtherNote').value = ch.otherNote||'';
+            renderLaterItems(ch.laterItems||[]);
+            $('signerName').value = CUR.name||'';
+            calcTachiai();
+
+            // 見積 プリフィル
+            renderEstItems(d.estimateItems);
+            $('estNote').value = d.estimateNote||'';
+
+            // 精算 プリフィル
+            $('stTenancy').value = d.tenancy||'';
+            $('stEndDate').value = d.endDate||'';
+            $('stNewAddress').value = d.newAddress||'';
+            $('stContact').value = d.contact || d.tel || '';
+            $('stDeposit').value = d.deposit||'';
+            $('stPenalty').value = d.penalty||0;
+            $('stUnpaid').value = d.unpaidRent||0;
+            $('stRestore').value = d.restoreCost!=null?d.restoreCost:(d.tenantTotal||'');
+            calcSettlement();
+            renderCompletion();
+
+            hide('listView'); show('caseView'); show('backBtn'); window.scrollTo(0,0);
+            initSig(); // 表示後にcanvas寸法を確定（非表示中は0になるため）
+        }
+
+        // ---------------- 写真 ----------------
+        function addPhotos(ev){
+            const files = Array.from(ev.target.files||[]);
+            files.forEach(f=>{
+                const reader=new FileReader();
+                reader.onload=(e)=>downscale(e.target.result, (durl)=>{ PHOTOS.push({dataUrl:durl,label:'',memo:''}); renderPhotos(); });
+                reader.readAsDataURL(f);
+            });
+            ev.target.value='';
+        }
+        function downscale(dataUrl, cb){
+            const img=new Image();
+            img.onload=()=>{
+                const max=1600; let {width:w,height:h}=img;
+                if(w>max||h>max){ const r=Math.min(max/w,max/h); w=Math.round(w*r); h=Math.round(h*r); }
+                const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+                cv.getContext('2d').drawImage(img,0,0,w,h);
+                cb(cv.toDataURL('image/jpeg',0.7));
+            };
+            img.src=dataUrl;
+        }
+        function renderPhotos(){
+            const g=$('photoGrid'); g.innerHTML='';
+            PHOTOS.forEach((p,i)=>{
+                const d=document.createElement('div'); d.className='thumb';
+                d.innerHTML='<button class="rm" onclick="rmPhoto('+i+')">×</button><img src="'+p.dataUrl+'">'+
+                    '<input class="field-input text-xs" style="border:none;border-top:1px solid #eee;border-radius:0" placeholder="箇所名" value="'+esc(p.label)+'" oninput="PHOTOS['+i+'].label=this.value">';
+                g.appendChild(d);
+            });
+        }
+        function rmPhoto(i){ PHOTOS.splice(i,1); renderPhotos(); }
+
+        // ---------------- 署名パッド ----------------
+        let sigCtx, sigDrawing=false, sigHas=false;
+        function initSig(){
+            const cv=$('sigCanvas'); const rect=cv.getBoundingClientRect();
+            cv.width=rect.width; cv.height=rect.height;
+            sigCtx=cv.getContext('2d'); sigCtx.lineWidth=2.2; sigCtx.lineCap='round'; sigCtx.strokeStyle='#0f172a';
+            const pos=(e)=>{ const r=cv.getBoundingClientRect(); const t=e.touches?e.touches[0]:e; return {x:t.clientX-r.left,y:t.clientY-r.top}; };
+            const start=(e)=>{ e.preventDefault(); sigDrawing=true; sigHas=true; const p=pos(e); sigCtx.beginPath(); sigCtx.moveTo(p.x,p.y); };
+            const move=(e)=>{ if(!sigDrawing)return; e.preventDefault(); const p=pos(e); sigCtx.lineTo(p.x,p.y); sigCtx.stroke(); };
+            const end=()=>{ sigDrawing=false; };
+            cv.onpointerdown=start; cv.onpointermove=move; cv.onpointerup=end; cv.onpointerleave=end;
+        }
+        function clearSig(){ if(sigCtx) sigCtx.clearRect(0,0,$('sigCanvas').width,$('sigCanvas').height); sigHas=false; }
+
+        // ---------------- 後日見積となる原状回復箇所 ----------------
+        function renderLaterItems(selected){
+            selected = selected || [];
+            const box=$('laterItemsBox'); box.innerHTML='';
+            LATER_ITEMS.forEach((label,i)=>{
+                const checked = selected.indexOf(label)>=0 ? 'checked' : '';
+                const l=document.createElement('label');
+                l.className='flex items-center gap-2 text-sm cursor-pointer';
+                l.innerHTML='<input type="checkbox" class="later-fixed w-4 h-4 accent-[#028090]" data-label="'+esc(label)+'" '+checked+' onchange="updateLaterHint()"> '+esc(label);
+                box.appendChild(l);
+            });
+            // カスタム項目（定番以外）
+            $('laterCustomBox').innerHTML='';
+            selected.filter(s=>LATER_ITEMS.indexOf(s)<0).forEach(s=>addLaterCustom(s));
+            updateLaterHint();
+        }
+        function addLaterCustom(val){
+            const d=document.createElement('div'); d.className='flex items-center gap-2';
+            d.innerHTML='<input type="checkbox" class="later-custom-chk w-4 h-4 accent-[#028090]" checked onchange="updateLaterHint()">'+
+                '<input class="field-input text-sm later-custom-txt" placeholder="その他の原状回復箇所" value="'+esc(typeof val==='string'?val:'')+'" oninput="updateLaterHint()">'+
+                '<button class="rm" style="position:static" onclick="this.parentNode.remove();updateLaterHint()">×</button>';
+            $('laterCustomBox').appendChild(d);
+            updateLaterHint();
+        }
+        function collectLaterItems(){
+            const out=[];
+            document.querySelectorAll('.later-fixed:checked').forEach(c=>out.push(c.dataset.label));
+            document.querySelectorAll('#laterCustomBox > div').forEach(row=>{
+                const chk=row.querySelector('.later-custom-chk'), txt=row.querySelector('.later-custom-txt').value.trim();
+                if(chk.checked && txt) out.push(txt);
+            });
+            return out;
+        }
+        function updateLaterHint(){
+            const n=collectLaterItems().length;
+            $('laterHint').textContent = n ? '選択'+n+'件：これらは後日見積のうえ支払いを約束する旨、同意書に記載されます。' : '';
+        }
+
+        // ---------------- 立会い計算・送信 ----------------
+        function calcTachiai(){
+            const t = numv('chCleaning') + numv('chAcUnit')*numv('chAcCount') + numv('chTatamiUnit')*numv('chTatamiCount');
+            $('chTotal').textContent = '確定分 合計（税込）：'+yen(t);
+        }
+        async function submitTachiai(){
+            if(!requireBackend()) return;
+            const charges={ cleaning:numv('chCleaning'), acUnit:numv('chAcUnit'), acCount:numv('chAcCount'),
+                tatamiUnit:numv('chTatamiUnit'), tatamiCount:numv('chTatamiCount'),
+                crossAgree:$('chCrossAgree').checked, crossUnit:numv('chCrossUnit'), otherNote:$('chOtherNote').value.trim(),
+                laterItems: collectLaterItems() };
+            const payload={ action:'tachiai', caseId:CUR.id, name:CUR.name, kana:CUR.kana, bukken:CUR.bukken, room:CUR.room,
+                charges, photos:PHOTOS, signature: sigHas?$('sigCanvas').toDataURL('image/png'):'', signerName:$('signerName').value.trim() };
+            await run(payload, '立会い内容を保存しました（報告書・同意書を作成）');
+        }
+
+        // ---------------- 見積 ----------------
+        function estRow(it){
+            it=it||{name:'',qty:1,unit:'式',unitPrice:0,burdenRate:100};
+            const d=document.createElement('div'); d.className='border border-slate-200 rounded-lg p-2';
+            d.innerHTML=
+                '<input class="field-input text-sm mb-1 est-name" placeholder="品目（例：クロス張替え LDK）" value="'+esc(it.name)+'">'+
+                '<div class="flex items-center gap-1 text-sm">'+
+                '<input type="number" class="field-input est-qty" style="max-width:60px" value="'+(it.qty||0)+'" oninput="calcEst()" placeholder="数量">'+
+                '<input class="field-input est-unit" style="max-width:56px" value="'+esc(it.unit||'')+'" placeholder="単位">'+
+                '<span class="text-slate-400">×</span>'+
+                '<input type="number" class="field-input est-price" style="max-width:90px" value="'+(it.unitPrice||0)+'" oninput="calcEst()" placeholder="単価">'+
+                '<span class="text-slate-400">負担</span>'+
+                '<input type="number" class="field-input est-rate" style="max-width:60px" value="'+(it.burdenRate!=null?it.burdenRate:100)+'" oninput="calcEst()" placeholder="%">'+
+                '<span class="text-slate-400 text-xs">%</span>'+
+                '<button class="rm ml-auto" style="position:static" onclick="this.closest(\'div.border\').remove();calcEst()">×</button>'+
+                '</div>';
+            return d;
+        }
+        function renderEstItems(items){
+            const box=$('estItems'); box.innerHTML='';
+            const list = (items&&items.length)?items:defaultEstItems();
+            list.forEach(it=>box.appendChild(estRow(it)));
+            calcEst();
+        }
+        function defaultEstItems(){
+            const ch=(CUR&&CUR.data&&CUR.data.charges)||{};
+            const arr=[{name:'クロス壁面張替え',qty:0,unit:'㎡',unitPrice:(ch.crossUnit||1800),burdenRate:100}];
+            if((ch.cleaning||0)>0) arr.push({name:'ハウスクリーニング（室内清掃）',qty:1,unit:'式',unitPrice:ch.cleaning,burdenRate:100});
+            if((ch.acCount||0)>0) arr.push({name:'エアコン洗浄',qty:ch.acCount,unit:'台',unitPrice:ch.acUnit,burdenRate:100});
+            if((ch.tatamiCount||0)>0) arr.push({name:'畳表替え',qty:ch.tatamiCount,unit:'枚',unitPrice:ch.tatamiUnit,burdenRate:100});
+            // 立会いで選択した「後日見積」箇所を、金額未入力の行としてあらかじめ表示
+            (ch.laterItems||[]).forEach(li=>arr.push({name:li,qty:1,unit:'式',unitPrice:0,burdenRate:100}));
+            return arr;
+        }
+        function collectEst(){
+            return Array.from($('estItems').children).map(row=>({
+                name:row.querySelector('.est-name').value.trim(),
+                qty:parseFloat(row.querySelector('.est-qty').value)||0,
+                unit:row.querySelector('.est-unit').value.trim(),
+                unitPrice:parseFloat(row.querySelector('.est-price').value)||0,
+                burdenRate:parseFloat(row.querySelector('.est-rate').value)||0,
+            })).filter(it=>it.name);
+        }
+        function calcEst(){
+            let sub=0,tenant=0;
+            collectEst().forEach(it=>{ const a=it.qty*it.unitPrice; sub+=a; tenant+=Math.round(a*it.burdenRate/100); });
+            const tax=Math.round(sub*0.1), total=sub+tax, tTax=Math.round(tenant*0.1), tTotal=tenant+tTax;
+            $('estSummary').innerHTML='小計 '+yen(sub)+'　消費税 '+yen(tax)+'　合計 '+yen(total)+
+                '<br><b>借主負担合計（税込）'+yen(tTotal)+'</b>';
+        }
+        function addEstItem(){ $('estItems').appendChild(estRow()); }
+        async function submitEstimate(){
+            if(!requireBackend()) return;
+            const items=collectEst();
+            if(!items.length){ toast('品目を入力してください'); return; }
+            await run({ action:'estimate', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room, items, note:$('estNote').value.trim() }, '見積書を作成しました');
+        }
+
+        // ---------------- 精算 ----------------
+        function calcSettlement(){
+            const bal = numv('stDeposit')-numv('stPenalty')-numv('stUnpaid')-numv('stRestore');
+            $('stBalance').textContent = bal>=0 ? '返金額：'+yen(bal) : '不足金額（ご請求）：'+yen(-bal);
+            $('stBalance').className = 'text-right font-bold mt-2 '+(bal>=0?'text-coastal-600':'text-red-600');
+        }
+        async function submitSettlement(){
+            if(!requireBackend()) return;
+            const payload={ action:'settlement', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room,
+                tenancy:$('stTenancy').value.trim(), endDate:$('stEndDate').value.trim(),
+                newAddress:$('stNewAddress').value.trim(), contact:$('stContact').value.trim(),
+                deposit:numv('stDeposit'), penalty:numv('stPenalty'), unpaidRent:numv('stUnpaid'), restoreCost:numv('stRestore'),
+                bank:{ name:$('stBankName').value.trim(), branch:$('stBankBranch').value.trim(), type:$('stBankType').value.trim(),
+                       number:$('stBankNumber').value.trim(), holder:$('stBankHolder').value.trim() },
+                note:$('stNote').value.trim() };
+            await run(payload, '精算書を作成しました');
+        }
+
+        // ---------------- 入金・完了 ----------------
+        function renderCompletion(){
+            const d=CUR.data||{};
+            const done = CUR.status==='完了';
+            const isShortage = (d.shortage||0)>0;
+            const label = isShortage ? '着金完了日' : '返金振込完了日';
+            $('cmpLabel').textContent = label;
+            if(CUR.status==='解約受付'||CUR.status==='立会い済'||CUR.status==='見積済'){
+                $('cmpState').textContent = '※先に精算書（③）を作成すると、返金/請求額が確定します。';
+            } else if(isShortage){
+                $('cmpState').textContent = '不足金額（ご請求）：'+yen(d.shortage)+' の入金を確認したら日付を記録してください。';
+            } else {
+                $('cmpState').textContent = '返金額：'+yen(d.refund||0)+' の振込が完了したら日付を記録してください。';
+            }
+            $('cmpDate').value = d.completionDate||'';
+            $('cmpDone').classList.toggle('hidden', !done);
+            if(done) $('cmpDone').textContent = '✓ '+(d.completionLabel||'完了')+'（'+(d.completionDate||'')+'）この案件は完了です';
+        }
+        async function submitComplete(){
+            if(!requireBackend()) return;
+            if(!$('cmpDate').value){ toast('完了日を入力してください'); return; }
+            const isShortage = ((CUR.data||{}).shortage||0)>0;
+            await run({ action:'complete', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room,
+                completionType: isShortage?'shortage':'refund', completionDate:$('cmpDate').value }, '完了を記録しました');
+        }
+
+        // ---------------- 新規案件 ----------------
+        function openNewCase(){
+            ['ncName','ncKana','ncBukken','ncRoom'].forEach(id=>$(id).value='');
+            const sel=$('importSelect');
+            if(IMPORTABLE.length){
+                show('importArea');
+                sel.innerHTML='<option value="">— 選択 —</option>'+IMPORTABLE.map((c,i)=>'<option value="'+i+'">'+esc(c.name)+'（'+esc(c.bukken)+' '+esc(c.room)+'）</option>').join('');
+            } else hide('importArea');
+            show('newCaseModal');
+        }
+        function applyImport(){
+            const i=$('importSelect').value; if(i==='')return;
+            const c=IMPORTABLE[i]; $('ncName').value=c.name||''; $('ncKana').value=c.kana||''; $('ncBukken').value=c.bukken||''; $('ncRoom').value=c.room||'';
+        }
+        function closeNewCase(){ hide('newCaseModal'); }
+        async function submitNewCase(){
+            if(!requireBackend()) return;
+            if(!$('ncName').value.trim()&&!$('ncBukken').value.trim()){ toast('氏名または物件名を入力してください'); return; }
+            const i=$('importSelect').value;
+            const imp=(i!==''&&IMPORTABLE[i])?IMPORTABLE[i]:{};
+            const payload={ action:'newCase', receiptNo:imp.receiptNo||'', name:$('ncName').value.trim(), kana:$('ncKana').value.trim(),
+                bukken:$('ncBukken').value.trim(), room:$('ncRoom').value.trim(), tel:imp.tel||'', email:imp.email||'', endDate:imp.endDate||'' };
+            closeNewCase();
+            show('loading');
+            try{ const j=await apiPost(payload); if(!j.ok)throw 0; await loadCases(); const nc=CASES.find(c=>c.id===j.caseId); hide('loading'); if(nc) openCase(nc.id); }
+            catch(e){ hide('loading'); toast('作成に失敗しました'); }
+        }
+
+        // ---------------- 共通実行 ----------------
+        function requireBackend(){ if(!GAS_URL){ alert('送信先（GAS_URL）が未設定です。taikyo.html の GAS_URL を設定してください。'); return false; } return true; }
+        async function run(payload, okMsg){
+            show('loading');
+            try{
+                const j=await apiPost(payload);
+                if(!j.ok) throw new Error(j.error||'error');
+                await loadCases();
+                const updated=CASES.find(c=>c.id===CUR.id);
+                hide('loading'); toast(okMsg);
+                if(updated) openCase(updated.id);
+            }catch(e){ hide('loading'); toast('保存に失敗しました'); }
+        }
+
+        document.addEventListener('DOMContentLoaded', ()=>{ loadCases(); });
+    </script>
+</body>
+</html>
