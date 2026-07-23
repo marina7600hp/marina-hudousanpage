@@ -77,6 +77,7 @@ function doPost(e) {
     if (action === 'tachiai') return json_(saveTachiai_(data));
     if (action === 'estimate') return json_(saveEstimate_(data));
     if (action === 'settlement') return json_(saveSettlement_(data));
+    if (action === 'complete') return json_(saveComplete_(data));
     return json_({ ok: false, error: 'unknown action: ' + action });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
@@ -311,6 +312,18 @@ function saveTachiai_(data) {
     : '';
   const otherNote = ch.otherNote ? '・' + esc_(ch.otherNote) : '';
 
+  // 後日見積となる原状回復箇所（選択項目）→「後日見積のうえ支払うことを約束」
+  const laterItems = (ch.laterItems || []).filter(String);
+  let laterBlock = '';
+  if (laterItems.length) {
+    laterBlock =
+      '<p class="note" style="margin-top:12px">下記の箇所について、借主負担の原状回復が必要であることを確認しました。' +
+      'これらの費用は<b>後日見積のうえ、確定した金額を支払うことを約束</b>いたします。</p>' +
+      '<table><tr><th>後日見積となる原状回復箇所（借主負担）</th></tr>' +
+      laterItems.map(function (li) { return '<tr><td>・' + esc_(li) + '</td></tr>'; }).join('') +
+      '</table>';
+  }
+
   const consentHtml = docHead_() +
     '<div class="meta">案件ID：' + esc_(caseId) + '</div>' +
     '<div class="meta">立会い日：' + today_() + '</div>' +
@@ -320,6 +333,7 @@ function saveTachiai_(data) {
     '<th style="width:14%">部屋番号</th><td>' + esc_(c.room) + '</td></tr></table>' +
     '<p class="note" style="margin-top:10px">私は、退去立会いにおいて下記の借主負担費用を確認し、支払うことに同意いたします。</p>' +
     '<table>' + chargeRows + '</table>' +
+    laterBlock +
     '<div class="note" style="margin-top:8px">' +
     (crossNote ? crossNote + '<br>' : '') +
     (otherNote ? otherNote + '<br>' : '') +
@@ -471,6 +485,28 @@ function saveSettlement_(data) {
     });
   } catch (e) {}
   return { ok: true, caseId: caseId, settlementUrl: file.getUrl(), refund: refund, shortage: shortage };
+}
+
+// ---------------- ⑤ 入金・完了（着金／返金振込の完了日で終了） ----------------
+function saveComplete_(data) {
+  const caseId = data.caseId;
+  if (!caseId) return { ok: false, error: '案件IDがありません。' };
+  const type = data.completionType; // 'refund'（返金振込）／'shortage'（着金）
+  const date = data.completionDate || today_();
+  const label = type === 'shortage' ? '着金完了' : '返金振込完了';
+  upsertCase_(caseId, {
+    status: '完了',
+    data: { completionType: type, completionDate: date, completionLabel: label },
+  });
+  try {
+    MailApp.sendEmail({
+      to: T_CONFIG.NOTIFY_EMAIL,
+      subject: '【退去精算 完了】' + (data.bukken || '') + ' ' + (data.room || '') + '（' + (data.name || '') + '様）',
+      body: label + 'を記録しました（' + date + '）。この案件は完了です。',
+      name: T_CONFIG.SENDER_NAME,
+    });
+  } catch (e) {}
+  return { ok: true, caseId: caseId, status: '完了', completionDate: date, completionLabel: label };
 }
 
 /**
