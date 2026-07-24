@@ -95,6 +95,7 @@ function doPost(e) {
     if (action === 'estimate') return json_(saveEstimate_(data));
     if (action === 'settlement') return json_(saveSettlement_(data));
     if (action === 'complete') return json_(saveComplete_(data));
+    if (action === 'deleteCase') return json_(deleteCase_(data));
     return json_({ ok: false, error: 'unknown action: ' + action });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
@@ -613,6 +614,18 @@ function buildCover_(caseId, c, data, shortage, dstamp, label) {
     '<div class="foot">物件：' + esc_(c.bukken) + '　' + esc_(c.room) + '　案件ID：' + esc_(caseId) + '</div></body></html>';
   const folder = getOrCreateSubfolder_(parentFolder_(), T_CONFIG.SUBFOLDERS.cover);
   return folder.createFile(htmlToPdf_(html, '送付状_書類送付御案内_' + label + '_' + dstamp + '.pdf'));
+}
+
+// ---------------- 案件の削除（一覧＝進捗シートから削除） ----------------
+// ドライブに保存済みのPDF・写真は残します（誤削除防止のため）。
+function deleteCase_(data) {
+  const caseId = data.caseId;
+  if (!caseId) return { ok: false, error: '案件IDがありません。' };
+  const sheet = progressSheet_();
+  const row = findRow_(sheet, caseId);
+  if (row < 0) return { ok: false, error: '案件が見つかりません。' };
+  sheet.deleteRow(row);
+  return { ok: true, caseId: caseId };
 }
 
 // ---------------- ⑤ 入金・完了（着金／返金振込の完了日で終了） ----------------
