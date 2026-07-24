@@ -158,6 +158,9 @@
                                 <span class="text-sm text-slate-500">枚</span>
                             </div>
                         </div>
+                        <!-- その他の借主負担費用（その場で金額を確定できるもの） -->
+                        <div id="otherFeeBox" class="space-y-2 mt-2"></div>
+                        <button type="button" onclick="addOtherFee()" class="btn btn-ghost text-xs mt-2">＋ その他の費用を追加（その場で金額確定）</button>
                         <p id="chTotal" class="text-right font-bold text-coastal-600 mt-2">確定分 合計：0円</p>
 
                         <label class="flex items-start gap-2 mt-3 cursor-pointer text-sm">
@@ -481,6 +484,8 @@
             $('chAc2Count').value = ch.ac2Count!=null?ch.ac2Count:0;
             $('chTatamiUnit').value = ch.tatamiUnit!=null?ch.tatamiUnit:5000;
             $('chTatamiCount').value = ch.tatamiCount!=null?ch.tatamiCount:0;
+            $('otherFeeBox').innerHTML='';
+            (ch.otherItems||[]).forEach(x=>addOtherFee(x.name,x.amount));
             $('chCrossAgree').checked = ch.crossAgree!==false;
             $('chCrossUnit').value = ch.crossUnit!=null?ch.crossUnit:1800;
             $('chOtherNote').value = ch.otherNote||'';
@@ -601,8 +606,24 @@
         }
 
         // ---------------- 立会い計算・送信 ----------------
+        // その他の借主負担費用（その場で金額確定）
+        function addOtherFee(name, amount){
+            const d=document.createElement('div'); d.className='flex items-center gap-2';
+            d.innerHTML='<input class="field-input text-sm other-fee-name" placeholder="項目名（例：鍵交換／CFシート張替え 等）" value="'+esc(name||'')+'">'+
+                '<input type="number" class="field-input other-fee-amt" style="max-width:110px" placeholder="金額" value="'+(amount!=null?amount:'')+'" oninput="calcTachiai()">'+
+                '<span class="text-sm text-slate-500">円</span>'+
+                '<button class="rm" style="position:static" onclick="this.parentNode.remove();calcTachiai()">×</button>';
+            $('otherFeeBox').appendChild(d); calcTachiai();
+        }
+        function collectOtherFees(){
+            return Array.from(document.querySelectorAll('#otherFeeBox > div')).map(r=>({
+                name:r.querySelector('.other-fee-name').value.trim(),
+                amount:parseFloat(r.querySelector('.other-fee-amt').value)||0
+            })).filter(x=>x.name && x.amount>0);
+        }
         function calcTachiai(){
-            const t = numv('chCleaning') + numv('chAcUnit')*numv('chAcCount') + numv('chAc2Unit')*numv('chAc2Count') + numv('chTatamiUnit')*numv('chTatamiCount');
+            let t = numv('chCleaning') + numv('chAcUnit')*numv('chAcCount') + numv('chAc2Unit')*numv('chAc2Count') + numv('chTatamiUnit')*numv('chTatamiCount');
+            collectOtherFees().forEach(x=>t+=x.amount);
             $('chTotal').textContent = '確定分 合計（税込）：'+yen(t);
         }
         // ①-A 原状回復箇所報告書（写真）
@@ -620,6 +641,7 @@
             const charges={ cleaning:numv('chCleaning'), acUnit:numv('chAcUnit'), acCount:numv('chAcCount'),
                 ac2Unit:numv('chAc2Unit'), ac2Count:numv('chAc2Count'),
                 tatamiUnit:numv('chTatamiUnit'), tatamiCount:numv('chTatamiCount'),
+                otherItems: collectOtherFees(),
                 crossAgree:$('chCrossAgree').checked, crossUnit:numv('chCrossUnit'), otherNote:$('chOtherNote').value.trim(),
                 laterItems: collectLaterItems() };
             const payload={ action:'consent', caseId:CUR.id, name:CUR.name, kana:CUR.kana, bukken:CUR.bukken, room:CUR.room,
@@ -659,6 +681,7 @@
             if((ch.acCount||0)>0) arr.push({name:'エアコン洗浄（通常）',qty:ch.acCount,unit:'台',unitPrice:ch.acUnit,burdenRate:100});
             if((ch.ac2Count||0)>0) arr.push({name:'エアコン洗浄（お掃除機能付き）',qty:ch.ac2Count,unit:'台',unitPrice:ch.ac2Unit,burdenRate:100});
             if((ch.tatamiCount||0)>0) arr.push({name:'畳表替え',qty:ch.tatamiCount,unit:'枚',unitPrice:ch.tatamiUnit,burdenRate:100});
+            (ch.otherItems||[]).forEach(x=>arr.push({name:x.name,qty:1,unit:'式',unitPrice:x.amount,burdenRate:100}));
             // 立会いで選択した「後日見積」箇所を、金額未入力の行としてあらかじめ表示
             (ch.laterItems||[]).forEach(li=>arr.push({name:li,qty:1,unit:'式',unitPrice:0,burdenRate:100}));
             return arr;

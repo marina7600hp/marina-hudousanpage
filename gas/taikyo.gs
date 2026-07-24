@@ -384,8 +384,12 @@ function saveConsent_(data) {
   if (Number(ch.acCount) > 0) rows.push([acLabel, fmtYen_(ch.acUnit) + ' × ' + Number(ch.acCount) + '台 ＝ ' + fmtYen_(Number(ch.acUnit) * Number(ch.acCount)) + '（税込）']);
   if (Number(ch.ac2Count) > 0) rows.push(['エアコン洗浄費・お掃除機能付き（借主負担）', fmtYen_(ch.ac2Unit) + ' × ' + Number(ch.ac2Count) + '台 ＝ ' + fmtYen_(Number(ch.ac2Unit) * Number(ch.ac2Count)) + '（税込）']);
   if (Number(ch.tatamiCount) > 0) rows.push(['畳表替え費用（借主負担）', fmtYen_(ch.tatamiUnit) + ' × ' + Number(ch.tatamiCount) + '枚 ＝ ' + fmtYen_(Number(ch.tatamiUnit) * Number(ch.tatamiCount)) + '（税込）']);
+  // その他の借主負担費用（その場で金額確定）
+  const otherItems = (ch.otherItems || []).filter(function (x) { return x && x.name && Number(x.amount) > 0; });
+  let otherSum = 0;
+  otherItems.forEach(function (x) { otherSum += Number(x.amount); rows.push([esc_(x.name) + '（借主負担）', fmtYen_(x.amount) + '（税込）']); });
   const fixedTotal = (Number(ch.cleaning) || 0) + (Number(ch.acUnit) || 0) * (Number(ch.acCount) || 0) +
-    (Number(ch.ac2Unit) || 0) * (Number(ch.ac2Count) || 0) + (Number(ch.tatamiUnit) || 0) * (Number(ch.tatamiCount) || 0);
+    (Number(ch.ac2Unit) || 0) * (Number(ch.ac2Count) || 0) + (Number(ch.tatamiUnit) || 0) * (Number(ch.tatamiCount) || 0) + otherSum;
   let chargeRows = rows.map(function (r) { return '<tr><th style="width:45%">' + esc_(r[0]) + '</th><td class="right">' + esc_(r[1]) + '</td></tr>'; }).join('');
   chargeRows += '<tr><th>上記の借主負担 合計（確定分・税込）</th><td class="right"><b>' + fmtYen_(fixedTotal) + '（税込）</b></td></tr>';
 
@@ -623,29 +627,78 @@ function buildInvoice_(caseId, c, data, shortage, dstamp, label) {
   return folder.createFile(htmlToPdf_(html, '御請求書_' + label + '_' + dstamp + '.pdf'));
 }
 
-/** 送付状PDF（書類送付御案内）：同封書類を列挙 */
+/** 送付状PDF（書類送付御案内）
+ *  A4を上下半分に分け、上＝送付用／下＝控え。控えの左下に封筒貼り付け用の宛名を配置。 */
 function buildCover_(caseId, c, data, shortage, dstamp, label) {
   const contact = T_CONFIG.COMPANY_CONTACT || data.staff || '';
   const docs = ['原状回復見積書', '清算書'];
   if (shortage > 0) docs.push('御請求書');
-  const list = docs.map(function (d, i) { return '<tr><td style="width:8%">' + (i + 1) + '.</td><td>' + esc_(d) + '</td><td style="width:16%">1部</td></tr>'; }).join('');
-  const html = docHead_() +
-    '<div class="meta">' + today_() + '</div>' +
-    '<h1 style="letter-spacing:8px">書類送付御案内</h1>' +
-    '<div style="margin-top:10px">' + (data.newAddress ? esc_(data.newAddress) + '<br>' : '') +
-    '<span style="font-size:14px;font-weight:bold">' + esc_(c.name) + ' 様</span></div>' +
-    '<div style="text-align:right;font-size:11px;margin-top:6px;line-height:1.7">' +
-    esc_(T_CONFIG.COMPANY) + '<br>〒' + esc_(T_CONFIG.COMPANY_ZIP) + '　' + esc_(T_CONFIG.COMPANY_ADDR_FULL) + '<br>' +
-    'TEL（' + esc_(T_CONFIG.COMPANY_TEL.replace(/-.*/, '')) + '）' + esc_(T_CONFIG.COMPANY_TEL.replace(/^[^-]*-/, '')) +
-    '　FAX（' + esc_(T_CONFIG.COMPANY_FAX.replace(/-.*/, '')) + '）' + esc_(T_CONFIG.COMPANY_FAX.replace(/^[^-]*-/, '')) +
-    (contact ? '<br>担当　' + esc_(contact) : '') + '</div>' +
-    '<p class="note" style="margin-top:14px">拝啓　毎々格別の御高配に預かり厚く御礼申し述べます。<br>' +
+  const listRows = docs.map(function (d, i) {
+    return '<tr><td class="n">' + (i + 1) + '.</td><td>' + esc_(d) + '</td><td class="b">1部</td></tr>';
+  }).join('');
+
+  const tp = String(T_CONFIG.COMPANY_TEL).split('-');
+  const tel = 'TEL（' + tp[0] + '）' + tp.slice(1).join('-');
+  const fp = String(T_CONFIG.COMPANY_FAX).split('-');
+  const fax = 'FAX（' + fp[0] + '）' + fp.slice(1).join('-');
+  const sender =
+    '<div class="from"><div class="cname">' + esc_(T_CONFIG.COMPANY) + '</div>' +
+    '〒' + esc_(T_CONFIG.COMPANY_ZIP) + '　' + esc_(T_CONFIG.COMPANY_ADDR_FULL) + '<br>' +
+    tel + '　　' + fax + (contact ? '<br>担　当　　' + esc_(contact) : '') + '</div>';
+  const body =
+    '<p class="greet">毎々格別の御高配に預かり厚く御礼申し述べます。<br>' +
     '下記の通り茲許同封送付致しましたので御査収の程願い上げます。</p>' +
-    '<div style="text-align:right;font-size:11px">敬具</div>' +
-    '<div style="text-align:center;font-weight:bold;margin:8px 0">記</div>' +
-    '<table>' + list + '</table>' +
-    '<div style="text-align:right;font-size:11px;margin-top:8px">以上</div>' +
-    '<div class="foot">物件：' + esc_(c.bukken) + '　' + esc_(c.room) + '　案件ID：' + esc_(caseId) + '</div></body></html>';
+    '<div class="ki">記</div>' +
+    '<table class="list">' + listRows + '</table>' +
+    '<div class="ijou">以上</div>';
+
+  function letter(isCopy) {
+    const to =
+      '<div class="to">' +
+      (isCopy && data.newAddress ? '<div class="toaddr">' + esc_(data.newAddress) + '</div>' : '') +
+      '<div class="toname">' + esc_(c.name) + '　様</div></div>';
+    const env = isCopy
+      ? '<div class="envwrap"><div class="env">' +
+        (data.newAddress ? '<div>' + esc_(data.newAddress) + '</div>' : '') +
+        '<div class="envname">' + esc_(c.name) + '　様</div></div>' +
+        '<div class="envnote">← 封筒貼り付け用</div></div>'
+      : '';
+    return '<div class="half">' +
+      '<div class="date">' + today_() + '</div>' +
+      '<div class="title">書 類 送 付 御 案 内' + (isCopy ? '（控え）' : '') + '</div>' +
+      '<div class="head">' + to + sender + '</div>' +
+      body + env + '</div>';
+  }
+
+  const html =
+    '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
+    '@page{size:A4 portrait;margin:8mm;}' +
+    'body{font-family:sans-serif;color:#111;font-size:12px;margin:0;}' +
+    '.half{height:133mm;box-sizing:border-box;padding:5mm 7mm;position:relative;overflow:hidden;}' +
+    '.date{text-align:right;font-size:11px;}' +
+    '.title{text-align:center;font-size:18px;font-weight:bold;letter-spacing:6px;margin:2mm 0 7mm;}' +
+    '.head{display:flex;justify-content:space-between;align-items:flex-start;gap:10mm;}' +
+    '.to{width:50%;padding-top:4mm;}' +
+    '.to .toaddr{font-size:11px;margin-bottom:3px;}' +
+    '.to .toname{font-size:14px;font-weight:bold;border-bottom:1px solid #333;padding-bottom:4px;}' +
+    '.from{width:46%;font-size:11px;line-height:1.7;}' +
+    '.from .cname{font-size:13px;font-weight:bold;text-align:center;margin-bottom:2px;}' +
+    '.greet{font-size:12px;margin:6mm 0 2mm;line-height:1.9;}' +
+    '.ki{text-align:center;font-weight:bold;margin:1mm 0 2mm;}' +
+    '.list{width:78%;margin:0 auto;border-collapse:collapse;}' +
+    '.list td{border-bottom:1px dotted #333;padding:3px 6px;font-size:12px;}' +
+    '.list td.n{width:8%;} .list td.b{width:16%;text-align:right;}' +
+    '.ijou{text-align:right;font-size:11px;margin-top:5px;}' +
+    '.cut{border-top:1px dashed #666;text-align:center;font-size:10px;color:#666;padding-top:1mm;}' +
+    '.envwrap{position:absolute;left:7mm;bottom:5mm;display:flex;align-items:center;gap:4mm;}' +
+    '.env{border:1px solid #333;padding:3mm 6mm;font-size:12px;min-width:62mm;}' +
+    '.env .envname{font-weight:bold;margin-top:4px;}' +
+    '.envnote{font-size:10px;color:#555;}' +
+    '</style></head><body>' +
+    letter(false) +
+    '<div class="cut">- - - - - - - - - - - - - - - - - - - - - - ✂ ここで切り取り、下半分を控えとしてください - - - - - - - - - - - - - - - - - - - - - -</div>' +
+    letter(true) +
+    '</body></html>';
   const folder = getOrCreateSubfolder_(parentFolder_(), T_CONFIG.SUBFOLDERS.cover);
   return folder.createFile(htmlToPdf_(html, '送付状_書類送付御案内_' + label + '_' + dstamp + '.pdf'));
 }
