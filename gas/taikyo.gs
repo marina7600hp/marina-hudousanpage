@@ -36,6 +36,19 @@ const T_CONFIG = {
   COMPANY: '有限会社仁方大森マリーナー',
   COMPANY_TEL: '0823-27-7600',
   COMPANY_ADDR: '呉市仁方',
+  // 送付状（書類送付御案内）の差出人情報
+  COMPANY_ZIP: '737-0821',
+  COMPANY_ADDR_FULL: '広島県呉市三条4丁目7-20',
+  COMPANY_FAX: '0823-27-7818',
+  COMPANY_CONTACT: '大森',   // 送付状の担当者（空なら精算書作成者を使用）
+  // 御請求書の入金先口座（原状回復費用の請求分の着金先）
+  INVOICE_BANK: {
+    bank: 'もみじ銀行',
+    branch: '呉中央支店',
+    type: '普通預金',
+    number: '3113449',
+    holder: 'エイホームトラスト株式会社',
+  },
   PROGRESS_SHEET_NAME: '退去精算_進捗管理',
   SENDER_NAME: '仁方大森マリーナー 退去精算',
   SUBFOLDERS: {
@@ -43,6 +56,8 @@ const T_CONFIG = {
     consent: '退去立会い同意書',
     estimate: '修繕見積書',
     settlement: '修繕精算書',
+    invoice: '御請求書',
+    cover: '送付状',
   },
   // 費用の初期値（税込・円）※管理画面で個別に変更可
   DEFAULT_CLEANING: 44000,   // 室内清掃費
@@ -508,26 +523,96 @@ function saveSettlement_(data) {
     '（振込手数料は差引かせていただきます）</div></body></html>';
 
   const label = caseLabel_(c);
+  const dstamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd');
   const folder = getOrCreateSubfolder_(parentFolder_(), T_CONFIG.SUBFOLDERS.settlement);
-  const pdf = htmlToPdf_(html, '修繕精算書_' + label + '_' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd') + '.pdf');
+  const pdf = htmlToPdf_(html, '修繕精算書_' + label + '_' + dstamp + '.pdf');
   const file = folder.createFile(pdf);
+
+  // --- 御請求書（不足＝請求額が発生した場合のみ） ---
+  let invoiceUrl = '';
+  if (shortage > 0) {
+    invoiceUrl = buildInvoice_(caseId, c, data, shortage, dstamp, label).getUrl();
+  }
+
+  // --- 送付状（書類送付御案内）：見積書・清算書・（請求書）を郵送する際の同封案内 ---
+  const coverUrl = buildCover_(caseId, c, data, shortage, dstamp, label).getUrl();
 
   upsertCase_(caseId, {
     status: '精算済', settlementUrl: file.getUrl(),
     data: { deposit: deposit, penalty: penalty, unpaidRent: unpaidRent, restoreCost: restoreCost,
             refund: refund, shortage: shortage, settlementStaff: data.staff || '',
-            tenancy: data.tenancy || '', endDate: data.endDate || '', newAddress: data.newAddress || '', contact: data.contact || '' },
+            tenancy: data.tenancy || '', endDate: data.endDate || '', newAddress: data.newAddress || '', contact: data.contact || '',
+            paymentDue: data.paymentDue || '', invoiceUrl: invoiceUrl, coverUrl: coverUrl },
   });
   try {
     MailApp.sendEmail({
       to: T_CONFIG.NOTIFY_EMAIL,
       subject: '【退去精算完了】' + c.bukken + ' ' + c.room + '（' + c.name + '様）',
       body: '退去精算が完了しました。\n' + (shortage > 0 ? '不足金額（ご請求）：' + fmtYen_(shortage) : '返金額：' + fmtYen_(refund)) +
-        '\n\n修繕精算書：' + file.getUrl(),
+        '\n\n修繕精算書：' + file.getUrl() +
+        (invoiceUrl ? '\n御請求書：' + invoiceUrl : '') +
+        '\n送付状（書類送付御案内）：' + coverUrl,
       name: T_CONFIG.SENDER_NAME,
     });
   } catch (e) {}
-  return { ok: true, caseId: caseId, settlementUrl: file.getUrl(), refund: refund, shortage: shortage };
+  return { ok: true, caseId: caseId, settlementUrl: file.getUrl(), refund: refund, shortage: shortage,
+           invoiceUrl: invoiceUrl, coverUrl: coverUrl };
+}
+
+/** 御請求書PDF（原状回復費用の不足額を借主に請求／入金先=INVOICE_BANK） */
+function buildInvoice_(caseId, c, data, shortage, dstamp, label) {
+  const b = T_CONFIG.INVOICE_BANK;
+  const bankRows =
+    '<tr><th style="width:28%">金融機関</th><td>' + esc_(b.bank) + '</td></tr>' +
+    '<tr><th>支店名</th><td>' + esc_(b.branch) + '</td></tr>' +
+    '<tr><th>口座</th><td>' + esc_(b.type) + '　No.' + esc_(b.number) + '</td></tr>' +
+    '<tr><th>口座名義人</th><td>' + esc_(b.holder) + '</td></tr>';
+  const due = data.paymentDue ? fmtD_(data.paymentDue) : '';
+  const html = docHead_() +
+    '<div class="meta">請求日：' + today_() + '</div>' +
+    '<div class="meta">案件ID：' + esc_(caseId) + '</div>' +
+    '<h1>御 請 求 書</h1>' +
+    '<div class="to">' + esc_(c.name) + ' 様</div>' +
+    (data.newAddress ? '<div class="note">送付先：' + esc_(data.newAddress) + '</div>' : '') +
+    '<p class="note" style="margin-top:8px">下記のとおり、退去に伴う原状回復費用の借主ご負担分（敷金充当後の不足額）をご請求申し上げます。</p>' +
+    '<table style="margin-top:6px"><tr><th style="width:28%">物件名</th><td>' + esc_(c.bukken) + '　' + esc_(c.room) + '</td></tr>' +
+    '<tr><th>ご請求金額（税込）</th><td class="right"><b style="font-size:15px">' + fmtYen_(shortage) + '</b></td></tr>' +
+    (due ? '<tr><th>お支払期限</th><td>' + esc_(due) + '</td></tr>' : '') +
+    '</table>' +
+    '<p class="note" style="margin-top:10px">下記口座へお振込みくださいますようお願い申し上げます。（振込手数料はご負担願います）</p>' +
+    '<table>' + bankRows + '</table>' +
+    '<div class="foot">※内訳は同封の「退去清算書」および「原状回復見積書」をご確認ください。<br>' +
+    esc_(T_CONFIG.COMPANY) + '　〒' + esc_(T_CONFIG.COMPANY_ZIP) + '　' + esc_(T_CONFIG.COMPANY_ADDR_FULL) +
+    '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) + '</div></body></html>';
+  const folder = getOrCreateSubfolder_(parentFolder_(), T_CONFIG.SUBFOLDERS.invoice);
+  return folder.createFile(htmlToPdf_(html, '御請求書_' + label + '_' + dstamp + '.pdf'));
+}
+
+/** 送付状PDF（書類送付御案内）：同封書類を列挙 */
+function buildCover_(caseId, c, data, shortage, dstamp, label) {
+  const contact = T_CONFIG.COMPANY_CONTACT || data.staff || '';
+  const docs = ['原状回復見積書', '清算書'];
+  if (shortage > 0) docs.push('御請求書');
+  const list = docs.map(function (d, i) { return '<tr><td style="width:8%">' + (i + 1) + '.</td><td>' + esc_(d) + '</td><td style="width:16%">1部</td></tr>'; }).join('');
+  const html = docHead_() +
+    '<div class="meta">' + today_() + '</div>' +
+    '<h1 style="letter-spacing:8px">書類送付御案内</h1>' +
+    '<div style="margin-top:10px">' + (data.newAddress ? esc_(data.newAddress) + '<br>' : '') +
+    '<span style="font-size:14px;font-weight:bold">' + esc_(c.name) + ' 様</span></div>' +
+    '<div style="text-align:right;font-size:11px;margin-top:6px;line-height:1.7">' +
+    esc_(T_CONFIG.COMPANY) + '<br>〒' + esc_(T_CONFIG.COMPANY_ZIP) + '　' + esc_(T_CONFIG.COMPANY_ADDR_FULL) + '<br>' +
+    'TEL（' + esc_(T_CONFIG.COMPANY_TEL.replace(/-.*/, '')) + '）' + esc_(T_CONFIG.COMPANY_TEL.replace(/^[^-]*-/, '')) +
+    '　FAX（' + esc_(T_CONFIG.COMPANY_FAX.replace(/-.*/, '')) + '）' + esc_(T_CONFIG.COMPANY_FAX.replace(/^[^-]*-/, '')) +
+    (contact ? '<br>担当　' + esc_(contact) : '') + '</div>' +
+    '<p class="note" style="margin-top:14px">拝啓　毎々格別の御高配に預かり厚く御礼申し述べます。<br>' +
+    '下記の通り茲許同封送付致しましたので御査収の程願い上げます。</p>' +
+    '<div style="text-align:right;font-size:11px">敬具</div>' +
+    '<div style="text-align:center;font-weight:bold;margin:8px 0">記</div>' +
+    '<table>' + list + '</table>' +
+    '<div style="text-align:right;font-size:11px;margin-top:8px">以上</div>' +
+    '<div class="foot">物件：' + esc_(c.bukken) + '　' + esc_(c.room) + '　案件ID：' + esc_(caseId) + '</div></body></html>';
+  const folder = getOrCreateSubfolder_(parentFolder_(), T_CONFIG.SUBFOLDERS.cover);
+  return folder.createFile(htmlToPdf_(html, '送付状_書類送付御案内_' + label + '_' + dstamp + '.pdf'));
 }
 
 // ---------------- ⑤ 入金・完了（着金／返金振込の完了日で終了） ----------------

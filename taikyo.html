@@ -211,8 +211,15 @@
                     <input id="stBankHolder" class="field-input text-sm col-span-2" placeholder="口座名義（カナ）">
                 </div>
                 <input id="stNote" class="field-input text-sm mt-2" placeholder="備考（任意）">
-                <div class="mt-2"><label class="field-label">精算書作成者</label><input id="stStaff" class="field-input text-sm" placeholder="作成者名"></div>
-                <button onclick="submitSettlement()" class="btn btn-primary w-full mt-3">精算書を作成</button>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                    <div><label class="field-label">精算書作成者</label><input id="stStaff" class="field-input text-sm" placeholder="作成者名"></div>
+                    <div><label class="field-label">お支払期限<span class="text-slate-400 font-normal ml-1">請求時・請求書に記載</span></label><input id="stPayDue" type="date" class="field-input text-sm"></div>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-2 bg-slate-50 border border-slate-200 rounded p-2">
+                    精算がマイナス（不足）の場合は<b>御請求書</b>（入金先：もみじ銀行 呉中央支店 普通 No.3113449 エイホームトラスト株式会社）を自動作成します。<br>
+                    あわせて<b>送付状（書類送付御案内）</b>も作成し、見積書・清算書・（請求書）の同封案内を出します。
+                </p>
+                <button onclick="submitSettlement()" class="btn btn-primary w-full mt-3">精算書を作成（請求書・送付状も自動作成）</button>
             </div>
 
             <!-- ④ 入金・完了 -->
@@ -354,11 +361,19 @@
         }
         function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
         function renderDocTabs(){
-            const defs=[['原状回復報告書','📋',CUR.reportUrl],['立会い同意書','✍️',CUR.consentUrl],['見積書','🧮',CUR.estimateUrl],['精算書','🧾',CUR.settlementUrl]];
+            const d=CUR.data||{};
+            const defs=[
+                ['原状回復報告書','📋',CUR.reportUrl,'未作成'],
+                ['立会い同意書','✍️',CUR.consentUrl,'未作成'],
+                ['見積書','🧮',CUR.estimateUrl,'未作成'],
+                ['精算書','🧾',CUR.settlementUrl,'未作成'],
+                ['御請求書','💴',d.invoiceUrl,'請求時のみ'],
+                ['送付状','✉️',d.coverUrl,'未作成'],
+            ];
             $('cvLinks').innerHTML = defs.map(function(x){
-                const name=x[0],ico=x[1],url=x[2];
+                const name=x[0],ico=x[1],url=x[2],todo=x[3];
                 if(url) return '<a href="'+url+'" target="_blank" class="doc-tab done"><span class="ico">'+ico+'</span>'+name+'<span class="st">開く ↗</span></a>';
-                return '<div class="doc-tab todo"><span class="ico">'+ico+'</span>'+name+'<span class="st">未作成</span></div>';
+                return '<div class="doc-tab todo"><span class="ico">'+ico+'</span>'+name+'<span class="st">'+todo+'</span></div>';
             }).join('');
         }
 
@@ -422,6 +437,7 @@
             $('stPenalty').value = d.penalty||0;
             $('stUnpaid').value = d.unpaidRent||0;
             $('stRestore').value = d.restoreCost!=null?d.restoreCost:(d.tenantTotal||'');
+            $('stPayDue').value = d.paymentDue||'';
             calcSettlement();
             renderCompletion();
 
@@ -617,8 +633,9 @@
                 deposit:numv('stDeposit'), penalty:numv('stPenalty'), unpaidRent:numv('stUnpaid'), restoreCost:numv('stRestore'),
                 bank:{ name:$('stBankName').value.trim(), branch:$('stBankBranch').value.trim(), type:$('stBankType').value.trim(),
                        number:$('stBankNumber').value.trim(), holder:$('stBankHolder').value.trim() },
-                note:$('stNote').value.trim(), staff:$('stStaff').value.trim() };
-            await run(payload, '精算書を作成しました');
+                note:$('stNote').value.trim(), staff:$('stStaff').value.trim(), paymentDue:$('stPayDue').value };
+            const isShortagePreview = (numv('stDeposit')-numv('stPenalty')-numv('stUnpaid')-numv('stRestore'))<0;
+            await run(payload, isShortagePreview?'精算書・御請求書・送付状を作成しました':'精算書・送付状を作成しました');
         }
 
         // ---------------- 入金・完了 ----------------
