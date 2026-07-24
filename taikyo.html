@@ -243,6 +243,12 @@
                 <button onclick="submitComplete()" class="btn btn-primary w-full mt-3">入金・振込の完了を記録（この案件を終了）</button>
                 <p id="cmpDone" class="hidden text-center text-sm font-bold text-emerald-600 mt-2"></p>
             </div>
+
+            <!-- 案件の削除 -->
+            <div class="text-center pt-2 pb-4">
+                <button onclick="deleteCase()" class="text-red-500 hover:text-red-700 text-sm underline">🗑 この案件を一覧から削除</button>
+                <p class="text-[11px] text-slate-400 mt-1">※ドライブに保存済みのPDF・写真は残ります</p>
+            </div>
         </section>
     </main>
 
@@ -283,7 +289,7 @@
         // ================================================================
         // ★★★ 設定：taikyo.gs をデプロイしたウェブアプリURLを貼り付け ★★★
         // ================================================================
-        const GAS_URL = 'https://script.google.com/macros/s/AKfycbzGQi6tDx_Nh1pc9EMbWIsKGJwPfJVa699QPCqvHrGqgKOatdHR_mUPUWf3A4YzH8hpxA/exec';
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbwr9_kJSA9uPE2JMBqLe6dHY1zJarh4VtLq1ezNfxbsWYDoryoFgOblIf9MwffTg_Qa/exec';
 
         const $ = (id) => document.getElementById(id);
         let CASES = [], IMPORTABLE = [], CUR = null, PHOTOS = [];
@@ -666,6 +672,19 @@
             await run({ action:'complete', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room,
                 completionType: isShortage?'shortage':'refund', completionDate:$('cmpDate').value,
                 confirmer:$('cmpConfirmer').value.trim(), invoiceMailDate:$('cmpInvoiceDate').value }, '完了を記録しました');
+        }
+
+        // ---------------- 案件の削除 ----------------
+        async function deleteCase(){
+            if(!requireBackend()) return;
+            if(!confirm('この案件を一覧から削除します。\n（ドライブに保存済みのPDF・写真は残ります）\n\nよろしいですか？')) return;
+            show('loading');
+            try{
+                const j=await apiPost({ action:'deleteCase', caseId:CUR.id });
+                if(!j.ok) throw new Error(j.error||'error');
+                await loadCases();
+                hide('loading'); toast('案件を削除しました'); showList();
+            }catch(e){ hide('loading'); toast('削除に失敗しました'); }
         }
 
         // ---------------- 新規案件 ----------------
