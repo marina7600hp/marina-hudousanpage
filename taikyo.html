@@ -336,7 +336,37 @@
         function renderList(){
             hide('loadingList');
             const box=$('caseList'); box.innerHTML='';
-            if(!CASES.length){ show('emptyList'); return; } hide('emptyList');
+            if(!CASES.length && !IMPORTABLE.length){ show('emptyList'); return; } hide('emptyList');
+
+            // 解約フォームから取り込める案件（未取込）を一覧の先頭に表示
+            if(IMPORTABLE.length){
+                const h=document.createElement('p');
+                h.className='text-xs font-bold text-slate-500 mb-1';
+                h.textContent='解約フォームから取り込み（未取込）';
+                box.appendChild(h);
+                IMPORTABLE.forEach((c,i)=>{
+                    const div=document.createElement('div');
+                    div.className='card cursor-pointer hover:border-coastal-300';
+                    div.style.borderStyle='dashed';
+                    div.onclick=()=>startFromImport(i);
+                    div.innerHTML=
+                        '<div class="flex items-start justify-between gap-2">'+
+                            '<div class="min-w-0"><p class="font-bold text-sm">'+esc(c.name||'（無名）')+'</p>'+
+                            '<p class="text-xs text-slate-500 truncate">'+esc(c.bukken||'')+' '+esc(c.room||'')+'</p>'+
+                            (c.endDate?'<p class="text-[11px] text-slate-400 mt-0.5">解約日 '+esc(c.endDate)+'</p>':'')+'</div>'+
+                            '<div class="text-right shrink-0"><span class="badge b-kaiyaku">解約受付</span>'+
+                            '<div class="mt-1"><span class="hint">タップで取込→立会い</span></div></div>'+
+                        '</div>';
+                    box.appendChild(div);
+                });
+                if(CASES.length){
+                    const h2=document.createElement('p');
+                    h2.className='text-xs font-bold text-slate-500 mt-3 mb-1';
+                    h2.textContent='進行中・完了の案件';
+                    box.appendChild(h2);
+                }
+            }
+
             CASES.forEach((c)=>{
                 const d=c.data||{}; const pct=PROGRESS[c.status]||0;
                 const div=document.createElement('div');
@@ -672,6 +702,22 @@
             await run({ action:'complete', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room,
                 completionType: isShortage?'shortage':'refund', completionDate:$('cmpDate').value,
                 confirmer:$('cmpConfirmer').value.trim(), invoiceMailDate:$('cmpInvoiceDate').value }, '完了を記録しました');
+        }
+
+        // ---------------- 解約案件の取り込み（一覧から直接） ----------------
+        async function startFromImport(i){
+            if(!requireBackend()) return;
+            const imp=IMPORTABLE[i]; if(!imp) return;
+            show('loading');
+            try{
+                const j=await apiPost({ action:'newCase', receiptNo:imp.receiptNo||'', name:imp.name||'', kana:imp.kana||'',
+                    bukken:imp.bukken||'', room:imp.room||'', tel:imp.tel||'', email:imp.email||'', endDate:imp.endDate||'' });
+                if(!j.ok) throw new Error(j.error||'error');
+                await loadCases();
+                const nc=CASES.find(c=>c.id===j.caseId);
+                hide('loading'); toast('取り込みました');
+                if(nc) openCase(nc.id);
+            }catch(e){ hide('loading'); toast('取り込みに失敗しました'); }
         }
 
         // ---------------- 案件の削除 ----------------
