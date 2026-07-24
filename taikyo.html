@@ -70,6 +70,13 @@
                 <h2 class="font-bold text-slate-700">退去案件一覧</h2>
                 <button onclick="openNewCase()" class="btn btn-primary text-sm">＋ 新規案件</button>
             </div>
+            <div class="flex items-center gap-2 mb-3">
+                <div class="inline-flex rounded-lg overflow-hidden border border-slate-300 text-xs">
+                    <button id="filtActive" onclick="setFilter('active')" class="px-3 py-1.5 font-bold">処理中のみ</button>
+                    <button id="filtAll" onclick="setFilter('all')" class="px-3 py-1.5 font-bold">すべて</button>
+                </div>
+                <span id="listCount" class="text-[11px] text-slate-400 ml-auto text-right"></span>
+            </div>
             <div id="loadingList" class="text-center text-slate-400 py-10 text-sm">読み込み中…</div>
             <div id="caseList" class="space-y-2"></div>
             <div id="emptyList" class="hidden text-center text-slate-400 py-10 text-sm">案件がありません。「＋ 新規案件」から開始してください。</div>
@@ -293,6 +300,7 @@
 
         const $ = (id) => document.getElementById(id);
         let CASES = [], IMPORTABLE = [], CUR = null, PHOTOS = [];
+        let LIST_FILTER = 'active'; // 'active'=処理中のみ（完了を隠す） / 'all'=すべて
 
         // 後日見積となる原状回復箇所の定番項目
         const LATER_ITEMS = ['鍵紛失のため交換費用','柱損傷','CFシート傷・汚損','剥がれ','フローリング破損・汚損','網戸破け','ヤニ汚れ'];
@@ -333,10 +341,23 @@
                 renderList();
             }catch(e){ hide('loadingList'); toast('読み込みに失敗しました'); }
         }
+        function setFilter(f){ LIST_FILTER=f; styleFilter(); renderList(); }
+        function styleFilter(){
+            const on='px-3 py-1.5 font-bold bg-coastal-600 text-white', off='px-3 py-1.5 font-bold bg-white text-slate-600';
+            if($('filtActive')) $('filtActive').className = LIST_FILTER==='active'?on:off;
+            if($('filtAll')) $('filtAll').className = LIST_FILTER==='all'?on:off;
+        }
         function renderList(){
             hide('loadingList');
             const box=$('caseList'); box.innerHTML='';
-            if(!CASES.length && !IMPORTABLE.length){ show('emptyList'); return; } hide('emptyList');
+            // 完了は既定で非表示（「今処理すべき案件」だけを表示）
+            const activeCases = CASES.filter(c=>c.status!=='完了');
+            const doneCount = CASES.length - activeCases.length;
+            const shown = LIST_FILTER==='all' ? CASES : activeCases;
+            $('listCount').textContent = LIST_FILTER==='all'
+                ? ('全'+CASES.length+'件'+(IMPORTABLE.length?'　未取込'+IMPORTABLE.length+'件':''))
+                : ('処理中'+activeCases.length+'件'+(IMPORTABLE.length?'　未取込'+IMPORTABLE.length+'件':'')+(doneCount?'　（完了'+doneCount+'件は非表示）':''));
+            if(!shown.length && !IMPORTABLE.length){ show('emptyList'); $('emptyList').textContent = (doneCount&&LIST_FILTER==='active')?'処理中の案件はありません（完了'+doneCount+'件は「すべて」で表示）。':'案件がありません。「＋ 新規案件」から開始してください。'; return; } hide('emptyList');
 
             // 解約フォームから取り込める案件（未取込）を一覧の先頭に表示
             if(IMPORTABLE.length){
@@ -359,15 +380,15 @@
                         '</div>';
                     box.appendChild(div);
                 });
-                if(CASES.length){
+                if(shown.length){
                     const h2=document.createElement('p');
                     h2.className='text-xs font-bold text-slate-500 mt-3 mb-1';
-                    h2.textContent='進行中・完了の案件';
+                    h2.textContent = LIST_FILTER==='all' ? '案件（進行中・完了）' : '処理中の案件';
                     box.appendChild(h2);
                 }
             }
 
-            CASES.forEach((c)=>{
+            shown.forEach((c)=>{
                 const d=c.data||{}; const pct=PROGRESS[c.status]||0;
                 const div=document.createElement('div');
                 div.className='card cursor-pointer hover:border-coastal-300';
@@ -775,7 +796,7 @@
             }catch(e){ hide('loading'); toast('保存に失敗しました'); }
         }
 
-        document.addEventListener('DOMContentLoaded', ()=>{ loadCases(); });
+        document.addEventListener('DOMContentLoaded', ()=>{ styleFilter(); loadCases(); });
     </script>
 </body>
 </html>
