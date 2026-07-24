@@ -27,6 +27,18 @@
         .b-seisan { background:#f3e8ff; color:#7e22ce; }
         .b-done { background:#0f172a; color:#fff; }
         .hint { font-size:11px; color:#0369a1; background:#e0f2fe; border-radius:6px; padding:1px 7px; display:inline-block; }
+        .prog-track { height:7px; background:#e2e8f0; border-radius:999px; overflow:hidden; }
+        .prog-fill { height:100%; background:linear-gradient(90deg,#028090,#005f73); border-radius:999px; transition:width .3s; }
+        /* 書類タブ（原状回復報告書／同意書／見積書／精算書） */
+        .doc-tabs { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+        @media (min-width:640px){ .doc-tabs { grid-template-columns:repeat(4,1fr); } }
+        .doc-tab { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; text-align:center;
+            padding:10px 6px; border-radius:10px; font-size:12px; font-weight:700; border:1px solid #e2e8f0; text-decoration:none; line-height:1.3; }
+        .doc-tab .ico { font-size:18px; }
+        .doc-tab.done { background:#e5f6f6; color:#005f73; border-color:#028090; }
+        .doc-tab.done:hover { background:#ceecee; }
+        .doc-tab.todo { background:#f8fafc; color:#94a3b8; }
+        .doc-tab .st { font-size:10px; font-weight:500; }
         .stage-title { font-size:14px; font-weight:700; color:#005f73; border-left:4px solid #028090; padding-left:8px; margin-bottom:10px; }
         #sigCanvas { touch-action:none; background:#fff; border:1px dashed #94a3b8; border-radius:8px; width:100%; height:160px; }
         .btn { font-weight:700; border-radius:9px; padding:10px 14px; font-size:14px; cursor:pointer; }
@@ -40,7 +52,7 @@
 <body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-20">
 
     <header class="bg-coastal-900 text-white sticky top-0 z-30">
-        <div class="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
             <button id="backBtn" onclick="showList()" class="hidden text-coastal-200 text-sm">‹ 一覧へ</button>
             <div class="flex-1">
                 <p class="text-[10px] tracking-[0.25em] text-coastal-200">ADMIN CONSOLE</p>
@@ -50,7 +62,7 @@
         </div>
     </header>
 
-    <main class="max-w-3xl mx-auto px-4 py-5">
+    <main class="max-w-5xl mx-auto px-4 py-5"><!-- PC対応で横幅拡大 -->
 
         <!-- ============ 一覧ビュー ============ -->
         <section id="listView">
@@ -66,27 +78,50 @@
         <!-- ============ 案件詳細ビュー ============ -->
         <section id="caseView" class="hidden space-y-4">
             <div class="card">
-                <div class="flex items-start justify-between">
-                    <div>
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
                         <p id="cvName" class="text-lg font-bold"></p>
                         <p id="cvBukken" class="text-sm text-slate-500"></p>
+                        <p id="cvDates" class="text-xs text-slate-400 mt-0.5"></p>
                     </div>
-                    <span id="cvStatus" class="badge"></span>
+                    <div class="text-right shrink-0">
+                        <span id="cvStatus" class="badge"></span>
+                        <div id="cvHint" class="hint mt-1"></div>
+                    </div>
                 </div>
-                <div id="cvLinks" class="mt-3 flex flex-wrap gap-2 text-xs"></div>
+                <div class="mt-3">
+                    <div class="flex justify-between text-[11px] text-slate-500 mb-1"><span id="cvStageTxt"></span><span id="cvPct" class="font-bold text-coastal-600"></span></div>
+                    <div class="prog-track"><div id="cvProg" class="prog-fill" style="width:0%"></div></div>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-3 mb-1">作成した書類（タップで開く）</p>
+                <div id="cvLinks" class="doc-tabs"></div>
             </div>
 
-            <!-- ① 退去立会い -->
+            <!-- ①-A 原状回復箇所報告書（写真） -->
             <div class="card">
-                <p class="stage-title">① 退去立会い（写真・費用同意・電子署名）</p>
+                <p class="stage-title">①-A 原状回復箇所報告書（写真・根拠資料）</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                    <div><label class="field-label">退去日</label><input id="tiMoveout" type="date" class="field-input text-sm"></div>
+                    <div><label class="field-label">立会日</label><input id="tiTachiai" type="date" class="field-input text-sm"></div>
+                    <div><label class="field-label">立会担当者</label><input id="tiStaff" class="field-input text-sm" placeholder="担当者名"></div>
+                </div>
+                <p class="field-label">原状回復箇所の写真<span class="text-slate-400 font-normal ml-1">撮影 または スマホの写真から選択（複数可）</span></p>
+                <div class="flex flex-wrap gap-2 mt-1">
+                    <label class="btn btn-primary text-sm cursor-pointer text-center">📷 撮影して追加
+                        <input type="file" accept="image/*" capture="environment" multiple class="hidden" onchange="addPhotos(event)"></label>
+                    <label class="btn btn-ghost text-sm cursor-pointer text-center">🖼 写真から選択
+                        <input id="photoInput" type="file" accept="image/*" multiple class="hidden" onchange="addPhotos(event)"></label>
+                </div>
+                <div id="photoGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3"></div>
+                <p class="text-[11px] text-slate-400 mt-2">写真は追加のたびに報告書を作り直せます（同意書の署名はやり直し不要）。</p>
+                <button onclick="submitReport()" class="btn btn-primary w-full mt-3">原状回復箇所報告書を作成</button>
+            </div>
+
+            <!-- ①-B 退去立会い同意書（費用・署名） -->
+            <div class="card">
+                <p class="stage-title">①-B 退去立会い同意書（費用同意・電子署名）</p>
                 <div class="space-y-4">
                     <div>
-                        <p class="field-label">原状回復箇所の写真<span class="text-slate-400 font-normal ml-1">その場で撮影・複数可</span></p>
-                        <input id="photoInput" type="file" accept="image/*" capture="environment" multiple class="text-sm" onchange="addPhotos(event)">
-                        <div id="photoGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2"></div>
-                    </div>
-
-                    <div class="border-t border-slate-100 pt-3">
                         <p class="field-label mb-2">借主負担費用（税込・署名で同意いただく項目）</p>
                         <div class="space-y-2">
                             <div class="flex items-center gap-2">
@@ -136,7 +171,7 @@
                         </div>
                     </div>
 
-                    <button onclick="submitTachiai()" class="btn btn-primary w-full">立会い内容を保存（報告書・同意書を作成）</button>
+                    <button onclick="submitConsent()" class="btn btn-primary w-full">立会い同意書を作成（署名を保存）</button>
                 </div>
             </div>
 
@@ -147,6 +182,7 @@
                 <button type="button" onclick="addEstItem()" class="btn btn-ghost text-xs mt-2">＋ 品目を追加</button>
                 <div id="estSummary" class="text-sm text-right mt-3 space-y-0.5 text-slate-600"></div>
                 <input id="estNote" class="field-input text-sm mt-2" placeholder="諸条件・備考（任意）">
+                <div class="mt-2"><label class="field-label">見積作成者</label><input id="estStaff" class="field-input text-sm" placeholder="作成者名"></div>
                 <button onclick="submitEstimate()" class="btn btn-primary w-full mt-3">見積書を作成</button>
             </div>
 
@@ -175,16 +211,34 @@
                     <input id="stBankHolder" class="field-input text-sm col-span-2" placeholder="口座名義（カナ）">
                 </div>
                 <input id="stNote" class="field-input text-sm mt-2" placeholder="備考（任意）">
-                <button onclick="submitSettlement()" class="btn btn-primary w-full mt-3">精算書を作成</button>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                    <div><label class="field-label">精算書作成者</label><input id="stStaff" class="field-input text-sm" placeholder="作成者名"></div>
+                    <div><label class="field-label">お支払期限<span class="text-slate-400 font-normal ml-1">請求時・請求書に記載</span></label><input id="stPayDue" type="date" class="field-input text-sm"></div>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-2 bg-slate-50 border border-slate-200 rounded p-2">
+                    精算がマイナス（不足）の場合は<b>御請求書</b>（入金先：もみじ銀行 呉中央支店 普通 No.3113449 エイホームトラスト株式会社）を自動作成します。<br>
+                    あわせて<b>送付状（書類送付御案内）</b>も作成し、見積書・清算書・（請求書）の同封案内を出します。
+                </p>
+                <button onclick="submitSettlement()" class="btn btn-primary w-full mt-3">精算書を作成（請求書・送付状も自動作成）</button>
             </div>
 
             <!-- ④ 入金・完了 -->
             <div class="card">
                 <p class="stage-title">④ 入金・完了</p>
                 <p id="cmpState" class="text-sm text-slate-600 mb-2"></p>
-                <div class="flex items-center gap-2">
-                    <span id="cmpLabel" class="text-sm w-32 shrink-0">完了日</span>
-                    <input id="cmpDate" type="date" class="field-input">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label id="cmpLabel" class="field-label">完了日</label>
+                        <input id="cmpDate" type="date" class="field-input">
+                    </div>
+                    <div id="invoiceWrap">
+                        <label class="field-label">請求書郵送日<span class="text-slate-400 font-normal ml-1">請求時のみ</span></label>
+                        <input id="cmpInvoiceDate" type="date" class="field-input">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="field-label">確認者<span class="text-slate-400 font-normal ml-1">自由記述</span></label>
+                        <input id="cmpConfirmer" class="field-input text-sm" placeholder="確認者名・メモ（自由記述）">
+                    </div>
                 </div>
                 <button onclick="submitComplete()" class="btn btn-primary w-full mt-3">入金・振込の完了を記録（この案件を終了）</button>
                 <p id="cmpDone" class="hidden text-center text-sm font-bold text-emerald-600 mt-2"></p>
@@ -229,7 +283,7 @@
         // ================================================================
         // ★★★ 設定：taikyo.gs をデプロイしたウェブアプリURLを貼り付け ★★★
         // ================================================================
-        const GAS_URL = 'https://script.google.com/macros/s/AKfycbzcM7DUJM2EfljwHCEoP8BgER4zexT4iyv6KLbJfOCN0KYphWhPMyd6YOzcJcmRKMe_9g/exec';
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbzGQi6tDx_Nh1pc9EMbWIsKGJwPfJVa699QPCqvHrGqgKOatdHR_mUPUWf3A4YzH8hpxA/exec';
 
         const $ = (id) => document.getElementById(id);
         let CASES = [], IMPORTABLE = [], CUR = null, PHOTOS = [];
@@ -238,6 +292,9 @@
         const LATER_ITEMS = ['鍵紛失のため交換費用','柱損傷','CFシート傷・汚損','剥がれ','フローリング破損・汚損','網戸破け','ヤニ汚れ'];
         const STATUS_MAP = { '解約受付':'b-kaiyaku','立会い済':'b-tachiai','見積済':'b-mitsumori','精算済':'b-seisan','完了':'b-done' };
         const NEXT_ACTION = { '解約受付':'立会い待ち','立会い済':'見積作成待ち','見積済':'精算書作成待ち','精算済':'返金振込／入金待ち','完了':'完了' };
+        const PROGRESS = { '解約受付':20,'立会い済':40,'見積済':60,'精算済':80,'完了':100 };
+        const DAMAGE_TYPES = ['傷','汚れ','カビ','穴','剥がれ','焦げ・ヤケ','へこみ','破損','その他'];
+        const todayISO = ()=>{ const t=new Date(),p=n=>String(n).padStart(2,'0'); return t.getFullYear()+'-'+p(t.getMonth()+1)+'-'+p(t.getDate()); };
 
         function toast(msg) { const t=$('toast'); t.textContent=msg; t.classList.remove('hidden'); setTimeout(()=>t.classList.add('hidden'),2200); }
         function show(el){ $(el).classList.remove('hidden'); }
@@ -275,21 +332,50 @@
             const box=$('caseList'); box.innerHTML='';
             if(!CASES.length){ show('emptyList'); return; } hide('emptyList');
             CASES.forEach((c)=>{
-                const d=c.data||{};
+                const d=c.data||{}; const pct=PROGRESS[c.status]||0;
                 const div=document.createElement('div');
-                div.className='card flex items-center justify-between gap-2 cursor-pointer hover:border-coastal-300';
+                div.className='card cursor-pointer hover:border-coastal-300';
                 div.onclick=()=>openCase(c.id);
                 const rightInfo = c.status==='完了'
                     ? '<span class="hint" style="background:#f1f5f9;color:#334155">'+esc(d.completionLabel||'完了')+' '+esc(d.completionDate||'')+'</span>'
                     : '<span class="hint">'+esc(NEXT_ACTION[c.status]||'')+'</span>';
-                div.innerHTML='<div class="min-w-0"><p class="font-bold text-sm">'+esc(c.name||'（無名）')+'</p>'+
-                    '<p class="text-xs text-slate-500 truncate">'+esc(c.bukken||'')+' '+esc(c.room||'')+'</p>'+
-                    '<p class="text-[11px] text-slate-400 mt-0.5">更新 '+esc(c.updated||'')+'</p></div>'+
-                    '<div class="text-right shrink-0">'+statusBadge(c.status)+'<div class="mt-1">'+rightInfo+'</div></div>';
+                const meta=[];
+                if(d.tachiaiDate) meta.push('立会 '+esc(d.tachiaiDate));
+                else if(d.moveoutDate) meta.push('退去 '+esc(d.moveoutDate));
+                if(d.staffTachiai) meta.push('担当 '+esc(d.staffTachiai));
+                if(d.invoiceMailDate) meta.push('請求書郵送 '+esc(d.invoiceMailDate));
+                div.innerHTML=
+                    '<div class="flex items-start justify-between gap-2">'+
+                        '<div class="min-w-0"><p class="font-bold text-sm">'+esc(c.name||'（無名）')+'</p>'+
+                        '<p class="text-xs text-slate-500 truncate">'+esc(c.bukken||'')+' '+esc(c.room||'')+'</p></div>'+
+                        '<div class="text-right shrink-0">'+statusBadge(c.status)+'<div class="mt-1">'+rightInfo+'</div></div>'+
+                    '</div>'+
+                    '<div class="mt-2 flex items-center gap-2">'+
+                        '<div class="prog-track flex-1"><div class="prog-fill" style="width:'+pct+'%"></div></div>'+
+                        '<span class="text-[11px] font-bold text-coastal-600 shrink-0">'+pct+'%</span>'+
+                    '</div>'+
+                    (meta.length?'<p class="text-[11px] text-slate-400 mt-1">'+meta.join('　/　')+'</p>':'')+
+                    '<p class="text-[11px] text-slate-400 mt-0.5">更新 '+esc(c.updated||'')+'</p>';
                 box.appendChild(div);
             });
         }
         function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+        function renderDocTabs(){
+            const d=CUR.data||{};
+            const defs=[
+                ['原状回復報告書','📋',CUR.reportUrl,'未作成'],
+                ['立会い同意書','✍️',CUR.consentUrl,'未作成'],
+                ['見積書','🧮',CUR.estimateUrl,'未作成'],
+                ['精算書','🧾',CUR.settlementUrl,'未作成'],
+                ['御請求書','💴',d.invoiceUrl,'請求時のみ'],
+                ['送付状','✉️',d.coverUrl,'未作成'],
+            ];
+            $('cvLinks').innerHTML = defs.map(function(x){
+                const name=x[0],ico=x[1],url=x[2],todo=x[3];
+                if(url) return '<a href="'+url+'" target="_blank" class="doc-tab done"><span class="ico">'+ico+'</span>'+name+'<span class="st">開く ↗</span></a>';
+                return '<div class="doc-tab todo"><span class="ico">'+ico+'</span>'+name+'<span class="st">'+todo+'</span></div>';
+            }).join('');
+        }
 
         // ---------------- 詳細 ----------------
         function showList(){ hide('caseView'); show('listView'); hide('backBtn'); window.scrollTo(0,0); }
@@ -298,16 +384,28 @@
             const d = CUR.data||{};
             $('cvName').textContent = CUR.name || '（無名）';
             $('cvBukken').textContent = (CUR.bukken||'')+' '+(CUR.room||'');
-            const hintTxt = CUR.status==='完了' ? (d.completionLabel||'完了')+' '+(d.completionDate||'') : '次：'+(NEXT_ACTION[CUR.status]||'');
-            $('cvStatus').outerHTML = '<div class="text-right"><span id="cvStatus" class="badge '+(STATUS_MAP[CUR.status]||'b-kaiyaku')+'">'+(CUR.status||'解約受付')+'</span>'+
-                '<div class="hint mt-1" '+(CUR.status==='完了'?'style="background:#f1f5f9;color:#334155"':'')+'>'+esc(hintTxt)+'</div></div>';
-            // リンク
-            const links=[];
-            if(CUR.reportUrl) links.push(['原状回復報告書',CUR.reportUrl]);
-            if(CUR.consentUrl) links.push(['立会い同意書',CUR.consentUrl]);
-            if(CUR.estimateUrl) links.push(['見積書',CUR.estimateUrl]);
-            if(CUR.settlementUrl) links.push(['精算書',CUR.settlementUrl]);
-            $('cvLinks').innerHTML = links.map(l=>'<a href="'+l[1]+'" target="_blank" class="bg-coastal-50 text-coastal-600 px-2 py-1 rounded">'+l[0]+' ↗</a>').join('') || '<span class="text-slate-400">まだ書類はありません</span>';
+            const done = CUR.status==='完了';
+            // 日付・担当
+            const dl=[];
+            if(d.moveoutDate) dl.push('退去日 '+d.moveoutDate);
+            if(d.tachiaiDate) dl.push('立会日 '+d.tachiaiDate);
+            if(d.staffTachiai) dl.push('立会担当 '+d.staffTachiai);
+            $('cvDates').textContent = dl.join('　/　');
+            // ステータス
+            $('cvStatus').className = 'badge '+(STATUS_MAP[CUR.status]||'b-kaiyaku');
+            $('cvStatus').textContent = CUR.status||'解約受付';
+            $('cvHint').textContent = done ? (d.completionLabel||'完了')+' '+(d.completionDate||'') : '次：'+(NEXT_ACTION[CUR.status]||'');
+            $('cvHint').style.cssText = done ? 'background:#f1f5f9;color:#334155' : '';
+            // 進捗バー
+            const pct=PROGRESS[CUR.status]||0;
+            $('cvProg').style.width=pct+'%'; $('cvPct').textContent=pct+'%'; $('cvStageTxt').textContent=(CUR.status||'解約受付');
+            // 書類タブ
+            renderDocTabs();
+
+            // ①-A 報告書 情報
+            $('tiMoveout').value = d.moveoutDate||'';
+            $('tiTachiai').value = d.tachiaiDate||todayISO();
+            $('tiStaff').value = d.staffTachiai||'';
 
             // 立会い プリフィル
             PHOTOS=[]; renderPhotos(); clearSig();
@@ -327,6 +425,8 @@
             // 見積 プリフィル
             renderEstItems(d.estimateItems);
             $('estNote').value = d.estimateNote||'';
+            $('estStaff').value = d.estimateStaff||'';
+            $('stStaff').value = d.settlementStaff||'';
 
             // 精算 プリフィル
             $('stTenancy').value = d.tenancy||'';
@@ -337,6 +437,7 @@
             $('stPenalty').value = d.penalty||0;
             $('stUnpaid').value = d.unpaidRent||0;
             $('stRestore').value = d.restoreCost!=null?d.restoreCost:(d.tenantTotal||'');
+            $('stPayDue').value = d.paymentDue||'';
             calcSettlement();
             renderCompletion();
 
@@ -349,7 +450,7 @@
             const files = Array.from(ev.target.files||[]);
             files.forEach(f=>{
                 const reader=new FileReader();
-                reader.onload=(e)=>downscale(e.target.result, (durl)=>{ PHOTOS.push({dataUrl:durl,label:'',memo:''}); renderPhotos(); });
+                reader.onload=(e)=>downscale(e.target.result, (durl)=>{ PHOTOS.push({dataUrl:durl,label:'',type:'',memo:''}); renderPhotos(); });
                 reader.readAsDataURL(f);
             });
             ev.target.value='';
@@ -369,8 +470,13 @@
             const g=$('photoGrid'); g.innerHTML='';
             PHOTOS.forEach((p,i)=>{
                 const d=document.createElement('div'); d.className='thumb';
+                const opts='<option value="">損傷種別</option>'+DAMAGE_TYPES.map(t=>'<option'+(p.type===t?' selected':'')+'>'+t+'</option>').join('');
                 d.innerHTML='<button class="rm" onclick="rmPhoto('+i+')">×</button><img src="'+p.dataUrl+'">'+
-                    '<input class="field-input text-xs" style="border:none;border-top:1px solid #eee;border-radius:0" placeholder="箇所名" value="'+esc(p.label)+'" oninput="PHOTOS['+i+'].label=this.value">';
+                    '<div class="p-1.5 space-y-1">'+
+                    '<input class="field-input text-xs" style="padding:5px 7px" placeholder="箇所（例：洋室 壁）" value="'+esc(p.label)+'" oninput="PHOTOS['+i+'].label=this.value">'+
+                    '<select class="field-input text-xs" style="padding:5px 7px" onchange="PHOTOS['+i+'].type=this.value">'+opts+'</select>'+
+                    '<input class="field-input text-xs" style="padding:5px 7px" placeholder="状況メモ" value="'+esc(p.memo||'')+'" oninput="PHOTOS['+i+'].memo=this.value">'+
+                    '</div>';
                 g.appendChild(d);
             });
         }
@@ -433,15 +539,26 @@
             const t = numv('chCleaning') + numv('chAcUnit')*numv('chAcCount') + numv('chTatamiUnit')*numv('chTatamiCount');
             $('chTotal').textContent = '確定分 合計（税込）：'+yen(t);
         }
-        async function submitTachiai(){
+        // ①-A 原状回復箇所報告書（写真）
+        async function submitReport(){
+            if(!requireBackend()) return;
+            if(!PHOTOS.length && !confirm('写真がありません。写真なしで報告書を作成しますか？')) return;
+            const payload={ action:'report', caseId:CUR.id, name:CUR.name, kana:CUR.kana, bukken:CUR.bukken, room:CUR.room,
+                moveoutDate:$('tiMoveout').value, tachiaiDate:$('tiTachiai').value, staff:$('tiStaff').value.trim(),
+                tenancy:(CUR.data&&CUR.data.tenancy)||'', photos:PHOTOS };
+            await run(payload, '原状回復箇所報告書を作成しました');
+        }
+        // ①-B 退去立会い同意書（費用・署名）
+        async function submitConsent(){
             if(!requireBackend()) return;
             const charges={ cleaning:numv('chCleaning'), acUnit:numv('chAcUnit'), acCount:numv('chAcCount'),
                 tatamiUnit:numv('chTatamiUnit'), tatamiCount:numv('chTatamiCount'),
                 crossAgree:$('chCrossAgree').checked, crossUnit:numv('chCrossUnit'), otherNote:$('chOtherNote').value.trim(),
                 laterItems: collectLaterItems() };
-            const payload={ action:'tachiai', caseId:CUR.id, name:CUR.name, kana:CUR.kana, bukken:CUR.bukken, room:CUR.room,
-                charges, photos:PHOTOS, signature: sigHas?$('sigCanvas').toDataURL('image/png'):'', signerName:$('signerName').value.trim() };
-            await run(payload, '立会い内容を保存しました（報告書・同意書を作成）');
+            const payload={ action:'consent', caseId:CUR.id, name:CUR.name, kana:CUR.kana, bukken:CUR.bukken, room:CUR.room,
+                tachiaiDate:$('tiTachiai').value, staff:$('tiStaff').value.trim(),
+                charges, signature: sigHas?$('sigCanvas').toDataURL('image/png'):'', signerName:$('signerName').value.trim() };
+            await run(payload, '立会い同意書を作成しました（署名を保存）');
         }
 
         // ---------------- 見積 ----------------
@@ -499,7 +616,7 @@
             if(!requireBackend()) return;
             const items=collectEst();
             if(!items.length){ toast('品目を入力してください'); return; }
-            await run({ action:'estimate', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room, items, note:$('estNote').value.trim() }, '見積書を作成しました');
+            await run({ action:'estimate', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room, items, note:$('estNote').value.trim(), staff:$('estStaff').value.trim() }, '見積書を作成しました');
         }
 
         // ---------------- 精算 ----------------
@@ -516,8 +633,9 @@
                 deposit:numv('stDeposit'), penalty:numv('stPenalty'), unpaidRent:numv('stUnpaid'), restoreCost:numv('stRestore'),
                 bank:{ name:$('stBankName').value.trim(), branch:$('stBankBranch').value.trim(), type:$('stBankType').value.trim(),
                        number:$('stBankNumber').value.trim(), holder:$('stBankHolder').value.trim() },
-                note:$('stNote').value.trim() };
-            await run(payload, '精算書を作成しました');
+                note:$('stNote').value.trim(), staff:$('stStaff').value.trim(), paymentDue:$('stPayDue').value };
+            const isShortagePreview = (numv('stDeposit')-numv('stPenalty')-numv('stUnpaid')-numv('stRestore'))<0;
+            await run(payload, isShortagePreview?'精算書・御請求書・送付状を作成しました':'精算書・送付状を作成しました');
         }
 
         // ---------------- 入金・完了 ----------------
@@ -535,15 +653,19 @@
                 $('cmpState').textContent = '返金額：'+yen(d.refund||0)+' の振込が完了したら日付を記録してください。';
             }
             $('cmpDate').value = d.completionDate||'';
+            $('cmpConfirmer').value = d.confirmer||'';
+            $('cmpInvoiceDate').value = d.invoiceMailDate||'';
+            $('invoiceWrap').style.display = isShortage ? '' : 'none'; // 請求書郵送日は請求（不足）時のみ
             $('cmpDone').classList.toggle('hidden', !done);
-            if(done) $('cmpDone').textContent = '✓ '+(d.completionLabel||'完了')+'（'+(d.completionDate||'')+'）この案件は完了です';
+            if(done) $('cmpDone').textContent = '✓ '+(d.completionLabel||'完了')+'（'+(d.completionDate||'')+'）この案件は完了です'+(d.confirmer?'　確認者：'+d.confirmer:'');
         }
         async function submitComplete(){
             if(!requireBackend()) return;
             if(!$('cmpDate').value){ toast('完了日を入力してください'); return; }
             const isShortage = ((CUR.data||{}).shortage||0)>0;
             await run({ action:'complete', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room,
-                completionType: isShortage?'shortage':'refund', completionDate:$('cmpDate').value }, '完了を記録しました');
+                completionType: isShortage?'shortage':'refund', completionDate:$('cmpDate').value,
+                confirmer:$('cmpConfirmer').value.trim(), invoiceMailDate:$('cmpInvoiceDate').value }, '完了を記録しました');
         }
 
         // ---------------- 新規案件 ----------------
