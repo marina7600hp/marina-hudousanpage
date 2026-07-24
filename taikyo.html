@@ -137,10 +137,17 @@
                                 <span class="text-sm text-slate-500">円</span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <span class="text-sm w-32 shrink-0">エアコン洗浄費</span>
-                                <input id="chAcUnit" type="number" class="field-input" style="max-width:110px" oninput="calcTachiai()" placeholder="11000">
+                                <span class="text-sm w-32 shrink-0">エアコン洗浄費<br><span class="text-[11px] text-slate-400">通常</span></span>
+                                <input id="chAcUnit" type="number" class="field-input" style="max-width:110px" oninput="calcTachiai()" placeholder="12100">
                                 <span class="text-sm text-slate-500">円 ×</span>
                                 <input id="chAcCount" type="number" class="field-input" style="max-width:70px" oninput="calcTachiai()" placeholder="0" min="0">
+                                <span class="text-sm text-slate-500">台</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm w-32 shrink-0">エアコン洗浄費<br><span class="text-[11px] text-slate-400">お掃除機能付き</span></span>
+                                <input id="chAc2Unit" type="number" class="field-input" style="max-width:110px" oninput="calcTachiai()" placeholder="19800">
+                                <span class="text-sm text-slate-500">円 ×</span>
+                                <input id="chAc2Count" type="number" class="field-input" style="max-width:70px" oninput="calcTachiai()" placeholder="0" min="0">
                                 <span class="text-sm text-slate-500">台</span>
                             </div>
                             <div class="flex items-center gap-2">
@@ -468,8 +475,10 @@
             PHOTOS=[]; renderPhotos(); clearSig();
             const ch=d.charges||{};
             $('chCleaning').value = ch.cleaning!=null?ch.cleaning:44000;
-            $('chAcUnit').value = ch.acUnit!=null?ch.acUnit:11000;
+            $('chAcUnit').value = ch.acUnit!=null?ch.acUnit:12100;
             $('chAcCount').value = ch.acCount!=null?ch.acCount:0;
+            $('chAc2Unit').value = ch.ac2Unit!=null?ch.ac2Unit:19800;
+            $('chAc2Count').value = ch.ac2Count!=null?ch.ac2Count:0;
             $('chTatamiUnit').value = ch.tatamiUnit!=null?ch.tatamiUnit:5000;
             $('chTatamiCount').value = ch.tatamiCount!=null?ch.tatamiCount:0;
             $('chCrossAgree').checked = ch.crossAgree!==false;
@@ -593,7 +602,7 @@
 
         // ---------------- 立会い計算・送信 ----------------
         function calcTachiai(){
-            const t = numv('chCleaning') + numv('chAcUnit')*numv('chAcCount') + numv('chTatamiUnit')*numv('chTatamiCount');
+            const t = numv('chCleaning') + numv('chAcUnit')*numv('chAcCount') + numv('chAc2Unit')*numv('chAc2Count') + numv('chTatamiUnit')*numv('chTatamiCount');
             $('chTotal').textContent = '確定分 合計（税込）：'+yen(t);
         }
         // ①-A 原状回復箇所報告書（写真）
@@ -609,6 +618,7 @@
         async function submitConsent(){
             if(!requireBackend()) return;
             const charges={ cleaning:numv('chCleaning'), acUnit:numv('chAcUnit'), acCount:numv('chAcCount'),
+                ac2Unit:numv('chAc2Unit'), ac2Count:numv('chAc2Count'),
                 tatamiUnit:numv('chTatamiUnit'), tatamiCount:numv('chTatamiCount'),
                 crossAgree:$('chCrossAgree').checked, crossUnit:numv('chCrossUnit'), otherNote:$('chOtherNote').value.trim(),
                 laterItems: collectLaterItems() };
@@ -646,7 +656,8 @@
             const ch=(CUR&&CUR.data&&CUR.data.charges)||{};
             const arr=[{name:'クロス壁面張替え',qty:0,unit:'㎡',unitPrice:(ch.crossUnit||1800),burdenRate:100}];
             if((ch.cleaning||0)>0) arr.push({name:'ハウスクリーニング（室内清掃）',qty:1,unit:'式',unitPrice:ch.cleaning,burdenRate:100});
-            if((ch.acCount||0)>0) arr.push({name:'エアコン洗浄',qty:ch.acCount,unit:'台',unitPrice:ch.acUnit,burdenRate:100});
+            if((ch.acCount||0)>0) arr.push({name:'エアコン洗浄（通常）',qty:ch.acCount,unit:'台',unitPrice:ch.acUnit,burdenRate:100});
+            if((ch.ac2Count||0)>0) arr.push({name:'エアコン洗浄（お掃除機能付き）',qty:ch.ac2Count,unit:'台',unitPrice:ch.ac2Unit,burdenRate:100});
             if((ch.tatamiCount||0)>0) arr.push({name:'畳表替え',qty:ch.tatamiCount,unit:'枚',unitPrice:ch.tatamiUnit,burdenRate:100});
             // 立会いで選択した「後日見積」箇所を、金額未入力の行としてあらかじめ表示
             (ch.laterItems||[]).forEach(li=>arr.push({name:li,qty:1,unit:'式',unitPrice:0,burdenRate:100}));
@@ -732,11 +743,13 @@
             show('loading');
             try{
                 const j=await apiPost({ action:'newCase', receiptNo:imp.receiptNo||'', name:imp.name||'', kana:imp.kana||'',
-                    bukken:imp.bukken||'', room:imp.room||'', tel:imp.tel||'', email:imp.email||'', endDate:imp.endDate||'' });
+                    bukken:imp.bukken||'', room:imp.room||'', tel:imp.tel||'', email:imp.email||'', endDate:imp.endDate||'',
+                    cleaning:imp.cleaning||0, acNormalUnit:imp.acNormalUnit||0, acNormalCount:imp.acNormalCount||0,
+                    acAutoUnit:imp.acAutoUnit||0, acAutoCount:imp.acAutoCount||0 });
                 if(!j.ok) throw new Error(j.error||'error');
                 await loadCases();
                 const nc=CASES.find(c=>c.id===j.caseId);
-                hide('loading'); toast('取り込みました');
+                hide('loading'); toast('取り込みました（解約フォームの金額を反映）');
                 if(nc) openCase(nc.id);
             }catch(e){ hide('loading'); toast('取り込みに失敗しました'); }
         }
@@ -775,7 +788,9 @@
             const i=$('importSelect').value;
             const imp=(i!==''&&IMPORTABLE[i])?IMPORTABLE[i]:{};
             const payload={ action:'newCase', receiptNo:imp.receiptNo||'', name:$('ncName').value.trim(), kana:$('ncKana').value.trim(),
-                bukken:$('ncBukken').value.trim(), room:$('ncRoom').value.trim(), tel:imp.tel||'', email:imp.email||'', endDate:imp.endDate||'' };
+                bukken:$('ncBukken').value.trim(), room:$('ncRoom').value.trim(), tel:imp.tel||'', email:imp.email||'', endDate:imp.endDate||'',
+                cleaning:imp.cleaning||0, acNormalUnit:imp.acNormalUnit||0, acNormalCount:imp.acNormalCount||0,
+                acAutoUnit:imp.acAutoUnit||0, acAutoCount:imp.acAutoCount||0 };
             closeNewCase();
             show('loading');
             try{ const j=await apiPost(payload); if(!j.ok)throw 0; await loadCases(); const nc=CASES.find(c=>c.id===j.caseId); hide('loading'); if(nc) openCase(nc.id); }

@@ -170,20 +170,37 @@ function importableCases_() {
   const sheet = ss.getSheets()[0];
   const last = sheet.getLastRow();
   if (last < 2) return [];
-  const rows = sheet.getRange(2, 1, last - 1, 12).getValues();
+  const rows = sheet.getRange(2, 1, last - 1, 13).getValues();
   const existing = {};
   listCases_().forEach(function (c) { if (c.data && c.data.receiptNo) existing[c.data.receiptNo] = true; });
   const out = [];
   rows.forEach(function (r) {
-    // kaiyaku.gs の列: 受付日時,受付番号,種別,物件名,部屋,氏名,フリガナ,電話,メール,解約日,...
+    // kaiyaku.gs の列: 受付日時,受付番号,種別,物件名,部屋,氏名,フリガナ,電話,メール,解約日,室内清掃代,エアコン洗浄代,清掃代等合計,...
     const receiptNo = r[1], kind = r[2];
     if (kind !== '管理物件') return; // 立会いは管理物件のみ
     if (existing[receiptNo]) return;
+    const ac = parseAcLine_(r[11]);
     out.push({
       receiptNo: receiptNo, bukken: r[3], room: r[4], name: r[5], kana: r[6],
       tel: r[7], email: r[8], endDate: r[9],
+      // 解約フォームで選ばれた金額（立会い同意書へ引き継ぐ）
+      cleaning: Number(r[10]) || 0,
+      acNormalUnit: ac.normalUnit, acNormalCount: ac.normalCount,
+      acAutoUnit: ac.autoUnit, acAutoCount: ac.autoCount,
     });
   });
+  return out;
+}
+
+/** 解約フォームの「エアコン洗浄代」テキストから通常/お掃除機能付きの単価・台数を取り出す
+ *  例: "通常12,100円×2台／お掃除機能付き19,800円×1台" */
+function parseAcLine_(s) {
+  s = String(s || '');
+  const out = { normalUnit: 12100, normalCount: 0, autoUnit: 19800, autoCount: 0 };
+  const m1 = s.match(/通常([\d,]+)円×(\d+)台/);
+  if (m1) { out.normalUnit = Number(m1[1].replace(/,/g, '')); out.normalCount = Number(m1[2]); }
+  const m2 = s.match(/お掃除機能付き([\d,]+)円×(\d+)台/);
+  if (m2) { out.autoUnit = Number(m2[1].replace(/,/g, '')); out.autoCount = Number(m2[2]); }
   return out;
 }
 
@@ -224,14 +241,28 @@ function upsertCase_(caseId, patch) {
 // ---------------- ① 案件作成 ----------------
 function createCase_(data) {
   const caseId = data.receiptNo || ('T' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMddHHmmss'));
+  const info = {
+    receiptNo: data.receiptNo || '', tel: data.tel || '', email: data.email || '',
+    endDate: data.endDate || '',
+  };
+  // 解約フォームで選ばれた金額を、立会い同意書の初期値（charges）として引き継ぐ
+  const cleaning = Number(data.cleaning || 0);
+  const acN = Number(data.acNormalCount || 0), acA = Number(data.acAutoCount || 0);
+  if (cleaning > 0 || acN > 0 || acA > 0) {
+    info.charges = {
+      cleaning: cleaning > 0 ? cleaning : T_CONFIG.DEFAULT_CLEANING,
+      acUnit: Number(data.acNormalUnit || 12100), acCount: acN,
+      ac2Unit: Number(data.acAutoUnit || 19800), ac2Count: acA,
+      tatamiUnit: T_CONFIG.DEFAULT_TATAMI, tatamiCount: 0,
+      crossAgree: true, crossUnit: T_CONFIG.DEFAULT_CROSS_UNIT,
+      fromKaiyaku: true,
+    };
+  }
   upsertCase_(caseId, {
     status: '解約受付',
     name: data.name || '', kana: data.kana || '',
     bukken: data.bukken || '', room: data.room || '',
-    data: {
-      receiptNo: data.receiptNo || '', tel: data.tel || '', email: data.email || '',
-      endDate: data.endDate || '',
-    },
+    data: info,
   });
   return { ok: true, caseId: caseId };
 }
@@ -348,10 +379,13 @@ function saveConsent_(data) {
 
   const ch = data.charges || {};
   const rows = [];
+  const acLabel = (Number(ch.ac2Count) > 0 || Number(ch.acCount) > 0) ? 'エアコン洗浄費・通常（借主負担）' : 'エアコン洗浄費（借主負担）';
   if (Number(ch.cleaning) > 0) rows.push(['室内清掃費（借主負担）', fmtYen_(ch.cleaning) + '（税込）']);
-  if (Number(ch.acCount) > 0) rows.push(['エアコン洗浄費（借主負担）', fmtYen_(ch.acUnit) + ' × ' + Number(ch.acCount) + '台 ＝ ' + fmtYen_(Number(ch.acUnit) * Number(ch.acCount)) + '（税込）']);
+  if (Number(ch.acCount) > 0) rows.push([acLabel, fmtYen_(ch.acUnit) + ' × ' + Number(ch.acCount) + '台 ＝ ' + fmtYen_(Number(ch.acUnit) * Number(ch.acCount)) + '（税込）']);
+  if (Number(ch.ac2Count) > 0) rows.push(['エアコン洗浄費・お掃除機能付き（借主負担）', fmtYen_(ch.ac2Unit) + ' × ' + Number(ch.ac2Count) + '台 ＝ ' + fmtYen_(Number(ch.ac2Unit) * Number(ch.ac2Count)) + '（税込）']);
   if (Number(ch.tatamiCount) > 0) rows.push(['畳表替え費用（借主負担）', fmtYen_(ch.tatamiUnit) + ' × ' + Number(ch.tatamiCount) + '枚 ＝ ' + fmtYen_(Number(ch.tatamiUnit) * Number(ch.tatamiCount)) + '（税込）']);
-  const fixedTotal = (Number(ch.cleaning) || 0) + (Number(ch.acUnit) || 0) * (Number(ch.acCount) || 0) + (Number(ch.tatamiUnit) || 0) * (Number(ch.tatamiCount) || 0);
+  const fixedTotal = (Number(ch.cleaning) || 0) + (Number(ch.acUnit) || 0) * (Number(ch.acCount) || 0) +
+    (Number(ch.ac2Unit) || 0) * (Number(ch.ac2Count) || 0) + (Number(ch.tatamiUnit) || 0) * (Number(ch.tatamiCount) || 0);
   let chargeRows = rows.map(function (r) { return '<tr><th style="width:45%">' + esc_(r[0]) + '</th><td class="right">' + esc_(r[1]) + '</td></tr>'; }).join('');
   chargeRows += '<tr><th>上記の借主負担 合計（確定分・税込）</th><td class="right"><b>' + fmtYen_(fixedTotal) + '（税込）</b></td></tr>';
 
