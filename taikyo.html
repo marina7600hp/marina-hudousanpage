@@ -209,7 +209,8 @@
                 <div class="grid grid-cols-2 gap-3">
                     <div><label class="field-label">入居期間</label><input id="stTenancy" class="field-input text-sm" placeholder="2024.4.1〜2026.8.31"></div>
                     <div><label class="field-label">解約日</label><input id="stEndDate" class="field-input text-sm"></div>
-                    <div class="col-span-2"><label class="field-label">書類送付先（転居先）</label><input id="stNewAddress" class="field-input text-sm"></div>
+                    <div class="col-span-2"><label class="field-label">書類送付先（転居先）<span class="text-slate-400 font-normal ml-1">改行すると送付状の宛名もその通りに改行されます</span></label>
+                        <textarea id="stNewAddress" rows="3" class="field-input text-sm" placeholder="〒733-0821&#10;広島市西区庚午北3-1-2&#10;○○マンション 101"></textarea></div>
                     <div class="col-span-2"><label class="field-label">退去後連絡先</label><input id="stContact" class="field-input text-sm"></div>
                 </div>
                 <div class="grid grid-cols-2 gap-3 mt-3">

@@ -546,7 +546,7 @@ function saveSettlement_(data) {
     '<div class="to">' + esc_(c.name) + ' 様</div>' +
     '<table><tr><th style="width:22%">物件名</th><td>' + esc_(c.bukken) + '</td><th style="width:16%">号室</th><td>' + esc_(c.room) + '</td></tr>' +
     '<tr><th>入居期間</th><td>' + esc_(data.tenancy || '') + '</td><th>解約日</th><td>' + esc_(data.endDate || '') + '</td></tr>' +
-    '<tr><th>退去後連絡先</th><td>' + esc_(data.contact || '') + '</td><th>書類送付先</th><td>' + esc_(data.newAddress || '') + '</td></tr></table>' +
+    '<tr><th>退去後連絡先</th><td>' + esc_(data.contact || '') + '</td><th>書類送付先</th><td>' + nl2br_(data.newAddress || '') + '</td></tr></table>' +
     '<table style="margin-top:10px">' +
     '<tr><th style="width:50%">預かり敷金</th><td class="right">' + fmtYen_(deposit) + '</td></tr>' +
     '<tr><th>違約金</th><td class="right">' + fmtYen_(penalty) + '</td></tr>' +
@@ -612,7 +612,7 @@ function buildInvoice_(caseId, c, data, shortage, dstamp, label) {
     '<div class="meta">案件ID：' + esc_(caseId) + '</div>' +
     '<h1>御 請 求 書</h1>' +
     '<div class="to">' + esc_(c.name) + ' 様</div>' +
-    (data.newAddress ? '<div class="note">送付先：' + esc_(data.newAddress) + '</div>' : '') +
+    (data.newAddress ? '<div class="note">送付先：' + nl2br_(data.newAddress) + '</div>' : '') +
     '<p class="note" style="margin-top:8px">下記のとおり、退去に伴う原状回復費用の借主ご負担分（敷金充当後の不足額）をご請求申し上げます。</p>' +
     '<table style="margin-top:6px"><tr><th style="width:28%">物件名</th><td>' + esc_(c.bukken) + '　' + esc_(c.room) + '</td></tr>' +
     '<tr><th>ご請求金額（税込）</th><td class="right"><b style="font-size:15px">' + fmtYen_(shortage) + '</b></td></tr>' +
@@ -627,9 +627,22 @@ function buildInvoice_(caseId, c, data, shortage, dstamp, label) {
   return folder.createFile(htmlToPdf_(html, '御請求書_' + label + '_' + dstamp + '.pdf'));
 }
 
-/** 住所の郵便番号（〒123-4567）の後で改行する（封筒貼り付け用の宛名向け） */
+/** 改行をそのまま表示（<br>へ変換） */
+function nl2br_(s) {
+  return esc_(String(s == null ? '' : s)).replace(/\r\n?|\n/g, '<br>');
+}
+
+/** 封筒貼り付け用の宛名住所を整形
+ *  ・入力に改行があれば、その改行をそのまま反映（4行・5行など自由）
+ *  ・改行がない場合のみ、郵便番号（〒123-4567）の後で自動改行 */
 function zipBreak_(addr) {
-  const s = String(addr || '').trim();
+  const s = String(addr || '').replace(/\r\n?/g, '\n').trim();
+  if (s.indexOf('\n') >= 0) {
+    return s.split('\n').map(function (line, i) {
+      const t = esc_(line.trim());
+      return (i === 0 && /^〒?\s*\d{3}-?\d{4}$/.test(line.trim())) ? '<span class="zip">' + t + '</span>' : t;
+    }).join('<br>');
+  }
   const m = s.match(/^(〒?\s*\d{3}-?\d{4})[\s　]*(.*)$/);
   if (!m || !m[2]) return esc_(s);
   return '<span class="zip">' + esc_(m[1]) + '</span><br>' + esc_(m[2]);
@@ -663,7 +676,8 @@ function buildCover_(caseId, c, data, shortage, dstamp, label) {
   function letter(isCopy) {
     const to =
       '<div class="to">' +
-      (isCopy && data.newAddress ? '<div class="toaddr">' + esc_(data.newAddress) + '</div>' : '') +
+      // 控えの上部住所は1行にまとめる（正確な改行は下の封筒貼り付け用で表現）
+      (isCopy && data.newAddress ? '<div class="toaddr">' + esc_(String(data.newAddress).replace(/\s*\r?\n\s*/g, '　').trim()) + '</div>' : '') +
       '<div class="toname">' + esc_(c.name) + '　様</div></div>';
     const env = isCopy
       ? '<div class="envwrap"><div class="env">' +
@@ -671,7 +685,7 @@ function buildCover_(caseId, c, data, shortage, dstamp, label) {
         '<div class="envname">' + esc_(c.name) + '　様</div></div>' +
         '<div class="envnote">← 封筒貼り付け用</div></div>'
       : '';
-    return '<div class="half">' +
+    return '<div class="half' + (isCopy ? ' copy' : '') + '">' +
       '<div class="date">' + today_() + '</div>' +
       '<div class="title">書 類 送 付 御 案 内' + (isCopy ? '（控え）' : '') + '</div>' +
       '<div class="head">' + to + sender + '</div>' +
@@ -684,7 +698,8 @@ function buildCover_(caseId, c, data, shortage, dstamp, label) {
     'body{font-family:sans-serif;color:#111;font-size:12px;margin:0;}' +
     '.half{height:133mm;box-sizing:border-box;padding:5mm 7mm;position:relative;overflow:hidden;}' +
     '.date{text-align:right;font-size:11px;}' +
-    '.title{text-align:center;font-size:18px;font-weight:bold;letter-spacing:6px;margin:2mm 0 7mm;}' +
+    '.title{text-align:center;font-size:18px;font-weight:bold;letter-spacing:6px;margin:2mm 0 6mm;}' +
+    '.copy .title{margin:1.5mm 0 4mm;} .copy .greet{margin:4mm 0 1.5mm;line-height:1.75;}' +
     '.head{display:flex;justify-content:space-between;align-items:flex-start;gap:10mm;}' +
     '.to{width:50%;padding-top:4mm;}' +
     '.to .toaddr{font-size:11px;margin-bottom:3px;}' +
@@ -698,11 +713,11 @@ function buildCover_(caseId, c, data, shortage, dstamp, label) {
     '.list td.n{width:8%;} .list td.b{width:16%;text-align:right;}' +
     '.ijou{text-align:right;font-size:11px;margin-top:5px;}' +
     '.cut{border-top:1px dashed #666;text-align:center;font-size:10px;color:#666;padding-top:1mm;}' +
-    '.envwrap{position:absolute;left:7mm;bottom:5mm;display:flex;align-items:center;gap:4mm;}' +
+    '.envwrap{display:flex;align-items:center;gap:4mm;margin-top:3mm;}' +
     // 封筒貼り付け用の宛名：横60mm×縦35mm（実寸）
-    '.env{border:1px dashed #333;width:60mm;height:35mm;box-sizing:border-box;padding:3mm 3.5mm;font-size:10px;line-height:1.5;overflow:hidden;}' +
+    '.env{border:1px dashed #333;width:60mm;height:35mm;box-sizing:border-box;padding:2.5mm 3.5mm;font-size:10px;line-height:1.4;overflow:hidden;}' +
     '.env .zip{display:inline-block;margin-bottom:1px;}' +
-    '.env .envname{font-weight:bold;font-size:11.5px;margin-top:4px;}' +
+    '.env .envname{font-weight:bold;font-size:11px;line-height:1.35;margin-top:3px;}' +
     '.envnote{font-size:10px;color:#555;}' +
     '</style></head><body>' +
     letter(false) +
