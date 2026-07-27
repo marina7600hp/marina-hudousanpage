@@ -691,8 +691,9 @@ function buildCover_(caseId, c, data, shortage, dstamp, label) {
     '.ijou{text-align:right;font-size:11px;margin-top:5px;}' +
     '.cut{border-top:1px dashed #666;text-align:center;font-size:10px;color:#666;padding-top:1mm;}' +
     '.envwrap{position:absolute;left:7mm;bottom:5mm;display:flex;align-items:center;gap:4mm;}' +
-    '.env{border:1px solid #333;padding:3mm 6mm;font-size:12px;min-width:62mm;}' +
-    '.env .envname{font-weight:bold;margin-top:4px;}' +
+    // 封筒貼り付け用の宛名：横60mm×縦35mm（実寸）
+    '.env{border:1px dashed #333;width:60mm;height:35mm;box-sizing:border-box;padding:3mm 3.5mm;font-size:10px;line-height:1.5;overflow:hidden;}' +
+    '.env .envname{font-weight:bold;font-size:11.5px;margin-top:3px;}' +
     '.envnote{font-size:10px;color:#555;}' +
     '</style></head><body>' +
     letter(false) +
