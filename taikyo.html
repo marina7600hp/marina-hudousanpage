@@ -70,6 +70,13 @@
                 <h2 class="font-bold text-slate-700">退去案件一覧</h2>
                 <button onclick="openNewCase()" class="btn btn-primary text-sm">＋ 新規案件</button>
             </div>
+            <div class="flex items-center gap-2 mb-3">
+                <div class="inline-flex rounded-lg overflow-hidden border border-slate-300 text-xs">
+                    <button id="filtActive" onclick="setFilter('active')" class="px-3 py-1.5 font-bold">処理中のみ</button>
+                    <button id="filtAll" onclick="setFilter('all')" class="px-3 py-1.5 font-bold">すべて</button>
+                </div>
+                <span id="listCount" class="text-[11px] text-slate-400 ml-auto text-right"></span>
+            </div>
             <div id="loadingList" class="text-center text-slate-400 py-10 text-sm">読み込み中…</div>
             <div id="caseList" class="space-y-2"></div>
             <div id="emptyList" class="hidden text-center text-slate-400 py-10 text-sm">案件がありません。「＋ 新規案件」から開始してください。</div>
@@ -130,10 +137,17 @@
                                 <span class="text-sm text-slate-500">円</span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <span class="text-sm w-32 shrink-0">エアコン洗浄費</span>
-                                <input id="chAcUnit" type="number" class="field-input" style="max-width:110px" oninput="calcTachiai()" placeholder="11000">
+                                <span class="text-sm w-32 shrink-0">エアコン洗浄費<br><span class="text-[11px] text-slate-400">通常</span></span>
+                                <input id="chAcUnit" type="number" class="field-input" style="max-width:110px" oninput="calcTachiai()" placeholder="12100">
                                 <span class="text-sm text-slate-500">円 ×</span>
                                 <input id="chAcCount" type="number" class="field-input" style="max-width:70px" oninput="calcTachiai()" placeholder="0" min="0">
+                                <span class="text-sm text-slate-500">台</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm w-32 shrink-0">エアコン洗浄費<br><span class="text-[11px] text-slate-400">お掃除機能付き</span></span>
+                                <input id="chAc2Unit" type="number" class="field-input" style="max-width:110px" oninput="calcTachiai()" placeholder="19800">
+                                <span class="text-sm text-slate-500">円 ×</span>
+                                <input id="chAc2Count" type="number" class="field-input" style="max-width:70px" oninput="calcTachiai()" placeholder="0" min="0">
                                 <span class="text-sm text-slate-500">台</span>
                             </div>
                             <div class="flex items-center gap-2">
@@ -144,6 +158,9 @@
                                 <span class="text-sm text-slate-500">枚</span>
                             </div>
                         </div>
+                        <!-- その他の借主負担費用（その場で金額を確定できるもの） -->
+                        <div id="otherFeeBox" class="space-y-2 mt-2"></div>
+                        <button type="button" onclick="addOtherFee()" class="btn btn-ghost text-xs mt-2">＋ その他の費用を追加（その場で金額確定）</button>
                         <p id="chTotal" class="text-right font-bold text-coastal-600 mt-2">確定分 合計：0円</p>
 
                         <label class="flex items-start gap-2 mt-3 cursor-pointer text-sm">
@@ -192,7 +209,8 @@
                 <div class="grid grid-cols-2 gap-3">
                     <div><label class="field-label">入居期間</label><input id="stTenancy" class="field-input text-sm" placeholder="2024.4.1〜2026.8.31"></div>
                     <div><label class="field-label">解約日</label><input id="stEndDate" class="field-input text-sm"></div>
-                    <div class="col-span-2"><label class="field-label">書類送付先（転居先）</label><input id="stNewAddress" class="field-input text-sm"></div>
+                    <div class="col-span-2"><label class="field-label">書類送付先（転居先）<span class="text-slate-400 font-normal ml-1">改行すると送付状の宛名もその通りに改行されます</span></label>
+                        <textarea id="stNewAddress" rows="3" class="field-input text-sm" placeholder="〒733-0821&#10;広島市西区庚午北3-1-2&#10;○○マンション 101"></textarea></div>
                     <div class="col-span-2"><label class="field-label">退去後連絡先</label><input id="stContact" class="field-input text-sm"></div>
                 </div>
                 <div class="grid grid-cols-2 gap-3 mt-3">
@@ -293,6 +311,7 @@
 
         const $ = (id) => document.getElementById(id);
         let CASES = [], IMPORTABLE = [], CUR = null, PHOTOS = [];
+        let LIST_FILTER = 'active'; // 'active'=処理中のみ（完了を隠す） / 'all'=すべて
 
         // 後日見積となる原状回復箇所の定番項目
         const LATER_ITEMS = ['鍵紛失のため交換費用','柱損傷','CFシート傷・汚損','剥がれ','フローリング破損・汚損','網戸破け','ヤニ汚れ'];
@@ -333,11 +352,54 @@
                 renderList();
             }catch(e){ hide('loadingList'); toast('読み込みに失敗しました'); }
         }
+        function setFilter(f){ LIST_FILTER=f; styleFilter(); renderList(); }
+        function styleFilter(){
+            const on='px-3 py-1.5 font-bold bg-coastal-600 text-white', off='px-3 py-1.5 font-bold bg-white text-slate-600';
+            if($('filtActive')) $('filtActive').className = LIST_FILTER==='active'?on:off;
+            if($('filtAll')) $('filtAll').className = LIST_FILTER==='all'?on:off;
+        }
         function renderList(){
             hide('loadingList');
             const box=$('caseList'); box.innerHTML='';
-            if(!CASES.length){ show('emptyList'); return; } hide('emptyList');
-            CASES.forEach((c)=>{
+            // 完了は既定で非表示（「今処理すべき案件」だけを表示）
+            const activeCases = CASES.filter(c=>c.status!=='完了');
+            const doneCount = CASES.length - activeCases.length;
+            const shown = LIST_FILTER==='all' ? CASES : activeCases;
+            $('listCount').textContent = LIST_FILTER==='all'
+                ? ('全'+CASES.length+'件'+(IMPORTABLE.length?'　未取込'+IMPORTABLE.length+'件':''))
+                : ('処理中'+activeCases.length+'件'+(IMPORTABLE.length?'　未取込'+IMPORTABLE.length+'件':'')+(doneCount?'　（完了'+doneCount+'件は非表示）':''));
+            if(!shown.length && !IMPORTABLE.length){ show('emptyList'); $('emptyList').textContent = (doneCount&&LIST_FILTER==='active')?'処理中の案件はありません（完了'+doneCount+'件は「すべて」で表示）。':'案件がありません。「＋ 新規案件」から開始してください。'; return; } hide('emptyList');
+
+            // 解約フォームから取り込める案件（未取込）を一覧の先頭に表示
+            if(IMPORTABLE.length){
+                const h=document.createElement('p');
+                h.className='text-xs font-bold text-slate-500 mb-1';
+                h.textContent='解約フォームから取り込み（未取込）';
+                box.appendChild(h);
+                IMPORTABLE.forEach((c,i)=>{
+                    const div=document.createElement('div');
+                    div.className='card cursor-pointer hover:border-coastal-300';
+                    div.style.borderStyle='dashed';
+                    div.onclick=()=>startFromImport(i);
+                    div.innerHTML=
+                        '<div class="flex items-start justify-between gap-2">'+
+                            '<div class="min-w-0"><p class="font-bold text-sm">'+esc(c.name||'（無名）')+'</p>'+
+                            '<p class="text-xs text-slate-500 truncate">'+esc(c.bukken||'')+' '+esc(c.room||'')+'</p>'+
+                            (c.endDate?'<p class="text-[11px] text-slate-400 mt-0.5">解約日 '+esc(c.endDate)+'</p>':'')+'</div>'+
+                            '<div class="text-right shrink-0"><span class="badge b-kaiyaku">解約受付</span>'+
+                            '<div class="mt-1"><span class="hint">タップで取込→立会い</span></div></div>'+
+                        '</div>';
+                    box.appendChild(div);
+                });
+                if(shown.length){
+                    const h2=document.createElement('p');
+                    h2.className='text-xs font-bold text-slate-500 mt-3 mb-1';
+                    h2.textContent = LIST_FILTER==='all' ? '案件（進行中・完了）' : '処理中の案件';
+                    box.appendChild(h2);
+                }
+            }
+
+            shown.forEach((c)=>{
                 const d=c.data||{}; const pct=PROGRESS[c.status]||0;
                 const div=document.createElement('div');
                 div.className='card cursor-pointer hover:border-coastal-300';
@@ -417,10 +479,14 @@
             PHOTOS=[]; renderPhotos(); clearSig();
             const ch=d.charges||{};
             $('chCleaning').value = ch.cleaning!=null?ch.cleaning:44000;
-            $('chAcUnit').value = ch.acUnit!=null?ch.acUnit:11000;
+            $('chAcUnit').value = ch.acUnit!=null?ch.acUnit:12100;
             $('chAcCount').value = ch.acCount!=null?ch.acCount:0;
+            $('chAc2Unit').value = ch.ac2Unit!=null?ch.ac2Unit:19800;
+            $('chAc2Count').value = ch.ac2Count!=null?ch.ac2Count:0;
             $('chTatamiUnit').value = ch.tatamiUnit!=null?ch.tatamiUnit:5000;
             $('chTatamiCount').value = ch.tatamiCount!=null?ch.tatamiCount:0;
+            $('otherFeeBox').innerHTML='';
+            (ch.otherItems||[]).forEach(x=>addOtherFee(x.name,x.amount));
             $('chCrossAgree').checked = ch.crossAgree!==false;
             $('chCrossUnit').value = ch.crossUnit!=null?ch.crossUnit:1800;
             $('chOtherNote').value = ch.otherNote||'';
@@ -541,8 +607,24 @@
         }
 
         // ---------------- 立会い計算・送信 ----------------
+        // その他の借主負担費用（その場で金額確定）
+        function addOtherFee(name, amount){
+            const d=document.createElement('div'); d.className='flex items-center gap-2';
+            d.innerHTML='<input class="field-input text-sm other-fee-name" placeholder="項目名（例：鍵交換／CFシート張替え 等）" value="'+esc(name||'')+'">'+
+                '<input type="number" class="field-input other-fee-amt" style="max-width:110px" placeholder="金額" value="'+(amount!=null?amount:'')+'" oninput="calcTachiai()">'+
+                '<span class="text-sm text-slate-500">円</span>'+
+                '<button class="rm" style="position:static" onclick="this.parentNode.remove();calcTachiai()">×</button>';
+            $('otherFeeBox').appendChild(d); calcTachiai();
+        }
+        function collectOtherFees(){
+            return Array.from(document.querySelectorAll('#otherFeeBox > div')).map(r=>({
+                name:r.querySelector('.other-fee-name').value.trim(),
+                amount:parseFloat(r.querySelector('.other-fee-amt').value)||0
+            })).filter(x=>x.name && x.amount>0);
+        }
         function calcTachiai(){
-            const t = numv('chCleaning') + numv('chAcUnit')*numv('chAcCount') + numv('chTatamiUnit')*numv('chTatamiCount');
+            let t = numv('chCleaning') + numv('chAcUnit')*numv('chAcCount') + numv('chAc2Unit')*numv('chAc2Count') + numv('chTatamiUnit')*numv('chTatamiCount');
+            collectOtherFees().forEach(x=>t+=x.amount);
             $('chTotal').textContent = '確定分 合計（税込）：'+yen(t);
         }
         // ①-A 原状回復箇所報告書（写真）
@@ -558,7 +640,9 @@
         async function submitConsent(){
             if(!requireBackend()) return;
             const charges={ cleaning:numv('chCleaning'), acUnit:numv('chAcUnit'), acCount:numv('chAcCount'),
+                ac2Unit:numv('chAc2Unit'), ac2Count:numv('chAc2Count'),
                 tatamiUnit:numv('chTatamiUnit'), tatamiCount:numv('chTatamiCount'),
+                otherItems: collectOtherFees(),
                 crossAgree:$('chCrossAgree').checked, crossUnit:numv('chCrossUnit'), otherNote:$('chOtherNote').value.trim(),
                 laterItems: collectLaterItems() };
             const payload={ action:'consent', caseId:CUR.id, name:CUR.name, kana:CUR.kana, bukken:CUR.bukken, room:CUR.room,
@@ -595,8 +679,10 @@
             const ch=(CUR&&CUR.data&&CUR.data.charges)||{};
             const arr=[{name:'クロス壁面張替え',qty:0,unit:'㎡',unitPrice:(ch.crossUnit||1800),burdenRate:100}];
             if((ch.cleaning||0)>0) arr.push({name:'ハウスクリーニング（室内清掃）',qty:1,unit:'式',unitPrice:ch.cleaning,burdenRate:100});
-            if((ch.acCount||0)>0) arr.push({name:'エアコン洗浄',qty:ch.acCount,unit:'台',unitPrice:ch.acUnit,burdenRate:100});
+            if((ch.acCount||0)>0) arr.push({name:'エアコン洗浄（通常）',qty:ch.acCount,unit:'台',unitPrice:ch.acUnit,burdenRate:100});
+            if((ch.ac2Count||0)>0) arr.push({name:'エアコン洗浄（お掃除機能付き）',qty:ch.ac2Count,unit:'台',unitPrice:ch.ac2Unit,burdenRate:100});
             if((ch.tatamiCount||0)>0) arr.push({name:'畳表替え',qty:ch.tatamiCount,unit:'枚',unitPrice:ch.tatamiUnit,burdenRate:100});
+            (ch.otherItems||[]).forEach(x=>arr.push({name:x.name,qty:1,unit:'式',unitPrice:x.amount,burdenRate:100}));
             // 立会いで選択した「後日見積」箇所を、金額未入力の行としてあらかじめ表示
             (ch.laterItems||[]).forEach(li=>arr.push({name:li,qty:1,unit:'式',unitPrice:0,burdenRate:100}));
             return arr;
@@ -674,6 +760,24 @@
                 confirmer:$('cmpConfirmer').value.trim(), invoiceMailDate:$('cmpInvoiceDate').value }, '完了を記録しました');
         }
 
+        // ---------------- 解約案件の取り込み（一覧から直接） ----------------
+        async function startFromImport(i){
+            if(!requireBackend()) return;
+            const imp=IMPORTABLE[i]; if(!imp) return;
+            show('loading');
+            try{
+                const j=await apiPost({ action:'newCase', receiptNo:imp.receiptNo||'', name:imp.name||'', kana:imp.kana||'',
+                    bukken:imp.bukken||'', room:imp.room||'', tel:imp.tel||'', email:imp.email||'', endDate:imp.endDate||'',
+                    cleaning:imp.cleaning||0, acNormalUnit:imp.acNormalUnit||0, acNormalCount:imp.acNormalCount||0,
+                    acAutoUnit:imp.acAutoUnit||0, acAutoCount:imp.acAutoCount||0 });
+                if(!j.ok) throw new Error(j.error||'error');
+                await loadCases();
+                const nc=CASES.find(c=>c.id===j.caseId);
+                hide('loading'); toast('取り込みました（解約フォームの金額を反映）');
+                if(nc) openCase(nc.id);
+            }catch(e){ hide('loading'); toast('取り込みに失敗しました'); }
+        }
+
         // ---------------- 案件の削除 ----------------
         async function deleteCase(){
             if(!requireBackend()) return;
@@ -708,7 +812,9 @@
             const i=$('importSelect').value;
             const imp=(i!==''&&IMPORTABLE[i])?IMPORTABLE[i]:{};
             const payload={ action:'newCase', receiptNo:imp.receiptNo||'', name:$('ncName').value.trim(), kana:$('ncKana').value.trim(),
-                bukken:$('ncBukken').value.trim(), room:$('ncRoom').value.trim(), tel:imp.tel||'', email:imp.email||'', endDate:imp.endDate||'' };
+                bukken:$('ncBukken').value.trim(), room:$('ncRoom').value.trim(), tel:imp.tel||'', email:imp.email||'', endDate:imp.endDate||'',
+                cleaning:imp.cleaning||0, acNormalUnit:imp.acNormalUnit||0, acNormalCount:imp.acNormalCount||0,
+                acAutoUnit:imp.acAutoUnit||0, acAutoCount:imp.acAutoCount||0 };
             closeNewCase();
             show('loading');
             try{ const j=await apiPost(payload); if(!j.ok)throw 0; await loadCases(); const nc=CASES.find(c=>c.id===j.caseId); hide('loading'); if(nc) openCase(nc.id); }
@@ -729,7 +835,7 @@
             }catch(e){ hide('loading'); toast('保存に失敗しました'); }
         }
 
-        document.addEventListener('DOMContentLoaded', ()=>{ loadCases(); });
+        document.addEventListener('DOMContentLoaded', ()=>{ styleFilter(); loadCases(); });
     </script>
 </body>
 </html>
