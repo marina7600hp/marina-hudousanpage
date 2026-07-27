@@ -627,6 +627,14 @@ function buildInvoice_(caseId, c, data, shortage, dstamp, label) {
   return folder.createFile(htmlToPdf_(html, '御請求書_' + label + '_' + dstamp + '.pdf'));
 }
 
+/** 住所の郵便番号（〒123-4567）の後で改行する（封筒貼り付け用の宛名向け） */
+function zipBreak_(addr) {
+  const s = String(addr || '').trim();
+  const m = s.match(/^(〒?\s*\d{3}-?\d{4})[\s　]*(.*)$/);
+  if (!m || !m[2]) return esc_(s);
+  return '<span class="zip">' + esc_(m[1]) + '</span><br>' + esc_(m[2]);
+}
+
 /** 送付状PDF（書類送付御案内）
  *  A4を上下半分に分け、上＝送付用／下＝控え。控えの左下に封筒貼り付け用の宛名を配置。 */
 function buildCover_(caseId, c, data, shortage, dstamp, label) {
@@ -659,7 +667,7 @@ function buildCover_(caseId, c, data, shortage, dstamp, label) {
       '<div class="toname">' + esc_(c.name) + '　様</div></div>';
     const env = isCopy
       ? '<div class="envwrap"><div class="env">' +
-        (data.newAddress ? '<div>' + esc_(data.newAddress) + '</div>' : '') +
+        (data.newAddress ? '<div>' + zipBreak_(data.newAddress) + '</div>' : '') +
         '<div class="envname">' + esc_(c.name) + '　様</div></div>' +
         '<div class="envnote">← 封筒貼り付け用</div></div>'
       : '';
@@ -693,7 +701,8 @@ function buildCover_(caseId, c, data, shortage, dstamp, label) {
     '.envwrap{position:absolute;left:7mm;bottom:5mm;display:flex;align-items:center;gap:4mm;}' +
     // 封筒貼り付け用の宛名：横60mm×縦35mm（実寸）
     '.env{border:1px dashed #333;width:60mm;height:35mm;box-sizing:border-box;padding:3mm 3.5mm;font-size:10px;line-height:1.5;overflow:hidden;}' +
-    '.env .envname{font-weight:bold;font-size:11.5px;margin-top:3px;}' +
+    '.env .zip{display:inline-block;margin-bottom:1px;}' +
+    '.env .envname{font-weight:bold;font-size:11.5px;margin-top:4px;}' +
     '.envnote{font-size:10px;color:#555;}' +
     '</style></head><body>' +
     letter(false) +
