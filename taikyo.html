@@ -47,9 +47,30 @@
         .thumb { position:relative; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden; }
         .thumb img { width:100%; height:110px; object-fit:cover; display:block; }
         .thumb .rm { position:absolute; top:4px; right:4px; background:rgba(15,23,42,.75); color:#fff; border:none; border-radius:6px; font-size:11px; padding:2px 7px; cursor:pointer; }
+        /* ログイン画面（簡易ロック） */
+        #gate { position:fixed; inset:0; z-index:3000; background:#0a1d25; display:flex; align-items:center; justify-content:center; padding:20px; }
+        #gate.hidden { display:none !important; }
+        .gate-card { background:#fff; border-radius:14px; padding:28px 24px; width:100%; max-width:340px; text-align:center; box-shadow:0 12px 40px rgba(0,0,0,.4); }
+        #gatePw { width:100%; padding:12px 14px; border:1px solid #cbd5e1; border-radius:8px; font-size:16px; text-align:center; }
+        #gateBtn { width:100%; margin-top:12px; background:#005f73; color:#fff; border:none; padding:12px; border-radius:8px; font-size:15px; font-weight:700; cursor:pointer; }
+        #gateBtn:hover { background:#028090; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-20">
+
+    <!-- ==================== ログイン（簡易ロック） ==================== -->
+    <div id="gate">
+        <div class="gate-card">
+            <div class="text-lg font-bold text-slate-900">🔒 退去精算 管理コンソール</div>
+            <p class="text-xs text-slate-500 mt-1.5 mb-4">パスワードを入力してください</p>
+            <input id="gatePw" type="password" inputmode="text" autocomplete="current-password" autocapitalize="off" spellcheck="false" placeholder="パスワード">
+            <button id="gateBtn" type="button">開く</button>
+            <label class="flex items-center justify-center gap-1.5 text-xs text-slate-500 mt-3 cursor-pointer">
+                <input type="checkbox" id="gateRemember" checked> この端末では次回から省略
+            </label>
+            <p id="gateErr" class="text-red-600 text-xs font-bold mt-2 min-h-[16px]"></p>
+        </div>
+    </div>
 
     <header class="bg-coastal-900 text-white sticky top-0 z-30">
         <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
@@ -308,6 +329,45 @@
         // ★★★ 設定：taikyo.gs をデプロイしたウェブアプリURLを貼り付け ★★★
         // ================================================================
         const GAS_URL = '';
+
+        // ================================================================
+        // ★ ログインパスワード（初期値：marina2026）
+        //   変更したい場合は、新しいパスワードのハッシュ値に差し替えてください。
+        //   （ご希望のパスワードをお知らせいただければこちらで設定します）
+        // ================================================================
+        const GATE_SHA = '5495fc888b009207604d7b5c1d496b8f4ff496d74b6ca9bdcf71167b15f180d9';
+        const GATE_DJB2 = '455168bb';
+        const GATE_KEY = 'taikyoAuthed';
+
+        async function gateCheck(pw){
+            try{
+                if(window.crypto && crypto.subtle){
+                    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+                    const hex = Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+                    return hex === GATE_SHA;
+                }
+            }catch(e){}
+            let h=5381; for(let i=0;i<pw.length;i++){ h=((h*33)^pw.charCodeAt(i))>>>0; }
+            return h.toString(16) === GATE_DJB2;
+        }
+        function gateInit(){
+            const gate=document.getElementById('gate');
+            if(localStorage.getItem(GATE_KEY)==='1' || sessionStorage.getItem(GATE_KEY)==='1'){ gate.classList.add('hidden'); return true; }
+            const inp=document.getElementById('gatePw'), err=document.getElementById('gateErr'),
+                  btn=document.getElementById('gateBtn'), rem=document.getElementById('gateRemember');
+            async function unlock(){
+                err.textContent='';
+                if(await gateCheck(inp.value)){
+                    (rem && rem.checked ? localStorage : sessionStorage).setItem(GATE_KEY,'1');
+                    gate.classList.add('hidden');
+                    loadCases();
+                } else { err.textContent='パスワードが違います'; inp.value=''; inp.focus(); }
+            }
+            btn.addEventListener('click', unlock);
+            inp.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); unlock(); } });
+            setTimeout(()=>inp.focus(),100);
+            return false;
+        }
 
         const $ = (id) => document.getElementById(id);
         let CASES = [], IMPORTABLE = [], CUR = null, PHOTOS = [];
@@ -835,7 +895,11 @@
             }catch(e){ hide('loading'); toast('保存に失敗しました'); }
         }
 
-        document.addEventListener('DOMContentLoaded', ()=>{ styleFilter(); loadCases(); });
+        document.addEventListener('DOMContentLoaded', ()=>{
+            styleFilter();
+            // ログイン済みならそのまま読み込み。未ログインなら解錠後に読み込む
+            if(gateInit()) loadCases();
+        });
     </script>
 </body>
 </html>

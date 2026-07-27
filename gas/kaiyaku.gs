@@ -24,6 +24,8 @@ const CONFIG = {
   COMPANY: '有限会社仁方大森マリーナー',
   COMPANY_TEL: '0823-27-7600',
   LOG_SPREADSHEET_NAME: '解約通知受付一覧',
+  // 解約通知書PDFを入れるサブフォルダ名（管理物件／月極駐車場 の各フォルダ内に作成）
+  NOTICE_SUBFOLDER: '解約通知書',
   SENDER_NAME: '仁方大森マリーナー 解約通知フォーム',
 };
 
@@ -66,7 +68,9 @@ function doPost(e) {
     // 1) PDF作成 → ドライブ保存
     const pdf = buildPdf_(data, receiptNo, now);
     const parent = DriveApp.getFolderById(CONFIG.FOLDER_ID);
-    const sub = getOrCreateSubfolder_(parent, isParking ? '月極駐車場' : '管理物件');
+    // 「管理物件（または月極駐車場）」→「解約通知書」フォルダに保存
+    const kindFolder = getOrCreateSubfolder_(parent, isParking ? '月極駐車場' : '管理物件');
+    const sub = getOrCreateSubfolder_(kindFolder, CONFIG.NOTICE_SUBFOLDER);
     const file = sub.createFile(pdf);
 
     // 2) 受付一覧スプレッドシートに記録
@@ -228,8 +232,9 @@ function buildPdf_(data, receiptNo, now) {
     '</div>' +
     '</body></html>';
 
-  const fileName = '解約通知書_' + safeName_(data.bukken) + '_' + safeName_(data.room) + '_' +
-    safeName_(data.name) + '_' + Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd') + '.pdf';
+  // ファイル名：受付年月日_物件名_号室_名前
+  const fileName = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd') + '_' +
+    safeName_(data.bukken) + '_' + safeName_(data.room) + '_' + safeName_(data.name) + '.pdf';
 
   return Utilities.newBlob(html, MimeType.HTML, fileName)
     .getAs(MimeType.PDF)
@@ -379,7 +384,7 @@ function testSetup() {
   const receiptNo = 'TEST' + Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMddHHmmss');
   const pdf = buildPdf_(sample, receiptNo, now);
   const parent = DriveApp.getFolderById(CONFIG.FOLDER_ID);
-  const sub = getOrCreateSubfolder_(parent, '管理物件');
+  const sub = getOrCreateSubfolder_(getOrCreateSubfolder_(parent, '管理物件'), CONFIG.NOTICE_SUBFOLDER);
   const file = sub.createFile(pdf);
   appendLog_(parent, sample, receiptNo, now, file.getUrl());
   sendNotifyMail_(sample, receiptNo, now, file, '');
