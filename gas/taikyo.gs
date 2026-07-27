@@ -96,6 +96,7 @@ function doPost(e) {
     if (action === 'settlement') return json_(saveSettlement_(data));
     if (action === 'complete') return json_(saveComplete_(data));
     if (action === 'deleteCase') return json_(deleteCase_(data));
+    if (action === 'dismissImport') return json_(dismissImport_(data));
     return json_({ ok: false, error: 'unknown action: ' + action });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
@@ -173,6 +174,8 @@ function importableCases_() {
   const rows = sheet.getRange(2, 1, last - 1, 13).getValues();
   const existing = {};
   listCases_().forEach(function (c) { if (c.data && c.data.receiptNo) existing[c.data.receiptNo] = true; });
+  // 一度削除／非表示にした受付番号は再表示しない
+  getDismissed_().forEach(function (rn) { existing[rn] = true; });
   const out = [];
   rows.forEach(function (r) {
     // kaiyaku.gs の列: 受付日時,受付番号,種別,物件名,部屋,氏名,フリガナ,電話,メール,解約日,室内清掃代,エアコン洗浄代,清掃代等合計,...
@@ -736,8 +739,41 @@ function deleteCase_(data) {
   const sheet = progressSheet_();
   const row = findRow_(sheet, caseId);
   if (row < 0) return { ok: false, error: '案件が見つかりません。' };
+  // 解約フォーム由来の案件は、削除後に「未取込」として再表示されないよう除外リストへ
+  let receiptNo = '';
+  try {
+    const d = JSON.parse(sheet.getRange(row, PS_COL.json).getValue() || '{}');
+    receiptNo = d.receiptNo || '';
+  } catch (e) {}
+  if (!receiptNo && /^[KP]\d{14}$/.test(String(caseId))) receiptNo = String(caseId);
+  if (receiptNo) addDismissed_(receiptNo);
   sheet.deleteRow(row);
   return { ok: true, caseId: caseId };
+}
+
+/** 取り込み候補から除外する（解約フォーム由来の案件を非表示にする） */
+function dismissImport_(data) {
+  const receiptNo = data.receiptNo;
+  if (!receiptNo) return { ok: false, error: '受付番号がありません。' };
+  addDismissed_(receiptNo);
+  return { ok: true, receiptNo: receiptNo };
+}
+
+const DISMISSED_KEY = 'dismissedReceiptNos';
+function getDismissed_() {
+  try {
+    const raw = PropertiesService.getScriptProperties().getProperty(DISMISSED_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+function addDismissed_(receiptNo) {
+  try {
+    const list = getDismissed_();
+    if (list.indexOf(receiptNo) < 0) {
+      list.push(receiptNo);
+      PropertiesService.getScriptProperties().setProperty(DISMISSED_KEY, JSON.stringify(list));
+    }
+  } catch (e) {}
 }
 
 // ---------------- ⑤ 入金・完了（着金／返金振込の完了日で終了） ----------------
