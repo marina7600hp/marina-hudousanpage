@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <title>解約・退去精算システム 取扱説明書 | 有限会社仁方大森マリーナー</title>
+    <meta name="theme-color" content="#005f73">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: {
+            colors: { coastal: { 50:'#f4fbfb',100:'#e5f6f6',200:'#ceecee',500:'#028090',600:'#005f73',900:'#0a1d25' } },
+            fontFamily: { sans: ['Noto Sans JP','sans-serif'] }
+        } } }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        .hidden { display:none !important; }
+        h2 { font-size:19px; font-weight:700; color:#005f73; border-left:5px solid #028090; padding-left:10px; margin:34px 0 14px; scroll-margin-top:70px; }
+        h3 { font-size:15px; font-weight:700; color:#0f172a; margin:20px 0 8px; }
+        p, li { line-height:1.85; }
+        .card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; margin-bottom:14px; }
+        .step { display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-bottom:1px dashed #e2e8f0; }
+        .step:last-child { border-bottom:none; }
+        .step .no { flex:0 0 26px; height:26px; border-radius:999px; background:#005f73; color:#fff; font-size:13px; font-weight:700;
+            display:flex; align-items:center; justify-content:center; margin-top:2px; }
+        .note { background:#fffbeb; border:1px solid #fcd34d; border-radius:10px; padding:12px 14px; font-size:14px; }
+        .warn { background:#fef2f2; border:1px solid #fca5a5; border-radius:10px; padding:12px 14px; font-size:14px; }
+        .ok { background:#ecfdf5; border:1px solid #6ee7b7; border-radius:10px; padding:12px 14px; font-size:14px; }
+        table { width:100%; border-collapse:collapse; font-size:14px; }
+        th, td { border:1px solid #cbd5e1; padding:8px 10px; text-align:left; vertical-align:top; }
+        th { background:#f1f5f9; font-weight:700; white-space:nowrap; }
+        .flow { display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:13px; }
+        .flow .b { background:#e5f6f6; color:#005f73; border:1px solid #028090; border-radius:8px; padding:6px 10px; font-weight:700; }
+        .flow .a { color:#94a3b8; font-weight:700; }
+        .toc a { display:block; padding:7px 0; border-bottom:1px solid #f1f5f9; color:#005f73; font-size:14px; text-decoration:none; }
+        .toc a:hover { background:#f8fafc; }
+        code { background:#f1f5f9; border-radius:4px; padding:1px 6px; font-size:13px; }
+        @media print {
+            .no-print { display:none !important; }
+            body { background:#fff; }
+            .card { box-shadow:none; page-break-inside:avoid; }
+            h2 { page-break-after:avoid; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans">
+
+    <header class="bg-coastal-900 text-white">
+        <div class="max-w-3xl mx-auto px-5 py-6">
+            <p class="text-[10px] tracking-[0.3em] text-coastal-200">MANUAL</p>
+            <h1 class="text-xl font-bold tracking-wide mt-1">解約・退去精算システム 取扱説明書</h1>
+            <p class="text-sm text-coastal-100 mt-2">有限会社仁方大森マリーナー</p>
+        </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-5 py-6 pb-20">
+
+        <div class="card no-print">
+            <p class="font-bold text-slate-700 mb-2">目次</p>
+            <div class="toc">
+                <a href="#about">1. このシステムでできること</a>
+                <a href="#flow">2. 全体の流れ</a>
+                <a href="#pages">3. 3つの画面と役割</a>
+                <a href="#step1">4. 解約の受付（入居者へフォームを送る）</a>
+                <a href="#step2">5. 退去立会い（写真・署名）</a>
+                <a href="#step3">6. 見積書をつくる</a>
+                <a href="#step4">7. 精算書・請求書・送付状をつくる</a>
+                <a href="#step5">8. 入金・完了の記録</a>
+                <a href="#drive">9. 書類の保存場所</a>
+                <a href="#faq">10. よくある質問・困ったとき</a>
+                <a href="#admin">11. 管理者向け（設定の変更）</a>
+            </div>
+            <button onclick="window.print()" class="mt-3 w-full bg-coastal-600 hover:bg-coastal-500 text-white font-bold py-2.5 rounded-lg text-sm">🖨 印刷 / PDFで保存</button>
+        </div>
+
+        <!-- 1 -->
+        <h2 id="about">1. このシステムでできること</h2>
+        <div class="card">
+            <p>入居者さまの<strong>解約の受付</strong>から、<strong>退去立会い</strong>、<strong>修繕見積</strong>、<strong>敷金精算</strong>、<strong>入金確認</strong>までを、スマホやパソコンで一連の流れとして進められるシステムです。</p>
+            <h3>主なメリット</h3>
+            <ul class="list-disc pl-5 text-sm space-y-1">
+                <li>解約通知書・同意書・見積書・精算書・請求書・送付状が<strong>自動で作成</strong>されます（手書き・入力し直しが不要）</li>
+                <li>作成した書類は<strong>Googleドライブに自動保存</strong>され、あとから探せます</li>
+                <li>入居者さまの署名を<strong>その場で電子的に</strong>いただけます</li>
+                <li>「今どの案件がどこまで進んでいるか」が一覧で分かります</li>
+            </ul>
+        </div>
+
+        <!-- 2 -->
+        <h2 id="flow">2. 全体の流れ</h2>
+        <div class="card">
+            <div class="flow mb-4">
+                <span class="b">① 解約受付</span><span class="a">→</span>
+                <span class="b">② 立会い</span><span class="a">→</span>
+                <span class="b">③ 見積</span><span class="a">→</span>
+                <span class="b">④ 精算</span><span class="a">→</span>
+                <span class="b">⑤ 入金・完了</span>
+            </div>
+            <table>
+                <tr><th>段階</th><th>やること</th><th>できる書類</th></tr>
+                <tr><td>① 解約受付</td><td>入居者へフォームのURLをSMSで送り、入力してもらう</td><td>解約通知書</td></tr>
+                <tr><td>② 立会い</td><td>現地で写真を撮り、費用を説明して署名をもらう</td><td>原状回復箇所報告書<br>退去立会い同意書</td></tr>
+                <tr><td>③ 見積</td><td>修繕内容と金額、借主負担率を入力</td><td>修繕見積書</td></tr>
+                <tr><td>④ 精算</td><td>敷金から差し引いて返金額（または請求額）を出す</td><td>修繕精算書<br>御請求書（請求時のみ）<br>送付状</td></tr>
+                <tr><td>⑤ 入金・完了</td><td>振込・入金を確認して日付を記録</td><td>―（案件が完了になります）</td></tr>
+            </table>
+        </div>
+
+        <!-- 3 -->
+        <h2 id="pages">3. 3つの画面と役割</h2>
+        <div class="card">
+            <table>
+                <tr><th>画面</th><th>使う人</th><th>役割</th></tr>
+                <tr><td><strong>リンク作成</strong><br><code>kaiyakulink.html</code></td><td>社内</td><td>入居者へ送るフォームのURLとSMS文面をつくる</td></tr>
+                <tr><td><strong>解約通知フォーム</strong><br><code>kaiyaku.html</code></td><td>入居者さま</td><td>解約の内容を入力・送信してもらう</td></tr>
+                <tr><td><strong>管理コンソール</strong><br><code>taikyo.html</code></td><td>社内</td><td>立会い〜精算まで進める。案件の一覧管理</td></tr>
+            </table>
+            <div class="note mt-3">
+                <strong>管理コンソールはパスワードで保護されています。</strong>パスワードは担当者にご確認ください。
+                「この端末では次回から省略」にチェックを入れると、次回から入力不要になります。
+            </div>
+        </div>
+
+        <!-- 4 -->
+        <h2 id="step1">4. 解約の受付（入居者へフォームを送る）</h2>
+        <div class="card">
+            <div class="step"><div class="no">1</div><div><strong>リンク作成の画面を開く</strong><br><span class="text-sm text-slate-600">種別（管理物件 / 月極駐車場）を選びます。</span></div></div>
+            <div class="step"><div class="no">2</div><div><strong>清掃代を選ぶ</strong><br><span class="text-sm text-slate-600">間取りに応じたパターンをタップ（金額を直接入力もできます）。</span></div></div>
+            <div class="step"><div class="no">3</div><div><strong>エアコン洗浄代の台数を選ぶ</strong><br><span class="text-sm text-slate-600">「通常」と「お掃除機能付き」で単価が違うので、それぞれの台数を選びます。</span></div></div>
+            <div class="step"><div class="no">4</div><div><strong>物件名・部屋番号を入れる（任意）</strong><br><span class="text-sm text-slate-600">入れておくと、入居者側のフォームにあらかじめ表示されます。</span></div></div>
+            <div class="step"><div class="no">5</div><div><strong>「SMS文面をコピー」を押す</strong><br><span class="text-sm text-slate-600">スマホのメッセージアプリに貼り付けて、入居者さまへ送信します。</span></div></div>
+            <div class="ok mt-3">
+                入居者さまがフォームを送信すると、<strong>解約通知書のPDFが自動作成され、担当者にメールが届きます</strong>。
+                入居者さま側にも受付完了メールが届きます（メールアドレスを入力された場合）。
+            </div>
+        </div>
+
+        <!-- 5 -->
+        <h2 id="step2">5. 退去立会い（写真・署名）</h2>
+        <div class="card">
+            <p class="text-sm mb-3">立会い当日は、スマホかタブレットで<strong>管理コンソール</strong>を開きます。一覧から対象の方をタップしてください。</p>
+            <div class="note mb-3">
+                解約フォームから届いた案件は、一覧の上に<strong>点線の枠</strong>で表示されます。タップすると取り込まれ、
+                <strong>清掃代・エアコン洗浄代も自動で引き継がれます</strong>。
+            </div>
+
+            <h3>①-A　写真をとる（原状回復箇所報告書）</h3>
+            <div class="step"><div class="no">1</div><div>退去日・立会日・担当者名を入力します。</div></div>
+            <div class="step"><div class="no">2</div><div><strong>「📷 撮影して追加」</strong>でその場で撮影、または<strong>「🖼 写真から選択」</strong>でスマホの写真から選びます（何枚でも可）。</div></div>
+            <div class="step"><div class="no">3</div><div>写真ごとに<strong>箇所名</strong>（例：洋室 壁）、<strong>損傷種別</strong>（傷／汚れ など）、<strong>状況メモ</strong>を入れます。</div></div>
+            <div class="step"><div class="no">4</div><div><strong>「原状回復箇所報告書を作成」</strong>を押すと、写真つきのPDFができます。</div></div>
+            <p class="text-sm text-slate-600 mt-2">※あとで写真が増えたら、写真を足してもう一度ボタンを押すだけ。署名のやり直しは不要です。</p>
+
+            <h3 class="mt-5">①-B　費用に同意していただく（退去立会い同意書）</h3>
+            <div class="step"><div class="no">1</div><div><strong>その場で金額が確定するもの</strong>を入力します（室内清掃費・エアコン洗浄費・畳表替え費用）。金額はすべて<strong>税込</strong>です。</div></div>
+            <div class="step"><div class="no">2</div><div>ほかにも確定できる費用があれば<strong>「＋ その他の費用を追加」</strong>で項目名と金額を入れます（例：鍵交換 16,500円）。</div></div>
+            <div class="step"><div class="no">3</div><div><strong>その場で金額が出せないもの</strong>は、<strong>「後日見積となる原状回復箇所」</strong>から該当をチェックします（鍵紛失／柱損傷／CFシート傷・汚損／剥がれ／フローリング破損・汚損／網戸破け／ヤニ汚れ など）。<br><span class="text-sm text-slate-600">→ 同意書に「後日見積のうえ支払うことを約束する」と記載されます。</span></div></div>
+            <div class="step"><div class="no">4</div><div>クロス（壁紙）は「㎡単価○○円で実測後に精算する」という同意にチェックが入っています。</div></div>
+            <div class="step"><div class="no">5</div><div>画面の署名欄に<strong>入居者さまご本人に指でサイン</strong>していただきます。</div></div>
+            <div class="step"><div class="no">6</div><div><strong>「立会い同意書を作成」</strong>を押して完了です。</div></div>
+        </div>
+
+        <!-- 6 -->
+        <h2 id="step3">6. 見積書をつくる</h2>
+        <div class="card">
+            <p class="text-sm mb-3">立会いで入力した費用と、後日見積で選んだ箇所が<strong>最初から表示</strong>されます。</p>
+            <div class="step"><div class="no">1</div><div>各行に<strong>数量・単位・単価</strong>を入れます（クロスなら実測した㎡数）。</div></div>
+            <div class="step"><div class="no">2</div><div><strong>借主負担率（％）</strong>を入れます。経年劣化を考慮して貸主と分ける場合は、ここで割合を調整します（例：47％）。</div></div>
+            <div class="step"><div class="no">3</div><div>足りない項目は<strong>「＋ 品目を追加」</strong>で足せます。</div></div>
+            <div class="step"><div class="no">4</div><div>見積作成者の名前を入れて<strong>「見積書を作成」</strong>を押します。</div></div>
+            <div class="note mt-3">画面下に「借主負担合計（税込）」が自動計算されます。この金額が次の精算書に引き継がれます。</div>
+        </div>
+
+        <!-- 7 -->
+        <h2 id="step4">7. 精算書・請求書・送付状をつくる</h2>
+        <div class="card">
+            <div class="step"><div class="no">1</div><div>入居期間・解約日・<strong>書類送付先（転居先）</strong>・退去後連絡先を入力します。<br><span class="text-sm text-slate-600">※送付先は改行して書くと、封筒用の宛名もそのとおりに改行されます。</span></div></div>
+            <div class="step"><div class="no">2</div><div><strong>預かり敷金・違約金・未納賃料・原状回復費</strong>を入力します（原状回復費は見積の金額が自動で入ります）。</div></div>
+            <div class="step"><div class="no">3</div><div>返金の場合は<strong>敷金返金口座</strong>を入力します。</div></div>
+            <div class="step"><div class="no">4</div><div>請求になる場合は<strong>お支払期限</strong>も入れておきます。</div></div>
+            <div class="step"><div class="no">5</div><div>作成者名を入れて<strong>「精算書を作成」</strong>を押します。</div></div>
+
+            <div class="ok mt-3">
+                <strong>ボタン1つで3種類が同時にできます。</strong>
+                <ul class="list-disc pl-5 mt-1">
+                    <li><strong>修繕精算書</strong>（必ず作成）</li>
+                    <li><strong>御請求書</strong>（敷金で足りず<strong>請求になる場合のみ</strong>）</li>
+                    <li><strong>送付状（書類送付御案内）</strong>（必ず作成）</li>
+                </ul>
+            </div>
+
+            <h3>送付状の使い方</h3>
+            <p class="text-sm">A4を<strong>上下半分</strong>で使います。真ん中の切り取り線でカットしてください。</p>
+            <ul class="list-disc pl-5 text-sm space-y-1">
+                <li><strong>上半分</strong>＝入居者さまへ同封する送付状</li>
+                <li><strong>下半分</strong>＝社内の控え</li>
+                <li>控えの<strong>左下の枠（6cm×3.5cm）</strong>＝切り取って<strong>封筒に貼る宛名ラベル</strong></li>
+            </ul>
+        </div>
+
+        <!-- 8 -->
+        <h2 id="step5">8. 入金・完了の記録</h2>
+        <div class="card">
+            <p class="text-sm mb-3">振込または入金が済んだら、案件を「完了」にします。</p>
+            <div class="step"><div class="no">1</div><div><strong>返金の場合</strong>：振込が済んだ日を「返金振込完了日」に入力。</div></div>
+            <div class="step"><div class="no">2</div><div><strong>請求の場合</strong>：入金を確認した日を「着金完了日」に入力。<strong>請求書を郵送した日</strong>も記録できます。</div></div>
+            <div class="step"><div class="no">3</div><div><strong>確認者</strong>（誰が確認したか）を入力します。</div></div>
+            <div class="step"><div class="no">4</div><div><strong>「入金・振込の完了を記録」</strong>を押すと、この案件は<strong>完了</strong>になります。</div></div>
+            <div class="note mt-3">完了した案件は、一覧の「<strong>処理中のみ</strong>」表示では<strong>自動的に隠れます</strong>。あとから見たいときは「すべて」に切り替えてください。</div>
+        </div>
+
+        <!-- 9 -->
+        <h2 id="drive">9. 書類の保存場所</h2>
+        <div class="card">
+            <p class="text-sm mb-3">作成した書類は、すべてGoogleドライブに<strong>種類ごとのフォルダに自動で振り分けて</strong>保存されます。</p>
+            <h3>解約通知書（解約フォーム）</h3>
+            <pre class="bg-slate-50 border border-slate-200 rounded p-3 text-xs overflow-x-auto">解約通知書フォーム保存
+ ├ 管理物件
+ │  └ 解約通知書 ← 解約通知書PDFはここ
+ └ 月極駐車場
+    └ 解約通知書</pre>
+            <p class="text-sm mt-2">ファイル名は <code>受付年月日_物件名_号室_名前.pdf</code>。<br>
+            例：<code>20260724_大森第3ビル_301_大森太郎.pdf</code> ／ 日付順に並ぶので探しやすくなっています。</p>
+
+            <h3 class="mt-4">退去精算の書類</h3>
+            <pre class="bg-slate-50 border border-slate-200 rounded p-3 text-xs overflow-x-auto">（退去精算の親フォルダ）
+ ├ 原状回復箇所報告書 ← 写真の原本もここ
+ ├ 退去立会い同意書
+ ├ 修繕見積書
+ ├ 修繕精算書
+ ├ 御請求書
+ ├ 送付状
+ └ 退去精算_進捗管理（スプレッドシート）</pre>
+        </div>
+
+        <!-- 10 -->
+        <h2 id="faq">10. よくある質問・困ったとき</h2>
+        <div class="card">
+            <h3>Q. 一覧から案件を消したい</h3>
+            <p class="text-sm">案件を開いて、いちばん下の<strong>「🗑 この案件を一覧から削除」</strong>を押します。<br>
+            まだ取り込んでいない案件（点線枠）は<strong>「一覧から消す」</strong>で消せます。</p>
+            <div class="ok mt-2 text-sm">消えるのは<strong>一覧の表示だけ</strong>です。ドライブに保存された解約通知書やPDF・写真は<strong>そのまま残ります</strong>。</div>
+
+            <h3 class="mt-4">Q. 完了した案件が一覧に残って見づらい</h3>
+            <p class="text-sm">一覧上部が「<strong>処理中のみ</strong>」になっているか確認してください。完了案件は自動で隠れます。</p>
+
+            <h3 class="mt-4">Q. 解約フォームから送ったのに、コンソールに出てこない</h3>
+            <p class="text-sm">「↻ 更新」を押してください。それでも出ない場合は、月極駐車場の解約（立会いの対象外）か、連携設定が未設定の可能性があります。担当者にご確認ください。</p>
+
+            <h3 class="mt-4">Q. 署名がうまく書けない</h3>
+            <p class="text-sm">指またはタッチペンで枠内に書いてください。書き直すときは「署名を消す」を押します。</p>
+
+            <h3 class="mt-4">Q. 写真を追加し忘れた</h3>
+            <p class="text-sm">写真を足して「原状回復箇所報告書を作成」をもう一度押せば、新しい報告書ができます。<strong>署名のやり直しは不要</strong>です。</p>
+
+            <h3 class="mt-4">Q. 金額を間違えて書類を作ってしまった</h3>
+            <p class="text-sm">金額を直して、もう一度作成ボタンを押してください。新しいPDFが作られます。<br>
+            古いPDFはドライブに残るので、不要なら<strong>ドライブ側で削除</strong>してください。</p>
+
+            <h3 class="mt-4">Q. パスワード画面が出ない／忘れた</h3>
+            <p class="text-sm">一度ログインした端末では省略されます。パスワードは担当者にご確認ください。</p>
+
+            <div class="warn mt-4">
+                <strong>うまく保存できない・エラーが出るとき</strong><br>
+                通信環境をご確認のうえ、もう一度お試しください。それでも直らない場合は、
+                システムの更新（再デプロイ）が必要な可能性があります。管理者へご連絡ください。
+            </div>
+        </div>
+
+        <!-- 11 -->
+        <h2 id="admin">11. 管理者向け（設定の変更）</h2>
+        <div class="card">
+            <p class="text-sm mb-3">金額や通知先などの設定は、Google Apps Script（GAS）のコード内で変更します。</p>
+            <table>
+                <tr><th>変えたいもの</th><th>変更する場所</th></tr>
+                <tr><td>清掃代のパターン</td><td>kaiyakulink.html の <code>FEE_PATTERNS</code></td></tr>
+                <tr><td>エアコン洗浄代の単価</td><td>kaiyaku.html と kaiyakulink.html の <code>AC_PRICE_NORMAL</code> / <code>AC_PRICE_AUTO</code></td></tr>
+                <tr><td>立会い費用の初期値</td><td>gas/taikyo.gs の <code>DEFAULT_CLEANING</code> ほか</td></tr>
+                <tr><td>請求書の入金口座</td><td>gas/taikyo.gs の <code>INVOICE_BANK</code></td></tr>
+                <tr><td>送付状の差出人</td><td>gas/taikyo.gs の <code>COMPANY_ADDR_FULL</code> ほか</td></tr>
+                <tr><td>通知メールの宛先</td><td>各 .gs の <code>NOTIFY_EMAIL</code></td></tr>
+                <tr><td>保存先フォルダ</td><td>各 .gs の <code>FOLDER_ID</code> / <code>PARENT_FOLDER_ID</code></td></tr>
+                <tr><td>ログインパスワード</td><td>taikyo.html の <code>GATE_SHA</code> / <code>GATE_DJB2</code></td></tr>
+            </table>
+
+            <div class="warn mt-4">
+                <strong>重要：コードを直したら「再デプロイ」が必要です</strong><br>
+                保存しただけでは反映されません。<br>
+                Apps Script →「デプロイ」→「デプロイを管理」→ ✏️ → バージョン「<strong>新バージョン</strong>」→「デプロイ」<br>
+                （ウェブアプリのURLは変わりません）
+            </div>
+
+            <p class="text-sm mt-4">詳しい手順は、リポジトリ内の <code>KAIYAKU_SETUP.md</code>（解約フォーム）と
+            <code>TAIKYO_SETUP.md</code>（退去精算）をご覧ください。</p>
+        </div>
+
+        <div class="text-center text-xs text-slate-400 mt-10 leading-relaxed">
+            有限会社仁方大森マリーナー<br>
+            TEL 0823-27-7600
+        </div>
+    </main>
+</body>
+</html>
