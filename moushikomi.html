@@ -1,0 +1,1949 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <title>入居申込書（電子申込） | 有限会社仁方大森マリーナー</title>
+    <meta name="theme-color" content="#005f73">
+    <meta name="format-detection" content="telephone=no">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        coastal: {
+                            50: '#f4fbfb',
+                            100: '#e5f6f6',
+                            200: '#ceecee',
+                            500: '#028090',
+                            600: '#005f73',
+                            900: '#0a1d25',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans JP', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Tailwind CDNが読み込めない場合のフォールバック（表示切替・レイアウトが壊れないように） */
+        *, *::before, *::after { box-sizing: border-box; }
+        .hidden { display: none !important; }
+        .field-label { display: block; font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 4px; }
+        .field-label .req { color: #dc2626; font-size: 11px; margin-left: 4px; }
+        .field-label .opt { color: #94a3b8; font-size: 11px; margin-left: 4px; font-weight: 500; }
+        .field-input {
+            width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 8px;
+            font-size: 16px; background: #fff; color: #0f172a;
+        }
+        .field-input:focus { outline: 2px solid #028090; outline-offset: -1px; border-color: #028090; }
+        .field-input:disabled { background: #f1f5f9; color: #64748b; }
+        .section-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 16px; }
+        .section-title {
+            font-size: 15px; font-weight: 700; color: #005f73; margin-bottom: 14px;
+            padding-left: 10px; border-left: 4px solid #028090;
+        }
+        .subhead {
+            font-size: 12px; font-weight: 700; color: #0f172a; background: #f1f5f9;
+            border-radius: 6px; padding: 6px 10px; margin: 18px 0 12px;
+        }
+        .confirm-row { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 13.5px; }
+        .confirm-row dt { flex: 0 0 118px; color: #64748b; }
+        .confirm-row dd { flex: 1; color: #0f172a; font-weight: 500; white-space: pre-wrap; word-break: break-all; }
+        .confirm-head { font-size: 12px; font-weight: 700; color: #005f73; background: #e5f6f6; border-radius: 6px; padding: 5px 9px; margin: 14px 0 4px; }
+        /* 選択肢（ラジオ／チェック）をタップしやすいチップ状に */
+        .opts { display: flex; flex-wrap: wrap; gap: 7px; }
+        .opt-chip {
+            display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+            border: 1px solid #cbd5e1; border-radius: 999px; padding: 8px 13px;
+            font-size: 13.5px; background: #fff; color: #334155; line-height: 1;
+        }
+        .opt-chip input { width: 16px; height: 16px; accent-color: #028090; margin: 0; }
+        .opt-chip:has(input:checked) { border-color: #028090; background: #e5f6f6; color: #005f73; font-weight: 700; }
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        /* グリッドの子は既定で min-width:auto のため、入れ子にすると中身の幅で
+           はみ出してしまう。0 を指定して必ず枠内に収める。 */
+        .grid2 > *, .grid3 > * { min-width: 0; }
+        @media (max-width: 480px) { .grid3 { grid-template-columns: 1fr 1fr; } }
+        .note { font-size: 11.5px; color: #64748b; line-height: 1.7; margin-top: 5px; }
+        .yen-wrap { position: relative; }
+        /* 「万円」「ヶ月」など2文字の単位に重ならない余白を確保する */
+        .yen-wrap .field-input { padding-right: 44px; text-align: right; }
+        .yen-wrap .unit { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; color: #64748b; }
+        .person-card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; background: #fafbfc; margin-bottom: 12px; }
+        .person-card h4 { font-size: 13px; font-weight: 700; color: #005f73; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .rm-btn { font-size: 11px; color: #dc2626; background: #fff; border: 1px solid #fecaca; border-radius: 6px; padding: 3px 9px; cursor: pointer; font-weight: 700; }
+        .add-btn { width: 100%; border: 1px dashed #94a3b8; border-radius: 9px; padding: 11px; font-size: 13.5px; font-weight: 700; color: #005f73; background: #fff; cursor: pointer; }
+        .add-btn:hover { background: #f4fbfb; border-color: #028090; }
+        .total-box { background: #f4fbfb; border: 1px solid #ceecee; border-radius: 9px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; }
+        .total-box .lbl { font-size: 13px; font-weight: 700; color: #005f73; }
+        .total-box .val { font-size: 19px; font-weight: 700; color: #0f172a; }
+        details.staff > summary { cursor: pointer; font-size: 13px; font-weight: 700; color: #475569; padding: 11px 13px; background: #f1f5f9; border-radius: 9px; list-style: none; }
+        details.staff > summary::-webkit-details-marker { display: none; }
+        details.staff > summary::before { content: '▸ '; color: #94a3b8; }
+        details.staff[open] > summary::before { content: '▾ '; }
+        .err-msg { font-size: 12px; color: #dc2626; font-weight: 700; margin-top: 5px; }
+        /* 本人確認書類のアップロード */
+        .up-box {
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+            border: 1px dashed #94a3b8; border-radius: 10px; background: #fff;
+            padding: 20px 10px; cursor: pointer; text-align: center;
+        }
+        .up-box:hover { border-color: #028090; background: #f4fbfb; }
+        .up-box input[type=file] { display: none; }
+        .up-box .up-ico { font-size: 26px; line-height: 1; }
+        .up-box .up-txt { font-size: 12.5px; font-weight: 700; color: #005f73; }
+        .up-box.filled { border-style: solid; border-color: #028090; background: #f4fbfb; }
+        .prev { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+        .prev .thumb { position: relative; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; width: 96px; background: #fff; }
+        .prev .thumb img { width: 100%; height: 68px; object-fit: cover; display: block; }
+        .prev .thumb .fname { font-size: 9.5px; color: #475569; padding: 3px 4px; word-break: break-all; line-height: 1.3; }
+        .prev .thumb .rm { position: absolute; top: 3px; right: 3px; background: rgba(15,23,42,.75); color: #fff;
+            border: none; border-radius: 6px; font-size: 10px; padding: 1px 6px; cursor: pointer; }
+        .prev .thumb .pdf { height: 68px; display: flex; align-items: center; justify-content: center; font-size: 24px; background: #f1f5f9; }
+        .step-bar { display: flex; gap: 4px; margin-bottom: 4px; }
+        .step-bar span { flex: 1; height: 4px; border-radius: 999px; background: #e2e8f0; }
+        .step-bar span.on { background: #028090; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen">
+
+    <!-- ヘッダー -->
+    <header class="bg-coastal-600 text-white sticky top-0 z-30">
+        <div class="max-w-3xl mx-auto px-4 py-3">
+            <p class="text-[10px] tracking-[0.25em] text-coastal-200">NIGATA MARINA</p>
+            <h1 class="text-base font-bold tracking-wider">入居申込書（電子申込）</h1>
+            <p id="headerSubtitle" class="text-xs mt-0.5 text-coastal-100">賃貸保証会社の審査申込を兼ねます</p>
+        </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-4 py-5 pb-24">
+
+        <!-- ===================== フォーム ===================== -->
+        <div id="formWrap">
+
+            <!-- はじめに -->
+            <div class="bg-white border border-coastal-200 rounded-xl p-4 mb-5 text-sm leading-relaxed">
+                <p class="font-bold text-coastal-600 mb-1.5">お申込みにあたって</p>
+                <p class="text-slate-600 text-[13px] leading-relaxed">
+                    本フォームは <b>入居申込書</b> と <b>賃貸保証委託申込書</b> を兼ねています。
+                    ご入力いただいた内容は、当社が提携する賃貸保証会社（日本セーフティー／全保連／ナップ賃貸保証／日本賃貸保証(JID)）のうち、
+                    本物件で利用する保証会社の審査に使用いたします。
+                </p>
+                <ul class="mt-2.5 text-[12.5px] text-slate-600 list-disc pl-5 space-y-1">
+                    <li>入力内容に事実と異なる記載があった場合、審査をお断りする、または契約を解除させていただくことがあります。</li>
+                    <li>審査の過程で、ご本人・お勤め先・緊急連絡先・連帯保証人の方へ確認のご連絡を差し上げる場合があります。</li>
+                    <li>審査の内容・結果に関するご質問にはお答えいたしかねます。あらかじめご了承ください。</li>
+                    <li>本人確認書類（運転免許証・健康保険証・マイナンバーカード・パスポート等）の<b>表面・裏面の写真</b>を、
+                        フォーム内（6.）でそのままアップロードしていただきます。スマートフォンで撮影したものをご利用いただけます。
+                        外国籍の方は在留カード（表裏）、未成年の方は親権者（法定代理人）の同意書が別途必要です。</li>
+                </ul>
+                <p class="note">＊ 印は保証会社審査に必須の項目です。お分かりになる範囲で、できるだけ詳しくご記入ください。</p>
+            </div>
+
+            <form id="moushikomiForm" novalidate class="space-y-5">
+
+                <!-- ============ 1. お申込物件 ============ -->
+                <section class="section-card">
+                    <h2 class="section-title">1. お申込物件</h2>
+                    <p class="note mb-3">不動産会社から届いたリンクの場合、物件情報はあらかじめ入力されています。内容をご確認ください。</p>
+
+                    <div class="space-y-3">
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="applyDate">申込日<span class="req">必須</span></label>
+                                <input class="field-input" type="date" id="applyDate" required>
+                            </div>
+                            <div>
+                                <label class="field-label" for="moveInDate">入居希望日<span class="req">必須</span></label>
+                                <input class="field-input" type="date" id="moveInDate">
+                                <label class="opt-chip mt-2"><input type="checkbox" id="moveInUndecided"> 未定</label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="field-label">申込区分<span class="req">必須</span></label>
+                            <div class="opts" id="applyKindOpts">
+                                <label class="opt-chip"><input type="radio" name="applyKind" value="新規申込" checked> 新規申込</label>
+                                <label class="opt-chip"><input type="radio" name="applyKind" value="入居中申込"> 入居中申込</label>
+                            </div>
+                            <div id="nyukyoChuWrap" class="hidden mt-2.5">
+                                <p class="note mb-1.5">入居中のお申込みの場合、以下をご確認ください。</p>
+                                <div class="opts">
+                                    <label class="opt-chip"><input type="checkbox" id="noArrears"> 現時点で賃料等の滞納なし</label>
+                                    <label class="opt-chip"><input type="checkbox" id="leaseback"> リースバック</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="bukkenKana">物件名フリガナ<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="bukkenKana" placeholder="例）マルバツハイツ">
+                            </div>
+                            <div>
+                                <label class="field-label" for="bukken">物件名<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="bukken" placeholder="例）○×ハイツ">
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="room">号室<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="room" placeholder="例）101">
+                            </div>
+                            <div>
+                                <label class="field-label">建物種別<span class="opt">任意</span></label>
+                                <div class="opts">
+                                    <label class="opt-chip"><input type="checkbox" id="isKodate"> 戸建</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="field-label" for="bukkenZip">物件所在地<span class="req">必須</span></label>
+                            <div class="grid3 mb-2">
+                                <input class="field-input" type="text" id="bukkenZip" inputmode="numeric" placeholder="〒 7370821">
+                                <select class="field-input" id="bukkenPref"></select>
+                            </div>
+                            <input class="field-input" type="text" id="bukkenAddr" placeholder="市区町村・番地　例）呉市三条4丁目7-20">
+                        </div>
+
+                        <div>
+                            <label class="field-label">物件用途<span class="req">必須</span></label>
+                            <div class="opts" id="useOpts"></div>
+                            <input class="field-input mt-2 hidden" type="text" id="useDetail" placeholder="利用目的（記載例：パン屋・介護施設・美容院）">
+                            <div id="kaigoWrap" class="hidden mt-2">
+                                <p class="note mb-1.5">介護施設の場合</p>
+                                <div class="opts">
+                                    <label class="opt-chip"><input type="checkbox" id="kaigoDaycare"> デイケア</label>
+                                    <label class="opt-chip"><input type="checkbox" id="kaigoStay"> 宿泊有</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="field-label" for="moveReason">入居理由・転居理由<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="moveReason" placeholder="例）転勤のため／結婚のため／実家から独立">
+                        </div>
+                    </div>
+
+                    <div class="subhead">お家賃等（月額）</div>
+                    <div class="space-y-3">
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="rent">① 家賃<span class="req">必須</span></label>
+                                <div class="yen-wrap"><input class="field-input money" type="text" id="rent" inputmode="numeric" placeholder="0"><span class="unit">円</span></div>
+                            </div>
+                            <div>
+                                <label class="field-label" for="kanrihi">② 管理費・共益費</label>
+                                <div class="yen-wrap"><input class="field-input money" type="text" id="kanrihi" inputmode="numeric" placeholder="0"><span class="unit">円</span></div>
+                            </div>
+                        </div>
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="parking">③ 駐車場・トランクルーム</label>
+                                <div class="yen-wrap"><input class="field-input money" type="text" id="parking" inputmode="numeric" placeholder="0"><span class="unit">円</span></div>
+                            </div>
+                            <div>
+                                <label class="field-label" for="suido">④ 水道料・町（区）費</label>
+                                <div class="yen-wrap"><input class="field-input money" type="text" id="suido" inputmode="numeric" placeholder="0"><span class="unit">円</span></div>
+                            </div>
+                        </div>
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="shunou">⑤ 収納代行費用</label>
+                                <div class="yen-wrap"><input class="field-input money" type="text" id="shunou" inputmode="numeric" placeholder="0"><span class="unit">円</span></div>
+                            </div>
+                            <div>
+                                <label class="field-label" for="otherFee">⑥ その他</label>
+                                <div class="yen-wrap"><input class="field-input money" type="text" id="otherFee" inputmode="numeric" placeholder="0"><span class="unit">円</span></div>
+                            </div>
+                        </div>
+                        <input class="field-input" type="text" id="otherFeeName" placeholder="その他の内訳（例：付帯商品費用・町内会費）">
+
+                        <div class="total-box">
+                            <span class="lbl">月額賃料合計（①〜⑥）</span>
+                            <span class="val" id="rentTotal">0 円</span>
+                        </div>
+                        <p class="note">※ 保証会社の保証対象額（毎月支払総額）となります。</p>
+                    </div>
+
+                    <div class="subhead">一時金</div>
+                    <div class="grid3">
+                        <div>
+                            <label class="field-label" for="shikikin">敷金・保証金</label>
+                            <div class="yen-wrap"><input class="field-input money" type="text" id="shikikin" inputmode="numeric" placeholder="0"><span class="unit">円</span></div>
+                        </div>
+                        <div>
+                            <label class="field-label" for="reikin">礼金</label>
+                            <div class="yen-wrap"><input class="field-input money" type="text" id="reikin" inputmode="numeric" placeholder="0"><span class="unit">円</span></div>
+                        </div>
+                        <div>
+                            <label class="field-label" for="shikibiki">敷引・償却</label>
+                            <div class="yen-wrap"><input class="field-input money" type="text" id="shikibiki" inputmode="numeric" placeholder="0"><span class="unit">円</span></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ============ 2. 申込者（契約者） ============ -->
+                <section class="section-card">
+                    <h2 class="section-title">2. 申込者（ご契約者）さま</h2>
+
+                    <div class="space-y-3">
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="aSeiKana">姓 フリガナ<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="aSeiKana" placeholder="例）オオモリ">
+                            </div>
+                            <div>
+                                <label class="field-label" for="aMeiKana">名 フリガナ<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="aMeiKana" placeholder="例）タロウ">
+                            </div>
+                        </div>
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="aSei">姓<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="aSei" autocomplete="family-name" placeholder="例）大森">
+                            </div>
+                            <div>
+                                <label class="field-label" for="aMei">名<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="aMei" autocomplete="given-name" placeholder="例）太郎">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="field-label">性別<span class="req">必須</span></label>
+                            <div class="opts">
+                                <label class="opt-chip"><input type="radio" name="aSex" value="男"> 男</label>
+                                <label class="opt-chip"><input type="radio" name="aSex" value="女"> 女</label>
+                                <label class="opt-chip"><input type="radio" name="aSex" value="無回答"> 無回答</label>
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="aBirth">生年月日<span class="req">必須</span></label>
+                                <input class="field-input birth" type="date" id="aBirth" data-age="aAge">
+                            </div>
+                            <div>
+                                <label class="field-label" for="aAge">年齢</label>
+                                <input class="field-input" type="text" id="aAge" disabled placeholder="自動計算">
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label">配偶者<span class="req">必須</span></label>
+                                <div class="opts">
+                                    <label class="opt-chip"><input type="radio" name="aSpouse" value="有"> 有</label>
+                                    <label class="opt-chip"><input type="radio" name="aSpouse" value="無"> 無</label>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="field-label" for="aNationality">国籍<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="aNationality" value="日本" placeholder="例）日本">
+                            </div>
+                        </div>
+                        <div id="zairyuWrap" class="hidden">
+                            <p class="note">※ 日本国籍以外の方は、在留カード（表裏）のコピーのご提出が必要です。在留期限も併せてご記入ください。</p>
+                            <input class="field-input mt-1.5" type="text" id="aZairyu" placeholder="在留資格・在留期限（例：永住者／2028年3月31日まで）">
+                        </div>
+
+                        <div>
+                            <label class="field-label" for="aLicense">運転免許証番号<span class="opt">お持ちの方のみ</span></label>
+                            <input class="field-input" type="text" id="aLicense" inputmode="numeric" placeholder="例）123456789012">
+                        </div>
+
+                        <div>
+                            <label class="field-label" for="aZip">現住所<span class="req">必須</span></label>
+                            <div class="grid3 mb-2">
+                                <input class="field-input" type="text" id="aZip" inputmode="numeric" autocomplete="postal-code" placeholder="〒 7370821">
+                                <select class="field-input" id="aPref"></select>
+                            </div>
+                            <input class="field-input" type="text" id="aAddr" autocomplete="street-address" placeholder="市区町村・番地・建物名・部屋番号">
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label">現在のお住まい<span class="req">必須</span></label>
+                                <select class="field-input" id="aResidence">
+                                    <option value="">選択してください</option>
+                                    <option>自己所有（持家）</option>
+                                    <option>家族所有・親族同居</option>
+                                    <option>賃貸</option>
+                                    <option>社宅・寮</option>
+                                    <option>その他</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label" for="aResidenceYears">居住年数</label>
+                                <div class="grid2">
+                                    <div class="yen-wrap"><input class="field-input" type="text" id="aResidenceYears" inputmode="numeric" placeholder="0"><span class="unit">年</span></div>
+                                    <div class="yen-wrap"><input class="field-input" type="text" id="aResidenceMonths" inputmode="numeric" placeholder="0"><span class="unit">ヶ月</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="aCurRentWrap" class="hidden">
+                            <label class="field-label" for="aCurRent">現在のお家賃<span class="opt">賃貸の方</span></label>
+                            <div class="yen-wrap" style="max-width:220px"><input class="field-input money" type="text" id="aCurRent" inputmode="numeric" placeholder="0"><span class="unit">円</span></div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="aMobile">携帯電話<span class="req">必須</span></label>
+                                <input class="field-input" type="tel" id="aMobile" inputmode="tel" autocomplete="tel" placeholder="例）090-1234-5678">
+                            </div>
+                            <div>
+                                <label class="field-label" for="aTel">自宅電話</label>
+                                <input class="field-input" type="tel" id="aTel" inputmode="tel" placeholder="例）0823-27-7600">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="field-label" for="aEmail">メールアドレス<span class="req">必須</span></label>
+                            <input class="field-input" type="email" id="aEmail" inputmode="email" autocomplete="email" placeholder="例）taro@example.com">
+                            <p class="note">受付完了のご連絡をお送りします。</p>
+                        </div>
+
+                        <div>
+                            <label class="field-label">健康保険の種類<span class="req">必須</span></label>
+                            <div class="opts">
+                                <label class="opt-chip"><input type="radio" name="aHoken" value="社会保険"> 社会保険</label>
+                                <label class="opt-chip"><input type="radio" name="aHoken" value="国民健康保険"> 国民健康保険</label>
+                                <label class="opt-chip"><input type="radio" name="aHoken" value="なし"> なし</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="subhead">お勤め先（学校）について</div>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="field-label">雇用形態・ご職業<span class="req">必須</span></label>
+                            <select class="field-input" id="aEmployment">
+                                <option value="">選択してください</option>
+                                <option>公務員</option>
+                                <option>会社経営者</option>
+                                <option>役員</option>
+                                <option>正社員</option>
+                                <option>契約社員</option>
+                                <option>派遣社員</option>
+                                <option>個人事業主（自営業）</option>
+                                <option>個人事業勤務</option>
+                                <option>パート・アルバイト</option>
+                                <option>学生</option>
+                                <option>年金受給</option>
+                                <option>生活保護受給</option>
+                                <option>失業保険受給</option>
+                                <option>無職（求職中を含む）</option>
+                                <option>その他</option>
+                            </select>
+                            <input class="field-input mt-2 hidden" type="text" id="aEmploymentOther" placeholder="その他の内容をご記入ください">
+                            <p id="aSeikatsuNote" class="note hidden" style="color:#b91c1c">※ 生活保護受給証明書のコピーのご提出が必要です。</p>
+                            <p id="aPensionNote" class="note hidden">※ 年金の種別（国民・厚生・共済・遺族・障害）を勤務先名称欄にご記入ください。</p>
+                        </div>
+
+                        <div>
+                            <label class="field-label" for="aCompany">勤務先（学校）名称<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="aCompany" autocomplete="organization" placeholder="例）株式会社○○／○○大学">
+                            <p class="note">※ 転居に伴い勤務先が変わる場合は、新しい勤務先をご記入ください。派遣社員の方は派遣元の会社情報をご記入ください。</p>
+                        </div>
+
+                        <div>
+                            <label class="field-label" for="aCompanyZip">勤務先所在地<span class="req">必須</span></label>
+                            <div class="grid3 mb-2">
+                                <input class="field-input" type="text" id="aCompanyZip" inputmode="numeric" placeholder="〒 7370821">
+                                <select class="field-input" id="aCompanyPref"></select>
+                            </div>
+                            <input class="field-input" type="text" id="aCompanyAddr" placeholder="市区町村・番地">
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="aCompanyTel">勤務先電話番号<span class="req">必須</span></label>
+                                <input class="field-input" type="tel" id="aCompanyTel" inputmode="tel" placeholder="例）0823-00-0000">
+                            </div>
+                            <div>
+                                <label class="field-label" for="aDept">部署・役職</label>
+                                <input class="field-input" type="text" id="aDept" placeholder="例）営業部　主任">
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="aIndustry">業種<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="aIndustry" placeholder="例）建設業・小売業">
+                            </div>
+                            <div>
+                                <label class="field-label" for="aJobType">職種</label>
+                                <input class="field-input" type="text" id="aJobType" placeholder="例）営業・事務・技術">
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="aIncomeYear">年収<span class="req">必須</span></label>
+                                <div class="yen-wrap"><input class="field-input" type="text" id="aIncomeYear" inputmode="numeric" placeholder="0"><span class="unit">万円</span></div>
+                            </div>
+                            <div>
+                                <label class="field-label" for="aIncomeMonth">月収（手取）<span class="req">必須</span></label>
+                                <div class="yen-wrap"><input class="field-input" type="text" id="aIncomeMonth" inputmode="numeric" placeholder="0"><span class="unit">万円</span></div>
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="aWorkYears">勤続年数<span class="req">必須</span></label>
+                                <div class="grid2">
+                                    <div class="yen-wrap"><input class="field-input" type="text" id="aWorkYears" inputmode="numeric" placeholder="0"><span class="unit">年</span></div>
+                                    <div class="yen-wrap"><input class="field-input" type="text" id="aWorkMonths" inputmode="numeric" placeholder="0"><span class="unit">ヶ月</span></div>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="field-label" for="aEmployees">従業員数</label>
+                                <div class="yen-wrap"><input class="field-input" type="text" id="aEmployees" inputmode="numeric" placeholder="0"><span class="unit">人</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ============ 3. ご入居者（同居人） ============ -->
+                <section class="section-card">
+                    <h2 class="section-title">3. ご入居者（同居人）</h2>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="field-label">ご入居の形態<span class="req">必須</span></label>
+                            <div class="opts">
+                                <label class="opt-chip"><input type="radio" name="liveKind" value="申込者本人のみ" checked> 申込者本人のみ</label>
+                                <label class="opt-chip"><input type="radio" name="liveKind" value="申込者および同居人"> 申込者＋同居人</label>
+                                <label class="opt-chip"><input type="radio" name="liveKind" value="申込者以外"> 申込者以外が入居</label>
+                            </div>
+                        </div>
+
+                        <div class="grid3">
+                            <div>
+                                <label class="field-label" for="adults">入居人数（成人）<span class="req">必須</span></label>
+                                <div class="yen-wrap"><input class="field-input" type="text" id="adults" inputmode="numeric" value="1"><span class="unit">人</span></div>
+                            </div>
+                            <div>
+                                <label class="field-label" for="minors">入居人数（未成年）</label>
+                                <div class="yen-wrap"><input class="field-input" type="text" id="minors" inputmode="numeric" value="0"><span class="unit">人</span></div>
+                            </div>
+                            <div>
+                                <label class="field-label">合計</label>
+                                <input class="field-input" type="text" id="totalPeople" disabled>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="kyojuWrap" class="hidden">
+                        <div class="subhead">同居される方（申込者ご本人以外）</div>
+                        <div id="kyojuList"></div>
+                        <button type="button" class="add-btn" id="addKyoju">＋ 同居人を追加</button>
+                        <p class="note">※ 4名を超える場合は、通信欄にすべての入居者さまをご記入ください。</p>
+                    </div>
+                </section>
+
+                <!-- ============ 4. 緊急連絡先 ============ -->
+                <section class="section-card">
+                    <h2 class="section-title">4. 緊急連絡先</h2>
+                    <p class="note mb-3">
+                        原則として、ご入居者以外の<b>別世帯にお住まいのご親族</b>の方をご記入ください。
+                        連帯保証人の有無にかかわらず必須です。続柄・ご住所・ご連絡先はすべてご記入ください。
+                    </p>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="field-label">緊急連絡先の種別<span class="req">必須</span></label>
+                            <div class="opts">
+                                <label class="opt-chip"><input type="radio" name="eKind" value="緊急連絡先のみ" checked> 緊急連絡先のみ</label>
+                                <label class="opt-chip"><input type="radio" name="eKind" value="連帯保証人 兼 緊急連絡先"> 連帯保証人 兼 緊急連絡先</label>
+                                <label class="opt-chip"><input type="radio" name="eKind" value="親権者"> 親権者</label>
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="eKana">フリガナ<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="eKana" placeholder="例）オオモリ ハナコ">
+                            </div>
+                            <div>
+                                <label class="field-label" for="eName">お名前<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="eName" placeholder="例）大森 花子">
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label">続柄<span class="req">必須</span></label>
+                                <select class="field-input" id="eRelation">
+                                    <option value="">選択してください</option>
+                                    <option>父</option>
+                                    <option>母</option>
+                                    <option>子</option>
+                                    <option>兄弟・姉妹</option>
+                                    <option>配偶者</option>
+                                    <option>その他親族</option>
+                                    <option>その他</option>
+                                </select>
+                                <input class="field-input mt-2 hidden" type="text" id="eRelationOther" placeholder="続柄をご記入ください">
+                            </div>
+                            <div>
+                                <label class="field-label">性別<span class="req">必須</span></label>
+                                <div class="opts">
+                                    <label class="opt-chip"><input type="radio" name="eSex" value="男"> 男</label>
+                                    <label class="opt-chip"><input type="radio" name="eSex" value="女"> 女</label>
+                                    <label class="opt-chip"><input type="radio" name="eSex" value="無回答"> 無回答</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="eBirth">生年月日<span class="req">必須</span></label>
+                                <input class="field-input birth" type="date" id="eBirth" data-age="eAge">
+                            </div>
+                            <div>
+                                <label class="field-label" for="eAge">年齢</label>
+                                <input class="field-input" type="text" id="eAge" disabled placeholder="自動計算">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="field-label" for="eZip">現住所<span class="req">必須</span></label>
+                            <div class="grid3 mb-2">
+                                <input class="field-input" type="text" id="eZip" inputmode="numeric" placeholder="〒 7370821">
+                                <select class="field-input" id="ePref"></select>
+                            </div>
+                            <input class="field-input" type="text" id="eAddr" placeholder="市区町村・番地・建物名・部屋番号">
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="eMobile">携帯電話<span class="req">必須</span></label>
+                                <input class="field-input" type="tel" id="eMobile" inputmode="tel" placeholder="例）090-1234-5678">
+                            </div>
+                            <div>
+                                <label class="field-label" for="eTel">自宅電話</label>
+                                <input class="field-input" type="tel" id="eTel" inputmode="tel" placeholder="例）0823-27-7600">
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label">お住まいの区分</label>
+                                <select class="field-input" id="eResidence">
+                                    <option value="">選択してください</option>
+                                    <option>自己所有（持家）</option>
+                                    <option>家族所有・親族同居</option>
+                                    <option>賃貸</option>
+                                    <option>社宅・寮</option>
+                                    <option>その他</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label" for="eNationality">国籍</label>
+                                <input class="field-input" type="text" id="eNationality" value="日本">
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label">配偶者</label>
+                                <div class="opts">
+                                    <label class="opt-chip"><input type="radio" name="eSpouse" value="有"> 有</label>
+                                    <label class="opt-chip"><input type="radio" name="eSpouse" value="無"> 無</label>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="field-label" for="eCompany">お勤め先</label>
+                                <input class="field-input" type="text" id="eCompany" placeholder="例）株式会社○○">
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ============ 5. 連帯保証人 ============ -->
+                <section class="section-card">
+                    <h2 class="section-title">5. 連帯保証人（予定者）</h2>
+                    <p class="note mb-3">保証会社・プランによっては連帯保証人が不要な場合があります。担当者の案内に従ってご記入ください。</p>
+
+                    <div>
+                        <label class="field-label">連帯保証人の有無<span class="req">必須</span></label>
+                        <div class="opts">
+                            <label class="opt-chip"><input type="radio" name="hasGuarantor" value="なし" checked> なし（保証人不要プラン）</label>
+                            <label class="opt-chip"><input type="radio" name="hasGuarantor" value="あり"> あり</label>
+                        </div>
+                    </div>
+
+                    <div id="guarantorWrap" class="hidden mt-4 space-y-3">
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="gKana">フリガナ<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="gKana" placeholder="例）オオモリ ジロウ">
+                            </div>
+                            <div>
+                                <label class="field-label" for="gName">お名前<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="gName" placeholder="例）大森 次郎">
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label">続柄<span class="req">必須</span></label>
+                                <select class="field-input" id="gRelation">
+                                    <option value="">選択してください</option>
+                                    <option>父</option>
+                                    <option>母</option>
+                                    <option>子</option>
+                                    <option>兄弟・姉妹</option>
+                                    <option>配偶者</option>
+                                    <option>その他親族</option>
+                                    <option>その他</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label">性別<span class="req">必須</span></label>
+                                <div class="opts">
+                                    <label class="opt-chip"><input type="radio" name="gSex" value="男"> 男</label>
+                                    <label class="opt-chip"><input type="radio" name="gSex" value="女"> 女</label>
+                                    <label class="opt-chip"><input type="radio" name="gSex" value="無回答"> 無回答</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="gBirth">生年月日<span class="req">必須</span></label>
+                                <input class="field-input birth" type="date" id="gBirth" data-age="gAge">
+                            </div>
+                            <div>
+                                <label class="field-label" for="gAge">年齢</label>
+                                <input class="field-input" type="text" id="gAge" disabled placeholder="自動計算">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="field-label" for="gZip">現住所<span class="req">必須</span></label>
+                            <div class="grid3 mb-2">
+                                <input class="field-input" type="text" id="gZip" inputmode="numeric" placeholder="〒 7370821">
+                                <select class="field-input" id="gPref"></select>
+                            </div>
+                            <input class="field-input" type="text" id="gAddr" placeholder="市区町村・番地・建物名・部屋番号">
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label">お住まいの区分</label>
+                                <select class="field-input" id="gResidence">
+                                    <option value="">選択してください</option>
+                                    <option>自己所有（持家）</option>
+                                    <option>家族所有・親族同居</option>
+                                    <option>賃貸</option>
+                                    <option>社宅・寮</option>
+                                    <option>その他</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label" for="gNationality">国籍</label>
+                                <input class="field-input" type="text" id="gNationality" value="日本">
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="gMobile">携帯電話<span class="req">必須</span></label>
+                                <input class="field-input" type="tel" id="gMobile" inputmode="tel" placeholder="例）090-1234-5678">
+                            </div>
+                            <div>
+                                <label class="field-label" for="gTel">自宅電話</label>
+                                <input class="field-input" type="tel" id="gTel" inputmode="tel" placeholder="例）0823-27-7600">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="field-label">雇用形態・ご職業<span class="req">必須</span></label>
+                            <select class="field-input" id="gEmployment">
+                                <option value="">選択してください</option>
+                                <option>公務員</option>
+                                <option>会社経営者</option>
+                                <option>役員</option>
+                                <option>正社員</option>
+                                <option>契約社員</option>
+                                <option>派遣社員</option>
+                                <option>個人事業主（自営業）</option>
+                                <option>個人事業勤務</option>
+                                <option>パート・アルバイト</option>
+                                <option>学生</option>
+                                <option>年金受給</option>
+                                <option>生活保護受給</option>
+                                <option>失業保険受給</option>
+                                <option>無職（求職中を含む）</option>
+                                <option>その他</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="field-label" for="gCompany">勤務先名称<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="gCompany" placeholder="例）株式会社○○">
+                        </div>
+
+                        <div>
+                            <label class="field-label" for="gCompanyZip">勤務先所在地</label>
+                            <div class="grid3 mb-2">
+                                <input class="field-input" type="text" id="gCompanyZip" inputmode="numeric" placeholder="〒 7370821">
+                                <select class="field-input" id="gCompanyPref"></select>
+                            </div>
+                            <input class="field-input" type="text" id="gCompanyAddr" placeholder="市区町村・番地">
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="gCompanyTel">勤務先電話番号<span class="req">必須</span></label>
+                                <input class="field-input" type="tel" id="gCompanyTel" inputmode="tel" placeholder="例）0823-00-0000">
+                            </div>
+                            <div>
+                                <label class="field-label" for="gIndustry">業種</label>
+                                <input class="field-input" type="text" id="gIndustry" placeholder="例）建設業">
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="gJobType">職種</label>
+                                <input class="field-input" type="text" id="gJobType" placeholder="例）営業">
+                            </div>
+                            <div>
+                                <label class="field-label" for="gWorkYears">勤続年数</label>
+                                <div class="grid2">
+                                    <div class="yen-wrap"><input class="field-input" type="text" id="gWorkYears" inputmode="numeric" placeholder="0"><span class="unit">年</span></div>
+                                    <div class="yen-wrap"><input class="field-input" type="text" id="gWorkMonths" inputmode="numeric" placeholder="0"><span class="unit">ヶ月</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label" for="gIncomeYear">年収<span class="req">必須</span></label>
+                                <div class="yen-wrap"><input class="field-input" type="text" id="gIncomeYear" inputmode="numeric" placeholder="0"><span class="unit">万円</span></div>
+                            </div>
+                            <div>
+                                <label class="field-label" for="gIncomeMonth">月収（手取）</label>
+                                <div class="yen-wrap"><input class="field-input" type="text" id="gIncomeMonth" inputmode="numeric" placeholder="0"><span class="unit">万円</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ============ 6. 本人確認書類 ============ -->
+                <section class="section-card">
+                    <h2 class="section-title">6. 本人確認書類（表面・裏面）</h2>
+                    <p class="note mb-3">
+                        運転免許証・マイナンバーカード・健康保険証・パスポート等の写真を撮影してアップロードしてください。<br>
+                        <b>表面・裏面の両方</b>が必要です。文字がはっきり読めるように、明るい場所で真上から撮影してください。
+                    </p>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="field-label">書類の種類<span class="req">必須</span></label>
+                            <select class="field-input" id="idType">
+                                <option value="">選択してください</option>
+                                <option>運転免許証</option>
+                                <option>マイナンバーカード</option>
+                                <option>健康保険証</option>
+                                <option>パスポート</option>
+                                <option>在留カード</option>
+                                <option>住民基本台帳カード</option>
+                                <option>その他</option>
+                            </select>
+                            <input class="field-input mt-2 hidden" type="text" id="idTypeOther" placeholder="書類の名称をご記入ください">
+                        </div>
+
+                        <div class="grid2">
+                            <div>
+                                <label class="field-label">表面<span class="req">必須</span></label>
+                                <label class="up-box" id="idFrontBox">
+                                    <input type="file" class="idfile" id="idFront" accept="image/*,application/pdf" capture="environment">
+                                    <span class="up-ico">📷</span>
+                                    <span class="up-txt">タップして撮影・選択</span>
+                                </label>
+                                <div id="idFrontPrev" class="prev"></div>
+                            </div>
+                            <div>
+                                <label class="field-label">裏面<span class="req">必須</span></label>
+                                <label class="up-box" id="idBackBox">
+                                    <input type="file" class="idfile" id="idBack" accept="image/*,application/pdf" capture="environment">
+                                    <span class="up-ico">📷</span>
+                                    <span class="up-txt">タップして撮影・選択</span>
+                                </label>
+                                <div id="idBackPrev" class="prev"></div>
+                            </div>
+                        </div>
+
+                        <div id="zairyuDocWrap" class="hidden">
+                            <div class="grid2">
+                                <div>
+                                    <label class="field-label">在留カード 表面<span class="req">必須</span></label>
+                                    <label class="up-box">
+                                        <input type="file" class="idfile" id="zaiFront" accept="image/*,application/pdf" capture="environment">
+                                        <span class="up-ico">🪪</span>
+                                        <span class="up-txt">タップして撮影・選択</span>
+                                    </label>
+                                    <div id="zaiFrontPrev" class="prev"></div>
+                                </div>
+                                <div>
+                                    <label class="field-label">在留カード 裏面<span class="req">必須</span></label>
+                                    <label class="up-box">
+                                        <input type="file" class="idfile" id="zaiBack" accept="image/*,application/pdf" capture="environment">
+                                        <span class="up-ico">🪪</span>
+                                        <span class="up-txt">タップして撮影・選択</span>
+                                    </label>
+                                    <div id="zaiBackPrev" class="prev"></div>
+                                </div>
+                            </div>
+                            <p class="note" style="color:#b91c1c">※ 外国籍の方は在留カード（表裏）のコピーが必須です。</p>
+                        </div>
+
+                        <div>
+                            <label class="field-label">その他の書類<span class="opt">任意・4点まで</span></label>
+                            <p class="note mb-1.5">収入証明（源泉徴収票・給与明細）、生活保護受給証明書、学生証など。</p>
+                            <label class="up-box">
+                                <input type="file" class="idfile" id="extraFiles" accept="image/*,application/pdf" multiple>
+                                <span class="up-ico">📄</span>
+                                <span class="up-txt">タップして追加</span>
+                            </label>
+                            <div id="extraPrev" class="prev"></div>
+                        </div>
+
+                        <p id="fileHint" class="note">※ 写真は自動で圧縮してから送信されます。1ファイルあたり10MBまで。</p>
+                    </div>
+                </section>
+
+                <!-- ============ 不動産会社記入欄（任意） ============ -->
+                <section class="section-card">
+                    <details class="staff" id="staffDetails">
+                        <summary>【不動産会社記入欄】保証会社・プラン・取扱店情報（お客様の入力は不要です）</summary>
+                        <div class="mt-4 space-y-3">
+                            <div>
+                                <label class="field-label">審査を申し込む保証会社</label>
+                                <div class="opts">
+                                    <label class="opt-chip"><input type="checkbox" class="gco" value="日本セーフティー"> 日本セーフティー</label>
+                                    <label class="opt-chip"><input type="checkbox" class="gco" value="全保連"> 全保連</label>
+                                    <label class="opt-chip"><input type="checkbox" class="gco" value="ナップ賃貸保証"> ナップ賃貸保証</label>
+                                    <label class="opt-chip"><input type="checkbox" class="gco" value="日本賃貸保証(JID)"> 日本賃貸保証(JID)</label>
+                                </div>
+                                <p class="note">未選択の場合は4社すべての転記シートを作成します。</p>
+                            </div>
+
+                            <div class="grid2">
+                                <div>
+                                    <label class="field-label" for="planNS">日本セーフティー：保証プラン</label>
+                                    <select class="field-input" id="planNS">
+                                        <option value="">未選択</option>
+                                        <option>プラス1（保証人あり）</option>
+                                        <option>パートナー（保証人なし）</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="field-label" for="planNSPay">日本セーフティー：継続保証料</label>
+                                    <select class="field-input" id="planNSPay">
+                                        <option value="">未選択</option>
+                                        <option>月払い（集金代行サービス利用）</option>
+                                        <option>年払い</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="grid2">
+                                <div>
+                                    <label class="field-label" for="planNAP">ナップ：保証プラン</label>
+                                    <select class="field-input" id="planNAP">
+                                        <option value="">未選択</option>
+                                        <option>安心（年払型）</option>
+                                        <option>スタンダード（年払型）</option>
+                                        <option>アシスト（年払型）</option>
+                                        <option>学割V（年払型）</option>
+                                        <option>学割（一括払型）</option>
+                                        <option>事業用S</option>
+                                        <option>事業用A</option>
+                                        <option>事業用B</option>
+                                        <option>貸地</option>
+                                        <option>駐車場/コンテナ/トランク</option>
+                                        <option>その他</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="field-label" for="planJID">JID：利用保証商品</label>
+                                    <select class="field-input" id="planJID">
+                                        <option value="">未選択</option>
+                                        <option>JIDトリオ</option>
+                                        <option>JIDトリオA</option>
+                                        <option>JIDトリオB</option>
+                                        <option>JIDトリオTrust</option>
+                                        <option>JIDトリオTrust分割型</option>
+                                        <option>JIDトリオTrust分割型アイプラス</option>
+                                        <option>JIDトリオN</option>
+                                        <option>JIDトリオN分割型</option>
+                                        <option>その他</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="grid2">
+                                <div>
+                                    <label class="field-label">ナップ：収納代行</label>
+                                    <div class="opts">
+                                        <label class="opt-chip"><input type="radio" name="napShunou" value="有"> 有</label>
+                                        <label class="opt-chip"><input type="radio" name="napShunou" value="無"> 無</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="field-label">ナップ：付帯商品</label>
+                                    <div class="opts">
+                                        <label class="opt-chip"><input type="checkbox" class="napOpt" value="ナップ家財"> 家財</label>
+                                        <label class="opt-chip"><input type="checkbox" class="napOpt" value="ナップ駆付け"> 駆付け</label>
+                                        <label class="opt-chip"><input type="checkbox" class="napOpt" value="ナップ見守りセンサー"> 見守りセンサー</label>
+                                        <label class="opt-chip"><input type="checkbox" class="napOpt" value="ナップ見守り電気"> 見守り電気</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid3">
+                                <div>
+                                    <label class="field-label" for="jidYears">JID：保証委託契約年数</label>
+                                    <div class="yen-wrap"><input class="field-input" type="text" id="jidYears" inputmode="numeric" placeholder="2"><span class="unit">年</span></div>
+                                </div>
+                                <div>
+                                    <label class="field-label" for="jidRate1">JID：初回保証料率</label>
+                                    <div class="yen-wrap"><input class="field-input" type="text" id="jidRate1" inputmode="decimal" placeholder="0"><span class="unit">％</span></div>
+                                </div>
+                                <div>
+                                    <label class="field-label" for="jidRate2">JID：更新保証料率</label>
+                                    <div class="yen-wrap"><input class="field-input" type="text" id="jidRate2" inputmode="decimal" placeholder="0"><span class="unit">％</span></div>
+                                </div>
+                            </div>
+
+                            <div class="subhead">取扱店・仲介会社</div>
+                            <div class="grid2">
+                                <div>
+                                    <label class="field-label" for="agentCompany">取扱店（加盟店）名</label>
+                                    <input class="field-input" type="text" id="agentCompany" placeholder="有限会社仁方大森マリーナー">
+                                </div>
+                                <div>
+                                    <label class="field-label" for="agentStaff">担当者</label>
+                                    <input class="field-input" type="text" id="agentStaff" placeholder="例）大森">
+                                </div>
+                            </div>
+                            <div class="grid2">
+                                <div>
+                                    <label class="field-label" for="agentNo">取扱店NO.／代理店コード</label>
+                                    <input class="field-input" type="text" id="agentNo" placeholder="保証会社ごとの店番">
+                                </div>
+                                <div>
+                                    <label class="field-label" for="chukai">仲介会社名</label>
+                                    <input class="field-input" type="text" id="chukai" placeholder="例）○○不動産株式会社">
+                                </div>
+                            </div>
+                            <div class="grid2">
+                                <div>
+                                    <label class="field-label" for="chukaiTel">仲介会社TEL</label>
+                                    <input class="field-input" type="tel" id="chukaiTel" placeholder="例）0823-00-0000">
+                                </div>
+                                <div>
+                                    <label class="field-label" for="chukaiFax">仲介会社FAX</label>
+                                    <input class="field-input" type="tel" id="chukaiFax" placeholder="例）0823-00-0001">
+                                </div>
+                            </div>
+
+                            <div class="grid2">
+                                <div>
+                                    <label class="field-label" for="payDay">賃料支払日（毎月）</label>
+                                    <div class="yen-wrap"><input class="field-input" type="text" id="payDay" inputmode="numeric" placeholder="27"><span class="unit">日</span></div>
+                                </div>
+                                <div>
+                                    <label class="field-label">賃料支払方法</label>
+                                    <select class="field-input" id="payMethod">
+                                        <option value="">未選択</option>
+                                        <option>振込</option>
+                                        <option>口座振替</option>
+                                        <option>持参</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+                </section>
+
+                <!-- ============ 7. 通信欄・同意 ============ -->
+                <section class="section-card">
+                    <h2 class="section-title">7. 通信欄</h2>
+                    <textarea class="field-input" id="note" rows="4" placeholder="入居者さまが4名を超える場合や、その他ご連絡事項があればご記入ください。"></textarea>
+                </section>
+
+                <section class="section-card">
+                    <h2 class="section-title">8. 同意事項</h2>
+
+                    <!-- ハニーポット（スパム対策） -->
+                    <input type="text" id="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;" aria-hidden="true">
+
+                    <div class="space-y-3 text-[13px] leading-relaxed text-slate-700">
+                        <label class="flex items-start gap-2.5 cursor-pointer">
+                            <input type="checkbox" id="agreePrivacy" class="mt-1 w-5 h-5 accent-[#028090]" required>
+                            <span>個人情報を、入居審査・賃貸保証委託契約の締結および履行のために、貸主・管理会社・賃貸保証会社（日本セーフティー株式会社／全保連株式会社／ナップ賃貸保証株式会社／日本賃貸保証株式会社）へ提供することに同意します。</span>
+                        </label>
+                        <label class="flex items-start gap-2.5 cursor-pointer">
+                            <input type="checkbox" id="agreeCredit" class="mt-1 w-5 h-5 accent-[#028090]" required>
+                            <span>保証会社が、審査および契約期間中の管理のため、個人信用情報機関（JICC・CIC・全国銀行個人信用情報センター等）に照会・登録することに同意します。</span>
+                        </label>
+                        <label class="flex items-start gap-2.5 cursor-pointer">
+                            <input type="checkbox" id="agreeContact" class="mt-1 w-5 h-5 accent-[#028090]" required>
+                            <span>審査にあたり、申込者本人・勤務先（在籍確認）・緊急連絡先・連帯保証人へ確認の連絡が行われることに同意し、緊急連絡先および連帯保証人予定者から、あらかじめ本申込みについて同意を得ています。</span>
+                        </label>
+                        <label class="flex items-start gap-2.5 cursor-pointer">
+                            <input type="checkbox" id="agreeAntisocial" class="mt-1 w-5 h-5 accent-[#028090]" required>
+                            <span>申込者および入居者が、暴力団その他の反社会的勢力等の関係者ではないことを表明・確約します。</span>
+                        </label>
+                        <label class="flex items-start gap-2.5 cursor-pointer">
+                            <input type="checkbox" id="agreeTrue" class="mt-1 w-5 h-5 accent-[#028090]" required>
+                            <span>本申込書の記載内容はすべて事実に相違ありません。虚偽の記載があった場合、審査をお断りされること、また契約後に判明した場合は契約を解除されることがあることを承諾します。</span>
+                        </label>
+                    </div>
+
+                    <div class="mt-4">
+                        <label class="field-label" for="signName">電子署名（お名前をご入力ください）<span class="req">必須</span></label>
+                        <input class="field-input" type="text" id="signName" placeholder="例）大森 太郎">
+                        <p class="note">上記のお名前の入力をもって、本申込書へのご署名に代えさせていただきます。</p>
+                    </div>
+
+                    <p id="formError" class="hidden err-msg mt-3"></p>
+                    <button type="submit" id="submitBtn" class="w-full mt-4 bg-coastal-600 hover:bg-coastal-500 text-white font-bold text-base py-4 rounded-xl shadow-md disabled:opacity-50">
+                        入力内容を確認する
+                    </button>
+                </section>
+            </form>
+        </div>
+
+        <!-- ===================== 確認モーダル ===================== -->
+        <div id="confirmModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div class="bg-white w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col">
+                <div class="px-5 py-3.5 border-b border-slate-200 flex-shrink-0">
+                    <h3 class="font-bold text-slate-900">入力内容の確認</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">内容をご確認のうえ、送信してください。</p>
+                </div>
+                <div class="px-5 py-3 overflow-y-auto flex-1">
+                    <dl id="confirmList"></dl>
+                </div>
+                <div class="px-5 py-3.5 border-t border-slate-200 flex gap-3 flex-shrink-0">
+                    <button type="button" onclick="closeConfirm()" class="flex-1 border border-slate-300 text-slate-600 font-bold py-3.5 rounded-xl">修正する</button>
+                    <button type="button" id="sendBtn" onclick="submitForm()" class="flex-1 bg-coastal-600 hover:bg-coastal-500 text-white font-bold py-3.5 rounded-xl disabled:opacity-50">送信する</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== 完了画面 ===================== -->
+        <div id="doneScreen" class="hidden text-center py-8">
+            <div class="text-5xl mb-4">✅</div>
+            <h2 class="text-xl font-bold text-slate-900">入居申込を受け付けました</h2>
+            <p class="text-sm text-slate-600 mt-2.5 leading-relaxed">
+                ご入力ありがとうございました。<br>
+                保証会社の審査結果が出次第、担当者よりご連絡いたします。
+            </p>
+            <div class="bg-white border border-slate-200 rounded-xl p-5 mt-6 inline-block">
+                <p class="text-xs text-slate-500">受付番号</p>
+                <p id="receiptNo" class="text-lg font-bold tracking-wider text-slate-800">-</p>
+            </div>
+            <p class="text-xs text-slate-500 mt-6 leading-relaxed">
+                お問い合わせ：有限会社仁方大森マリーナー<br>
+                <a href="tel:0823-27-7600" class="text-coastal-600 font-bold">0823-27-7600</a>（9:30〜17:00／日祝休）
+            </p>
+        </div>
+
+        <!-- ===================== ローディング ===================== -->
+        <div id="loading" class="hidden fixed inset-0 z-[60] bg-white/80 flex flex-col items-center justify-center">
+            <div class="w-10 h-10 border-4 border-coastal-200 border-t-coastal-600 rounded-full animate-spin"></div>
+            <p class="text-sm text-slate-600 mt-3 font-bold">送信中です…</p>
+        </div>
+    </main>
+
+    <script>
+        // ================================================================
+        // ★★★ 設定：Google Apps Script のウェブアプリURLを貼り付けてください ★★★
+        // （MOUSHIKOMI_SETUP.md の手順でデプロイしたURL）
+        // ================================================================
+        const GAS_URL = '';
+
+        const $ = (id) => document.getElementById(id);
+        const PREFS = ['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県','徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'];
+        const USES = ['住居用','住居用（学生）','事務所','店舗','倉庫','SOHO','駐車場','トランクルーム','コンテナ','その他'];
+
+        // ---------------- 初期化 ----------------
+        function fillPrefs() {
+            ['bukkenPref','aPref','aCompanyPref','ePref','gPref','gCompanyPref'].forEach(function (id) {
+                const sel = $(id);
+                if (!sel) return;
+                sel.innerHTML = '<option value="">都道府県</option>' +
+                    PREFS.map(function (p) { return '<option>' + p + '</option>'; }).join('');
+            });
+        }
+
+        function fillUses() {
+            $('useOpts').innerHTML = USES.map(function (u) {
+                return '<label class="opt-chip"><input type="radio" name="use" value="' + u + '"> ' + u + '</label>';
+            }).join('');
+        }
+
+        // ---------------- URLパラメータで物件情報を事前入力 ----------------
+        // 例）moushikomi.html?b=○×ハイツ&bk=マルバツハイツ&r=101&rent=50000&kanri=3000&zip=7370821&pref=広島県&addr=呉市三条4-7-20&use=住居用
+        function prefill() {
+            const p = new URLSearchParams(location.search);
+            const map = {
+                b: 'bukken', bk: 'bukkenKana', r: 'room', zip: 'bukkenZip', addr: 'bukkenAddr',
+                rent: 'rent', kanri: 'kanrihi', park: 'parking', suido: 'suido',
+                shiki: 'shikikin', rei: 'reikin', shikibiki: 'shikibiki',
+                agent: 'agentCompany', staff: 'agentStaff', agentno: 'agentNo',
+                chukai: 'chukai', payday: 'payDay'
+            };
+            Object.keys(map).forEach(function (k) {
+                const v = p.get(k);
+                if (v && $(map[k])) $(map[k]).value = v;
+            });
+            const pref = p.get('pref');
+            if (pref && $('bukkenPref')) $('bukkenPref').value = pref;
+            const use = p.get('use');
+            if (use) {
+                const r = document.querySelector('input[name="use"][value="' + use + '"]');
+                if (r) r.checked = true;
+            }
+            // 申込日は本日を初期値に
+            const t = new Date();
+            $('applyDate').value = t.getFullYear() + '-' +
+                String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+        }
+
+        // ---------------- 金額フォーマット・合計計算 ----------------
+        const numOf = (id) => {
+            const v = ($(id) && $(id).value || '').replace(/[^0-9]/g, '');
+            return v ? parseInt(v, 10) : 0;
+        };
+
+        function calcTotal() {
+            const total = numOf('rent') + numOf('kanrihi') + numOf('parking') +
+                numOf('suido') + numOf('shunou') + numOf('otherFee');
+            $('rentTotal').textContent = total.toLocaleString('ja-JP') + ' 円';
+            return total;
+        }
+
+        function formatMoney(el) {
+            const n = (el.value || '').replace(/[^0-9]/g, '');
+            el.value = n ? parseInt(n, 10).toLocaleString('ja-JP') : '';
+        }
+
+        // ---------------- 年齢の自動計算 ----------------
+        function calcAge(birthStr) {
+            if (!birthStr) return '';
+            const b = new Date(birthStr);
+            if (isNaN(b.getTime())) return '';
+            const t = new Date();
+            let age = t.getFullYear() - b.getFullYear();
+            const m = t.getMonth() - b.getMonth();
+            if (m < 0 || (m === 0 && t.getDate() < b.getDate())) age--;
+            return age >= 0 && age < 130 ? String(age) + ' 歳' : '';
+        }
+
+        // ---------------- 同居人（動的行） ----------------
+        let kyojuSeq = 0;
+        function addKyojuRow(data) {
+            const rows = document.querySelectorAll('#kyojuList .person-card');
+            if (rows.length >= 4) return;
+            kyojuSeq++;
+            const i = kyojuSeq;
+            const div = document.createElement('div');
+            div.className = 'person-card';
+            div.dataset.idx = i;
+            div.innerHTML =
+                '<h4><span class="k-title">同居人</span><button type="button" class="rm-btn">削除</button></h4>' +
+                '<div class="space-y-3">' +
+                '<div class="grid2">' +
+                '<div><label class="field-label">フリガナ<span class="req">必須</span></label><input class="field-input k-kana" type="text" placeholder="例）オオモリ ハナ"></div>' +
+                '<div><label class="field-label">お名前<span class="req">必須</span></label><input class="field-input k-name" type="text" placeholder="例）大森 花"></div>' +
+                '</div>' +
+                '<div class="grid2">' +
+                '<div><label class="field-label">続柄<span class="req">必須</span></label><input class="field-input k-rel" type="text" placeholder="例）妻・長男"></div>' +
+                '<div><label class="field-label">性別</label>' +
+                '<select class="field-input k-sex"><option value="">選択</option><option>男</option><option>女</option><option>無回答</option></select></div>' +
+                '</div>' +
+                '<div class="grid2">' +
+                '<div><label class="field-label">生年月日<span class="req">必須</span></label><input class="field-input k-birth" type="date"></div>' +
+                '<div><label class="field-label">携帯電話</label><input class="field-input k-tel" type="tel" inputmode="tel" placeholder="例）090-1234-5678"></div>' +
+                '</div>' +
+                '<div class="grid2">' +
+                '<div><label class="field-label">勤務先・学校名</label><input class="field-input k-company" type="text" placeholder="例）○○小学校"></div>' +
+                '<div><label class="field-label">勤務先TEL</label><input class="field-input k-ctel" type="tel" inputmode="tel" placeholder="例）0823-00-0000"></div>' +
+                '</div>' +
+                '<div class="grid2">' +
+                '<div><label class="field-label">勤続年数</label><div class="yen-wrap"><input class="field-input k-years" type="text" inputmode="numeric" placeholder="0"><span class="unit">年</span></div></div>' +
+                '<div><label class="field-label">年収</label><div class="yen-wrap"><input class="field-input k-income" type="text" inputmode="numeric" placeholder="0"><span class="unit">万円</span></div></div>' +
+                '</div>' +
+                '</div>';
+            $('kyojuList').appendChild(div);
+            div.querySelector('.rm-btn').addEventListener('click', function () {
+                div.remove();
+                renumberKyoju();
+            });
+            if (data) {
+                ['kana','name','rel','sex','birth','tel','company','ctel','years','income'].forEach(function (k) {
+                    const el = div.querySelector('.k-' + k);
+                    if (el && data[k]) el.value = data[k];
+                });
+            }
+            renumberKyoju();
+        }
+
+        function renumberKyoju() {
+            document.querySelectorAll('#kyojuList .person-card').forEach(function (c, n) {
+                c.querySelector('.k-title').textContent = '同居人 ' + (n + 1);
+            });
+            $('addKyoju').classList.toggle('hidden',
+                document.querySelectorAll('#kyojuList .person-card').length >= 4);
+        }
+
+        function collectKyoju() {
+            return Array.prototype.map.call(document.querySelectorAll('#kyojuList .person-card'), function (c) {
+                const g = (k) => (c.querySelector('.k-' + k) || {}).value || '';
+                return {
+                    kana: g('kana'), name: g('name'), relation: g('rel'), sex: g('sex'),
+                    birth: g('birth'), age: calcAge(g('birth')).replace(' 歳', ''),
+                    tel: g('tel'), company: g('company'), companyTel: g('ctel'),
+                    workYears: g('years'), income: g('income')
+                };
+            }).filter(function (k) { return k.name || k.kana; });
+        }
+
+        // ---------------- 本人確認書類のアップロード ----------------
+        // 画像は端末側で縮小・JPEG圧縮してから送信する（GASの受信サイズ・処理時間対策）
+        const MAX_EDGE = 1600;      // 長辺の最大ピクセル
+        const JPEG_QUALITY = 0.82;
+        const MAX_BYTES = 10 * 1024 * 1024;
+        const FILES = { idFront: null, idBack: null, zaiFront: null, zaiBack: null, extra: [] };
+
+        function readAsDataURL(file) {
+            return new Promise(function (resolve, reject) {
+                const fr = new FileReader();
+                fr.onload = function () { resolve(fr.result); };
+                fr.onerror = reject;
+                fr.readAsDataURL(file);
+            });
+        }
+
+        /** 画像なら縮小・圧縮、PDFはそのまま */
+        async function toPayload(file) {
+            if (file.size > MAX_BYTES) throw new Error(file.name + ' はサイズが大きすぎます（10MBまで）。');
+            const raw = await readAsDataURL(file);
+            if (file.type === 'application/pdf' || !/^image\//.test(file.type)) {
+                return { name: file.name, mimeType: file.type || 'application/octet-stream', dataUrl: raw };
+            }
+            const img = await new Promise(function (resolve, reject) {
+                const im = new Image();
+                im.onload = function () { resolve(im); };
+                im.onerror = reject;
+                im.src = raw;
+            });
+            let w = img.naturalWidth, h = img.naturalHeight;
+            const scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+            w = Math.round(w * scale); h = Math.round(h * scale);
+            const cv = document.createElement('canvas');
+            cv.width = w; cv.height = h;
+            cv.getContext('2d').drawImage(img, 0, 0, w, h);
+            const out = cv.toDataURL('image/jpeg', JPEG_QUALITY);
+            const base = (file.name || 'photo').replace(/\.[^.]+$/, '');
+            return { name: base + '.jpg', mimeType: 'image/jpeg', dataUrl: out };
+        }
+
+        function thumbHtml(p, onRemove) {
+            const isPdf = p.mimeType === 'application/pdf';
+            return '<div class="thumb">' +
+                (isPdf ? '<div class="pdf">📄</div>' : '<img src="' + p.dataUrl + '" alt="">') +
+                '<div class="fname">' + escapeHtml(p.name) + '</div>' +
+                (onRemove ? '<button type="button" class="rm">×</button>' : '') +
+                '</div>';
+        }
+
+        function renderSingle(key, prevId) {
+            const p = FILES[key];
+            const wrap = $(prevId);
+            const inp = $(key);
+            const box = inp ? inp.closest('.up-box') : null;
+            wrap.innerHTML = p ? thumbHtml(p, true) : '';
+            if (box) box.classList.toggle('filled', !!p);
+            if (p) {
+                wrap.querySelector('.rm').addEventListener('click', function () {
+                    FILES[key] = null;
+                    if (inp) inp.value = '';
+                    renderSingle(key, prevId);
+                });
+            }
+        }
+
+        function renderExtra() {
+            const wrap = $('extraPrev');
+            wrap.innerHTML = FILES.extra.map(function (p) { return thumbHtml(p, true); }).join('');
+            Array.prototype.forEach.call(wrap.querySelectorAll('.rm'), function (btn, i) {
+                btn.addEventListener('click', function () {
+                    FILES.extra.splice(i, 1);
+                    renderExtra();
+                });
+            });
+        }
+
+        function bindUploads() {
+            const singles = [
+                ['idFront', 'idFrontPrev'],
+                ['idBack', 'idBackPrev'],
+                ['zaiFront', 'zaiFrontPrev'],
+                ['zaiBack', 'zaiBackPrev'],
+            ];
+            singles.forEach(function (s) {
+                const inp = $(s[0]);
+                if (!inp) return;
+                inp.addEventListener('change', async function () {
+                    const f = inp.files && inp.files[0];
+                    if (!f) return;
+                    try {
+                        FILES[s[0]] = await toPayload(f);
+                        renderSingle(s[0], s[1]);
+                        $('formError').classList.add('hidden');
+                    } catch (err) {
+                        showError(String(err.message || err));
+                        inp.value = '';
+                    }
+                });
+            });
+
+            $('extraFiles').addEventListener('change', async function () {
+                const fs = Array.prototype.slice.call(this.files || []);
+                for (let i = 0; i < fs.length; i++) {
+                    if (FILES.extra.length >= 4) {
+                        showError('その他の書類は4点までです。');
+                        break;
+                    }
+                    try {
+                        FILES.extra.push(await toPayload(fs[i]));
+                    } catch (err) {
+                        showError(String(err.message || err));
+                    }
+                }
+                this.value = '';
+                renderExtra();
+            });
+
+            $('idType').addEventListener('change', function () {
+                $('idTypeOther').classList.toggle('hidden', this.value !== 'その他');
+            });
+        }
+
+        /** 送信用の添付ファイル一覧 */
+        function collectFiles() {
+            const out = [];
+            if (FILES.idFront) out.push(Object.assign({ role: '本人確認書類_表面' }, FILES.idFront));
+            if (FILES.idBack) out.push(Object.assign({ role: '本人確認書類_裏面' }, FILES.idBack));
+            if (FILES.zaiFront) out.push(Object.assign({ role: '在留カード_表面' }, FILES.zaiFront));
+            if (FILES.zaiBack) out.push(Object.assign({ role: '在留カード_裏面' }, FILES.zaiBack));
+            FILES.extra.forEach(function (p, i) {
+                out.push(Object.assign({ role: 'その他書類' + (i + 1) }, p));
+            });
+            return out;
+        }
+
+        // ---------------- 表示切替 ----------------
+        function bindToggles() {
+            // 入居中申込
+            document.querySelectorAll('input[name="applyKind"]').forEach(function (r) {
+                r.addEventListener('change', function () {
+                    $('nyukyoChuWrap').classList.toggle('hidden', r.value !== '入居中申込' || !r.checked);
+                });
+            });
+            // 入居希望日「未定」
+            $('moveInUndecided').addEventListener('change', function () {
+                $('moveInDate').disabled = this.checked;
+                if (this.checked) $('moveInDate').value = '';
+            });
+            // 物件用途 → 利用目的・介護施設
+            $('useOpts').addEventListener('change', function (e) {
+                const v = e.target.value;
+                const needDetail = ['店舗', '事務所', '倉庫', 'SOHO', 'その他'].indexOf(v) >= 0;
+                $('useDetail').classList.toggle('hidden', !needDetail);
+                $('kaigoWrap').classList.toggle('hidden', v !== '店舗' && v !== 'その他');
+            });
+            // 国籍 → 在留カード（記入欄・添付欄の両方）
+            $('aNationality').addEventListener('input', function () {
+                const foreign = (this.value || '').trim() !== '' && (this.value || '').trim() !== '日本';
+                $('zairyuWrap').classList.toggle('hidden', !foreign);
+                $('zairyuDocWrap').classList.toggle('hidden', !foreign);
+            });
+            // 住居区分 → 現家賃
+            $('aResidence').addEventListener('change', function () {
+                $('aCurRentWrap').classList.toggle('hidden', this.value !== '賃貸' && this.value !== '社宅・寮');
+            });
+            // 雇用形態 → 補足
+            $('aEmployment').addEventListener('change', function () {
+                $('aEmploymentOther').classList.toggle('hidden', this.value !== 'その他');
+                $('aSeikatsuNote').classList.toggle('hidden', this.value !== '生活保護受給');
+                $('aPensionNote').classList.toggle('hidden', this.value !== '年金受給');
+            });
+            // 同居人の有無
+            document.querySelectorAll('input[name="liveKind"]').forEach(function (r) {
+                r.addEventListener('change', function () {
+                    const show = r.checked && r.value !== '申込者本人のみ';
+                    $('kyojuWrap').classList.toggle('hidden', !show);
+                    if (show && document.querySelectorAll('#kyojuList .person-card').length === 0) addKyojuRow();
+                });
+            });
+            // 緊急連絡先 続柄「その他」
+            $('eRelation').addEventListener('change', function () {
+                $('eRelationOther').classList.toggle('hidden', this.value !== 'その他');
+            });
+            // 連帯保証人の有無
+            document.querySelectorAll('input[name="hasGuarantor"]').forEach(function (r) {
+                r.addEventListener('change', function () {
+                    $('guarantorWrap').classList.toggle('hidden', !(r.checked && r.value === 'あり'));
+                });
+            });
+            // 人数合計
+            ['adults', 'minors'].forEach(function (id) {
+                $(id).addEventListener('input', function () {
+                    $('totalPeople').value = (numOf('adults') + numOf('minors')) + ' 人';
+                });
+            });
+            // 金額
+            document.querySelectorAll('.money').forEach(function (el) {
+                el.addEventListener('input', calcTotal);
+                el.addEventListener('blur', function () { formatMoney(el); calcTotal(); });
+            });
+            // 年齢
+            document.querySelectorAll('.birth').forEach(function (el) {
+                el.addEventListener('change', function () {
+                    const t = $(el.dataset.age);
+                    if (t) t.value = calcAge(el.value);
+                });
+            });
+            $('addKyoju').addEventListener('click', function () { addKyojuRow(); });
+        }
+
+        // ---------------- 入力値の収集 ----------------
+        const val = (id) => (($(id) || {}).value || '').trim();
+        const money = (id) => String(numOf(id));
+        const radio = (name) => {
+            const el = document.querySelector('input[name="' + name + '"]:checked');
+            return el ? el.value : '';
+        };
+        const checks = (sel) => Array.prototype.filter.call(document.querySelectorAll(sel), function (c) { return c.checked; })
+            .map(function (c) { return c.value; });
+
+        function collect() {
+            return {
+                formType: 'moushikomi',
+                website: val('website'), // ハニーポット
+
+                // 1. 物件
+                applyDate: val('applyDate'),
+                moveInDate: $('moveInUndecided').checked ? '' : val('moveInDate'),
+                moveInUndecided: $('moveInUndecided').checked,
+                applyKind: radio('applyKind'),
+                noArrears: $('noArrears').checked,
+                leaseback: $('leaseback').checked,
+                bukken: val('bukken'),
+                bukkenKana: val('bukkenKana'),
+                room: val('room'),
+                isKodate: $('isKodate').checked,
+                bukkenZip: val('bukkenZip'),
+                bukkenPref: val('bukkenPref'),
+                bukkenAddr: val('bukkenAddr'),
+                use: radio('use'),
+                useDetail: val('useDetail'),
+                kaigoDaycare: $('kaigoDaycare').checked,
+                kaigoStay: $('kaigoStay').checked,
+                moveReason: val('moveReason'),
+
+                // 賃料
+                rent: money('rent'),
+                kanrihi: money('kanrihi'),
+                parking: money('parking'),
+                suido: money('suido'),
+                shunou: money('shunou'),
+                otherFee: money('otherFee'),
+                otherFeeName: val('otherFeeName'),
+                rentTotal: String(calcTotal()),
+                shikikin: money('shikikin'),
+                reikin: money('reikin'),
+                shikibiki: money('shikibiki'),
+
+                // 2. 申込者
+                aSei: val('aSei'), aMei: val('aMei'),
+                aSeiKana: val('aSeiKana'), aMeiKana: val('aMeiKana'),
+                aName: (val('aSei') + ' ' + val('aMei')).trim(),
+                aKana: (val('aSeiKana') + ' ' + val('aMeiKana')).trim(),
+                aSex: radio('aSex'),
+                aBirth: val('aBirth'),
+                aAge: calcAge(val('aBirth')).replace(' 歳', ''),
+                aSpouse: radio('aSpouse'),
+                aNationality: val('aNationality'),
+                aZairyu: val('aZairyu'),
+                aLicense: val('aLicense'),
+                aZip: val('aZip'), aPref: val('aPref'), aAddr: val('aAddr'),
+                aResidence: val('aResidence'),
+                aResidenceYears: val('aResidenceYears'),
+                aResidenceMonths: val('aResidenceMonths'),
+                aCurRent: money('aCurRent'),
+                aMobile: val('aMobile'), aTel: val('aTel'), aEmail: val('aEmail'),
+                aHoken: radio('aHoken'),
+                aEmployment: val('aEmployment'),
+                aEmploymentOther: val('aEmploymentOther'),
+                aCompany: val('aCompany'),
+                aCompanyZip: val('aCompanyZip'), aCompanyPref: val('aCompanyPref'), aCompanyAddr: val('aCompanyAddr'),
+                aCompanyTel: val('aCompanyTel'),
+                aDept: val('aDept'),
+                aIndustry: val('aIndustry'), aJobType: val('aJobType'),
+                aIncomeYear: val('aIncomeYear'), aIncomeMonth: val('aIncomeMonth'),
+                aWorkYears: val('aWorkYears'), aWorkMonths: val('aWorkMonths'),
+                aEmployees: val('aEmployees'),
+
+                // 3. 入居者
+                liveKind: radio('liveKind'),
+                adults: val('adults'), minors: val('minors'),
+                totalPeople: String(numOf('adults') + numOf('minors')),
+                kyoju: collectKyoju(),
+
+                // 4. 緊急連絡先
+                eKind: radio('eKind'),
+                eKana: val('eKana'), eName: val('eName'),
+                eRelation: val('eRelation') === 'その他' ? val('eRelationOther') : val('eRelation'),
+                eSex: radio('eSex'),
+                eBirth: val('eBirth'), eAge: calcAge(val('eBirth')).replace(' 歳', ''),
+                eZip: val('eZip'), ePref: val('ePref'), eAddr: val('eAddr'),
+                eMobile: val('eMobile'), eTel: val('eTel'),
+                eResidence: val('eResidence'),
+                eNationality: val('eNationality'),
+                eSpouse: radio('eSpouse'),
+                eCompany: val('eCompany'),
+
+                // 5. 連帯保証人
+                hasGuarantor: radio('hasGuarantor'),
+                gKana: val('gKana'), gName: val('gName'),
+                gRelation: val('gRelation'), gSex: radio('gSex'),
+                gBirth: val('gBirth'), gAge: calcAge(val('gBirth')).replace(' 歳', ''),
+                gZip: val('gZip'), gPref: val('gPref'), gAddr: val('gAddr'),
+                gResidence: val('gResidence'), gNationality: val('gNationality'),
+                gMobile: val('gMobile'), gTel: val('gTel'),
+                gEmployment: val('gEmployment'), gCompany: val('gCompany'),
+                gCompanyZip: val('gCompanyZip'), gCompanyPref: val('gCompanyPref'), gCompanyAddr: val('gCompanyAddr'),
+                gCompanyTel: val('gCompanyTel'),
+                gIndustry: val('gIndustry'), gJobType: val('gJobType'),
+                gWorkYears: val('gWorkYears'), gWorkMonths: val('gWorkMonths'),
+                gIncomeYear: val('gIncomeYear'), gIncomeMonth: val('gIncomeMonth'),
+
+                // 6. 不動産会社記入欄
+                guaranteeCompanies: checks('.gco'),
+                planNS: val('planNS'), planNSPay: val('planNSPay'),
+                planNAP: val('planNAP'), planJID: val('planJID'),
+                napShunou: radio('napShunou'), napOptions: checks('.napOpt'),
+                jidYears: val('jidYears'), jidRate1: val('jidRate1'), jidRate2: val('jidRate2'),
+                agentCompany: val('agentCompany'), agentStaff: val('agentStaff'), agentNo: val('agentNo'),
+                chukai: val('chukai'), chukaiTel: val('chukaiTel'), chukaiFax: val('chukaiFax'),
+                payDay: val('payDay'), payMethod: val('payMethod'),
+
+                // 7. 本人確認書類
+                idType: val('idType') === 'その他' ? val('idTypeOther') : val('idType'),
+                files: collectFiles(),
+
+                // 8. 通信欄・同意
+                note: val('note'),
+                signName: val('signName'),
+                agreed: ['agreePrivacy', 'agreeCredit', 'agreeContact', 'agreeAntisocial', 'agreeTrue']
+                    .every(function (id) { return $(id).checked; })
+            };
+        }
+
+        // ---------------- 入力チェック ----------------
+        const REQUIRED = [
+            ['applyDate', '申込日'],
+            ['bukkenKana', '物件名フリガナ'], ['bukken', '物件名'], ['room', '号室'],
+            ['bukkenZip', '物件の郵便番号'], ['bukkenPref', '物件の都道府県'], ['bukkenAddr', '物件の住所'],
+            ['moveReason', '入居理由・転居理由'], ['rent', '家賃'],
+            ['aSeiKana', '申込者の姓フリガナ'], ['aMeiKana', '申込者の名フリガナ'],
+            ['aSei', '申込者の姓'], ['aMei', '申込者の名'],
+            ['aBirth', '申込者の生年月日'], ['aNationality', '申込者の国籍'],
+            ['aZip', '申込者の郵便番号'], ['aPref', '申込者の都道府県'], ['aAddr', '申込者の住所'],
+            ['aResidence', '現在のお住まい'],
+            ['aMobile', '申込者の携帯電話'], ['aEmail', 'メールアドレス'],
+            ['aEmployment', '雇用形態・ご職業'], ['aCompany', '勤務先（学校）名称'],
+            ['aCompanyZip', '勤務先の郵便番号'], ['aCompanyPref', '勤務先の都道府県'], ['aCompanyAddr', '勤務先の住所'],
+            ['aCompanyTel', '勤務先電話番号'], ['aIndustry', '業種'],
+            ['aIncomeYear', '年収'], ['aIncomeMonth', '月収'], ['aWorkYears', '勤続年数'],
+            ['adults', '入居人数（成人）'],
+            ['eKana', '緊急連絡先のフリガナ'], ['eName', '緊急連絡先のお名前'],
+            ['eRelation', '緊急連絡先の続柄'], ['eBirth', '緊急連絡先の生年月日'],
+            ['eZip', '緊急連絡先の郵便番号'], ['ePref', '緊急連絡先の都道府県'], ['eAddr', '緊急連絡先の住所'],
+            ['eMobile', '緊急連絡先の携帯電話'],
+            ['signName', '電子署名（お名前）']
+        ];
+
+        const GUARANTOR_REQUIRED = [
+            ['gKana', '連帯保証人のフリガナ'], ['gName', '連帯保証人のお名前'],
+            ['gRelation', '連帯保証人の続柄'], ['gBirth', '連帯保証人の生年月日'],
+            ['gZip', '連帯保証人の郵便番号'], ['gPref', '連帯保証人の都道府県'], ['gAddr', '連帯保証人の住所'],
+            ['gMobile', '連帯保証人の携帯電話'],
+            ['gEmployment', '連帯保証人の雇用形態'], ['gCompany', '連帯保証人の勤務先名称'],
+            ['gCompanyTel', '連帯保証人の勤務先電話番号'], ['gIncomeYear', '連帯保証人の年収']
+        ];
+
+        function showError(msg, focusId) {
+            $('formError').textContent = msg;
+            $('formError').classList.remove('hidden');
+            if (focusId && $(focusId)) {
+                $(focusId).scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(function () { $(focusId).focus(); }, 300);
+            }
+        }
+
+        function validate() {
+            $('formError').classList.add('hidden');
+
+            let list = REQUIRED.slice();
+            if (radio('hasGuarantor') === 'あり') list = list.concat(GUARANTOR_REQUIRED);
+
+            for (let i = 0; i < list.length; i++) {
+                if (!val(list[i][0])) {
+                    showError('「' + list[i][1] + '」をご入力ください。', list[i][0]);
+                    return false;
+                }
+            }
+
+            // ラジオの必須
+            const radios = [
+                ['applyKind', '申込区分', 'applyKindOpts'],
+                ['use', '物件用途', 'useOpts'],
+                ['aSex', '申込者の性別', 'aSei'],
+                ['aSpouse', '申込者の配偶者の有無', 'aSei'],
+                ['aHoken', '健康保険の種類', 'aEmail'],
+                ['eSex', '緊急連絡先の性別', 'eName'],
+                ['liveKind', 'ご入居の形態', 'adults']
+            ];
+            for (let i = 0; i < radios.length; i++) {
+                if (!radio(radios[i][0])) {
+                    showError('「' + radios[i][1] + '」をご選択ください。', radios[i][2]);
+                    return false;
+                }
+            }
+
+            // 入居希望日
+            if (!$('moveInUndecided').checked && !val('moveInDate')) {
+                showError('「入居希望日」をご入力ください。未定の場合は「未定」にチェックしてください。', 'moveInDate');
+                return false;
+            }
+
+            // メール形式
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val('aEmail'))) {
+                showError('メールアドレスの形式をご確認ください。', 'aEmail');
+                return false;
+            }
+
+            // 同居人
+            if (radio('liveKind') !== '申込者本人のみ') {
+                const ks = collectKyoju();
+                if (ks.length === 0) {
+                    showError('同居される方の情報をご入力ください。', 'addKyoju');
+                    return false;
+                }
+                for (let i = 0; i < ks.length; i++) {
+                    if (!ks[i].kana || !ks[i].name || !ks[i].relation || !ks[i].birth) {
+                        showError('同居人 ' + (i + 1) + ' の「フリガナ・お名前・続柄・生年月日」をご入力ください。', 'kyojuList');
+                        return false;
+                    }
+                }
+            }
+
+            // 本人確認書類
+            if (!val('idType')) {
+                showError('本人確認書類の「書類の種類」をご選択ください。', 'idType');
+                return false;
+            }
+            if (!FILES.idFront) {
+                showError('本人確認書類の「表面」をアップロードしてください。', 'idFrontBox');
+                return false;
+            }
+            if (!FILES.idBack) {
+                showError('本人確認書類の「裏面」をアップロードしてください。', 'idBackBox');
+                return false;
+            }
+            const foreign = val('aNationality') !== '' && val('aNationality') !== '日本';
+            if (foreign && (!FILES.zaiFront || !FILES.zaiBack)) {
+                showError('外国籍の方は、在留カードの表面・裏面をアップロードしてください。', 'zairyuDocWrap');
+                return false;
+            }
+
+            // 同意
+            const agrees = [
+                ['agreePrivacy', '個人情報の提供'],
+                ['agreeCredit', '個人信用情報機関への照会・登録'],
+                ['agreeContact', '審査時の確認連絡'],
+                ['agreeAntisocial', '反社会的勢力ではないことの表明'],
+                ['agreeTrue', '記載内容が事実であること']
+            ];
+            for (let i = 0; i < agrees.length; i++) {
+                if (!$(agrees[i][0]).checked) {
+                    showError('「' + agrees[i][1] + '」への同意にチェックをお願いします。', agrees[i][0]);
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // ---------------- 確認モーダル ----------------
+        function openConfirm() {
+            const d = collect();
+            const yen = (v) => (parseInt(v || '0', 10)).toLocaleString('ja-JP') + ' 円';
+            const groups = [
+                ['お申込物件', [
+                    ['申込日', d.applyDate],
+                    ['入居希望日', d.moveInUndecided ? '未定' : d.moveInDate],
+                    ['申込区分', d.applyKind + (d.noArrears ? '／滞納なし' : '') + (d.leaseback ? '／リースバック' : '')],
+                    ['物件名', d.bukkenKana + '\n' + d.bukken + '　' + d.room + (d.isKodate ? '（戸建）' : '')],
+                    ['所在地', '〒' + d.bukkenZip + '　' + d.bukkenPref + d.bukkenAddr],
+                    ['物件用途', d.use + (d.useDetail ? '（' + d.useDetail + '）' : '')],
+                    ['入居理由', d.moveReason],
+                    ['月額賃料合計', yen(d.rentTotal)],
+                    ['内訳', '家賃 ' + yen(d.rent) + '／管理費 ' + yen(d.kanrihi) + '／駐車場 ' + yen(d.parking)],
+                    ['一時金', '敷金 ' + yen(d.shikikin) + '／礼金 ' + yen(d.reikin) + '／敷引 ' + yen(d.shikibiki)]
+                ]],
+                ['申込者', [
+                    ['フリガナ', d.aKana],
+                    ['お名前', d.aName],
+                    ['性別・生年月日', d.aSex + '　' + d.aBirth + '（' + d.aAge + '歳）'],
+                    ['配偶者・国籍', d.aSpouse + '　' + d.aNationality],
+                    ['現住所', '〒' + d.aZip + '　' + d.aPref + d.aAddr],
+                    ['お住まい', d.aResidence],
+                    ['連絡先', '携帯 ' + d.aMobile + (d.aTel ? '／自宅 ' + d.aTel : '')],
+                    ['メール', d.aEmail],
+                    ['健康保険', d.aHoken],
+                    ['雇用形態', d.aEmployment],
+                    ['勤務先', d.aCompany],
+                    ['勤務先所在地', '〒' + d.aCompanyZip + '　' + d.aCompanyPref + d.aCompanyAddr],
+                    ['勤務先TEL', d.aCompanyTel],
+                    ['業種・職種', d.aIndustry + (d.aJobType ? '／' + d.aJobType : '')],
+                    ['収入', '年収 ' + d.aIncomeYear + '万円／月収 ' + d.aIncomeMonth + '万円'],
+                    ['勤続年数', d.aWorkYears + '年' + (d.aWorkMonths ? d.aWorkMonths + 'ヶ月' : '')]
+                ]],
+                ['ご入居者', [
+                    ['入居形態', d.liveKind],
+                    ['入居人数', '成人 ' + d.adults + '人／未成年 ' + d.minors + '人（計 ' + d.totalPeople + '人）']
+                ].concat(d.kyoju.map(function (k, i) {
+                    return ['同居人' + (i + 1), k.name + '（' + k.kana + '）　続柄：' + k.relation + '　' + k.birth];
+                }))],
+                ['緊急連絡先', [
+                    ['種別', d.eKind],
+                    ['お名前', d.eName + '（' + d.eKana + '）'],
+                    ['続柄・性別', d.eRelation + '　' + d.eSex],
+                    ['生年月日', d.eBirth + (d.eAge ? '（' + d.eAge + '歳）' : '')],
+                    ['現住所', '〒' + d.eZip + '　' + d.ePref + d.eAddr],
+                    ['連絡先', '携帯 ' + d.eMobile + (d.eTel ? '／自宅 ' + d.eTel : '')]
+                ]]
+            ];
+
+            if (d.hasGuarantor === 'あり') {
+                groups.push(['連帯保証人', [
+                    ['お名前', d.gName + '（' + d.gKana + '）'],
+                    ['続柄・性別', d.gRelation + '　' + d.gSex],
+                    ['生年月日', d.gBirth + (d.gAge ? '（' + d.gAge + '歳）' : '')],
+                    ['現住所', '〒' + d.gZip + '　' + d.gPref + d.gAddr],
+                    ['連絡先', '携帯 ' + d.gMobile + (d.gTel ? '／自宅 ' + d.gTel : '')],
+                    ['雇用形態', d.gEmployment],
+                    ['勤務先', d.gCompany + '　' + d.gCompanyTel],
+                    ['年収', d.gIncomeYear + '万円']
+                ]]);
+            } else {
+                groups.push(['連帯保証人', [['連帯保証人', 'なし（保証人不要プラン）']]]);
+            }
+
+            groups.push(['本人確認書類', [
+                ['書類の種類', d.idType],
+                ['添付ファイル', d.files.map(function (f) { return '・' + f.role + '：' + f.name; }).join('\n')]
+            ]]);
+
+            if (d.note) groups.push(['通信欄', [['ご連絡事項', d.note]]]);
+            groups.push(['電子署名', [['お名前', d.signName]]]);
+
+            $('confirmList').innerHTML = groups.map(function (g) {
+                return '<div class="confirm-head">' + g[0] + '</div>' +
+                    g[1].filter(function (r) { return r[1] && String(r[1]).trim() !== ''; })
+                        .map(function (r) {
+                            return '<div class="confirm-row"><dt>' + r[0] + '</dt><dd>' + escapeHtml(String(r[1])) + '</dd></div>';
+                        }).join('');
+            }).join('');
+
+            $('confirmModal').classList.remove('hidden');
+        }
+
+        function closeConfirm() { $('confirmModal').classList.add('hidden'); }
+
+        function escapeHtml(s) {
+            return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // ---------------- 送信 ----------------
+        async function submitForm() {
+            if (!GAS_URL) {
+                alert('送信先が未設定です。お手数ですが 0823-27-7600 までお電話にてご連絡ください。\n（管理者向け：moushikomi.html 内の GAS_URL を設定してください）');
+                return;
+            }
+            $('sendBtn').disabled = true;
+            $('loading').classList.remove('hidden');
+            try {
+                const res = await fetch(GAS_URL, {
+                    method: 'POST',
+                    // Content-Type を text/plain にすることで CORS プリフライトを回避
+                    body: JSON.stringify(collect()),
+                });
+                const json = await res.json();
+                if (!json.ok) throw new Error(json.error || 'server error');
+                closeConfirm();
+                $('formWrap').classList.add('hidden');
+                $('receiptNo').textContent = json.receiptNo || '-';
+                $('doneScreen').classList.remove('hidden');
+                window.scrollTo(0, 0);
+            } catch (err) {
+                closeConfirm();
+                showError('送信に失敗しました。通信環境をご確認のうえ再度お試しいただくか、0823-27-7600 までお電話ください。');
+            } finally {
+                $('sendBtn').disabled = false;
+                $('loading').classList.add('hidden');
+            }
+        }
+
+        // ---------------- 起動 ----------------
+        document.addEventListener('DOMContentLoaded', function () {
+            fillPrefs();
+            fillUses();
+            prefill();
+            bindToggles();
+            bindUploads();
+            $('totalPeople').value = '1 人';
+            calcTotal();
+
+            $('moushikomiForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+                if (validate()) openConfirm();
+            });
+        });
+    </script>
+</body>
+</html>

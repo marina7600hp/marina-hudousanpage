@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <title>入居申込 管理コンソール | 有限会社仁方大森マリーナー</title>
+    <meta name="theme-color" content="#005f73">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: {
+            colors: { coastal: { 50:'#f4fbfb',100:'#e5f6f6',200:'#ceecee',500:'#028090',600:'#005f73',900:'#0a1d25' } },
+            fontFamily: { sans: ['Noto Sans JP','sans-serif'] }
+        } } }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Tailwind CDNが読み込めない場合のフォールバック */
+        *, *::before, *::after { box-sizing: border-box; }
+        .hidden { display: none !important; }
+        .grid2 > *, .grid3 > * { min-width: 0; }
+        .field-label { display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:3px; }
+        .field-input { width:100%; padding:9px 11px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; background:#fff; }
+        .field-input:focus { outline:2px solid #028090; outline-offset:-1px; }
+        .card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; }
+        .badge { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; }
+        .b-uketsuke { background:#e0f2fe; color:#0369a1; }
+        .b-irai     { background:#fef9c3; color:#a16207; }
+        .b-ok       { background:#dcfce7; color:#15803d; }
+        .b-ng       { background:#fee2e2; color:#b91c1c; }
+        .b-shorui   { background:#f3e8ff; color:#7e22ce; }
+        .b-done     { background:#0f172a; color:#fff; }
+        .b-cancel   { background:#e2e8f0; color:#64748b; }
+        .stage-title { font-size:14px; font-weight:700; color:#005f73; border-left:4px solid #028090; padding-left:8px; margin-bottom:10px; }
+        .btn { font-weight:700; border-radius:9px; padding:10px 14px; font-size:14px; cursor:pointer; border:none; }
+        .btn-primary { background:#005f73; color:#fff; } .btn-primary:hover{ background:#028090; }
+        .btn-ghost { background:#fff; color:#475569; border:1px solid #cbd5e1; }
+        .btn-ghost:hover { background:#f8fafc; }
+        .btn:disabled { opacity:.5; cursor:default; }
+        .row { display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid #f1f5f9; font-size:13px; }
+        .row dt { color:#64748b; flex:0 0 122px; }
+        .row dd { flex:1; color:#0f172a; font-weight:500; word-break:break-all; white-space:pre-wrap; }
+        .gco-card { border:1px solid #e2e8f0; border-radius:10px; padding:12px; background:#fafbfc; }
+        .gco-card h4 { font-size:13.5px; font-weight:700; color:#0f172a; margin-bottom:3px; }
+        .gco-card .meta { font-size:11px; color:#64748b; margin-bottom:9px; line-height:1.6; }
+        .gco-btns { display:flex; flex-wrap:wrap; gap:6px; }
+        .gco-btns button { font-size:12px; font-weight:700; border-radius:7px; padding:7px 11px; cursor:pointer; border:1px solid #cbd5e1; background:#fff; color:#334155; }
+        .gco-btns button.go { background:#005f73; color:#fff; border-color:#005f73; }
+        .gco-btns button.go:hover { background:#028090; }
+        .gco-btns button:disabled { opacity:.4; cursor:default; }
+        .sent { font-size:11px; font-weight:700; color:#15803d; margin-top:7px; }
+        #gate { position:fixed; inset:0; z-index:3000; background:#0a1d25; display:flex; align-items:center; justify-content:center; padding:20px; }
+        #gate.hidden { display:none !important; }
+        .gate-card { background:#fff; border-radius:14px; padding:28px 24px; width:100%; max-width:340px; text-align:center; box-shadow:0 12px 40px rgba(0,0,0,.4); }
+        #gatePw { width:100%; padding:12px 14px; border:1px solid #cbd5e1; border-radius:8px; font-size:16px; text-align:center; }
+        #gateBtn { width:100%; margin-top:12px; background:#005f73; color:#fff; border:none; padding:12px; border-radius:8px; font-size:15px; font-weight:700; cursor:pointer; }
+        .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+        .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+        @media (max-width:640px){ .grid3 { grid-template-columns:1fr 1fr; } }
+        .tabs { display:flex; gap:6px; margin-bottom:14px; }
+        .tabs button { flex:1; font-size:13px; font-weight:700; padding:9px; border-radius:9px; border:1px solid #e2e8f0; background:#fff; color:#64748b; cursor:pointer; }
+        .tabs button.on { background:#005f73; color:#fff; border-color:#005f73; }
+        .note { font-size:11.5px; color:#64748b; line-height:1.7; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-16">
+
+    <!-- ==================== ログイン ==================== -->
+    <div id="gate">
+        <div class="gate-card">
+            <div class="text-lg font-bold text-slate-900">🔒 入居申込 管理コンソール</div>
+            <p class="text-xs text-slate-500 mt-1.5 mb-4">パスワードを入力してください</p>
+            <input id="gatePw" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" placeholder="パスワード">
+            <button id="gateBtn" type="button">開く</button>
+            <label class="flex items-center justify-center gap-1.5 text-xs text-slate-500 mt-3 cursor-pointer">
+                <input type="checkbox" id="gateRemember" checked> この端末では次回から省略
+            </label>
+            <p id="gateErr" class="text-red-600 text-xs font-bold mt-2 min-h-[16px]"></p>
+        </div>
+    </div>
+
+    <header class="bg-coastal-900 text-white sticky top-0 z-30">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+            <button id="backBtn" onclick="showList()" class="hidden text-coastal-200 text-sm">‹ 一覧へ</button>
+            <div class="flex-1">
+                <p class="text-[10px] tracking-[0.25em] text-coastal-200">ADMIN CONSOLE</p>
+                <h1 class="text-base font-bold tracking-wider">入居申込 管理コンソール</h1>
+            </div>
+            <button onclick="reload()" class="text-coastal-200 text-sm">↻ 更新</button>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 py-5">
+
+        <!-- ==================== 一覧 ==================== -->
+        <div id="listView">
+            <div class="tabs">
+                <button id="tabCases" class="on" onclick="switchTab('cases')">申込一覧</button>
+                <button id="tabMaster" onclick="switchTab('master')">物件マスター</button>
+            </div>
+
+            <div id="casesPane">
+                <div class="flex items-center gap-2 mb-3">
+                    <select id="statusFilter" class="field-input" style="max-width:190px" onchange="renderList()">
+                        <option value="">すべてのステータス</option>
+                    </select>
+                    <input id="searchBox" class="field-input" placeholder="物件名・申込者名で検索" oninput="renderList()">
+                </div>
+                <div id="caseList" class="space-y-2.5"></div>
+                <p id="listEmpty" class="hidden text-center text-sm text-slate-500 py-10">申込はまだありません。</p>
+            </div>
+
+            <div id="masterPane" class="hidden">
+                <div class="card mb-3">
+                    <p class="stage-title">物件マスター</p>
+                    <p class="note mb-3">
+                        物件ごとの条件・初期費用・賃貸借契約書の雛形を登録します。<br>
+                        契約書は、物件ごとにGoogleドキュメントで雛形を作り、そのドキュメントIDを
+                        「契約書雛形DocID」に登録すると、申込内容を差し込んでPDF化します。
+                        未登録の物件は標準レイアウトで作成されます。
+                    </p>
+                    <button class="btn btn-primary" onclick="openMasterForm()">＋ 物件を登録する</button>
+                    <a id="masterSheetLink" href="#" target="_blank" rel="noopener"
+                       class="btn btn-ghost inline-block ml-1.5" style="text-decoration:none">スプレッドシートで開く</a>
+                </div>
+                <div id="masterList" class="space-y-2.5"></div>
+            </div>
+        </div>
+
+        <!-- ==================== 詳細 ==================== -->
+        <div id="detailView" class="hidden space-y-4"></div>
+
+        <!-- ==================== 物件マスター登録フォーム ==================== -->
+        <div id="masterForm" class="hidden space-y-4"></div>
+    </main>
+
+    <!-- ローディング -->
+    <div id="loading" class="hidden fixed inset-0 z-[60] bg-white/80 flex flex-col items-center justify-center">
+        <div class="w-10 h-10 border-4 border-coastal-200 border-t-coastal-600 rounded-full animate-spin"></div>
+        <p id="loadingMsg" class="text-sm text-slate-600 mt-3 font-bold">読み込み中…</p>
+    </div>
+
+    <script>
+        // ================================================================
+        // ★★★ 設定：Google Apps Script のウェブアプリURLを貼り付けてください ★★★
+        // （moushikomi.gs をデプロイしたURL。入居申込フォームと同じURLです）
+        // ================================================================
+        const GAS_URL = '';
+
+        const $ = (id) => document.getElementById(id);
+        let PW = '';
+        let CASES = [];
+        let GUARANTORS = [];
+        let MASTER = [];
+        let TAB = 'cases';
+
+        const STATUSES = ['受付', '審査依頼済', '審査承認', '審査否認', '契約書類作成済', '契約完了', 'キャンセル'];
+        const BADGE = {
+            '受付': 'b-uketsuke', '審査依頼済': 'b-irai', '審査承認': 'b-ok', '審査否認': 'b-ng',
+            '契約書類作成済': 'b-shorui', '契約完了': 'b-done', 'キャンセル': 'b-cancel'
+        };
+
+        const esc = (s) => String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const yen = (v) => (parseInt(String(v || '0').replace(/[^0-9\-]/g, ''), 10) || 0).toLocaleString('ja-JP') + '円';
+
+        function loading(on, msg) {
+            $('loadingMsg').textContent = msg || '読み込み中…';
+            $('loading').classList.toggle('hidden', !on);
+        }
+
+        // ---------------- ログイン ----------------
+        function openGate() {
+            const saved = localStorage.getItem('moushikomiPw');
+            if (saved) { PW = saved; $('gate').classList.add('hidden'); reload(); return; }
+            $('gate').classList.remove('hidden');
+        }
+
+        $('gateBtn').addEventListener('click', async function () {
+            const pw = $('gatePw').value.trim();
+            if (!pw) return;
+            PW = pw;
+            loading(true, '確認中…');
+            const r = await api('list');
+            loading(false);
+            if (!r.ok) { $('gateErr').textContent = r.error || 'ログインできませんでした。'; return; }
+            if ($('gateRemember').checked) localStorage.setItem('moushikomiPw', pw);
+            $('gate').classList.add('hidden');
+            applyList(r);
+        });
+        $('gatePw').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('gateBtn').click(); });
+
+        // ---------------- 通信 ----------------
+        async function api(action, params) {
+            if (!GAS_URL) return { ok: false, error: 'GAS_URL が未設定です。moushikomi-kanri.html の GAS_URL を設定してください。' };
+            const q = new URLSearchParams(Object.assign({ action: action, pw: PW }, params || {}));
+            try {
+                const res = await fetch(GAS_URL + '?' + q.toString());
+                return await res.json();
+            } catch (err) {
+                return { ok: false, error: '通信に失敗しました。' };
+            }
+        }
+
+        async function post(payload) {
+            if (!GAS_URL) return { ok: false, error: 'GAS_URL が未設定です。' };
+            try {
+                const res = await fetch(GAS_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(Object.assign({ pw: PW }, payload)),
+                });
+                return await res.json();
+            } catch (err) {
+                return { ok: false, error: '通信に失敗しました。' };
+            }
+        }
+
+        // ---------------- 一覧 ----------------
+        async function reload() {
+            if (!PW) return;
+            loading(true);
+            const r = await api('list');
+            loading(false);
+            if (!r.ok) { alert(r.error || '読み込みに失敗しました。'); return; }
+            applyList(r);
+        }
+
+        function applyList(r) {
+            CASES = r.cases || [];
+            GUARANTORS = r.guarantors || [];
+            if (!$('statusFilter').options.length || $('statusFilter').options.length === 1) {
+                STATUSES.forEach(function (s) {
+                    const o = document.createElement('option');
+                    o.textContent = s; o.value = s;
+                    $('statusFilter').appendChild(o);
+                });
+            }
+            showList();
+        }
+
+        function showList() {
+            $('listView').classList.remove('hidden');
+            $('detailView').classList.add('hidden');
+            $('masterForm').classList.add('hidden');
+            $('backBtn').classList.add('hidden');
+            renderList();
+            window.scrollTo(0, 0);
+        }
+
+        function renderList() {
+            const f = $('statusFilter').value;
+            const q = ($('searchBox').value || '').trim().toLowerCase();
+            const list = CASES.filter(function (c) {
+                if (f && c.status !== f) return false;
+                if (!q) return true;
+                return (c.bukken + c.room + c.aName).toLowerCase().indexOf(q) >= 0;
+            });
+
+            $('listEmpty').classList.toggle('hidden', list.length > 0);
+            $('caseList').innerHTML = list.map(function (c) {
+                const b = BADGE[c.status] || 'b-uketsuke';
+                return '<div class="card cursor-pointer hover:border-coastal-500" onclick="openCase(\'' + esc(c.receiptNo) + '\')">' +
+                    '<div class="flex items-start justify-between gap-3">' +
+                    '<div class="flex-1 min-w-0">' +
+                    '<div class="flex items-center gap-2 flex-wrap">' +
+                    '<span class="badge ' + b + '">' + esc(c.status) + '</span>' +
+                    (c.sentTo ? '<span class="text-[11px] text-slate-500">→ ' + esc(c.sentTo) + '</span>' : '') +
+                    '</div>' +
+                    '<p class="font-bold text-slate-900 mt-1.5">' + esc(c.bukken) + '　' + esc(c.room) + '</p>' +
+                    '<p class="text-sm text-slate-600">' + esc(c.aName) + '　様　/　' + esc(c.aMobile) + '</p>' +
+                    '<p class="text-xs text-slate-400 mt-1">' + esc(c.receivedAt) + '　受付番号 ' + esc(c.receiptNo) + '</p>' +
+                    '</div>' +
+                    '<div class="text-right flex-shrink-0">' +
+                    '<p class="text-sm font-bold text-slate-900">' + yen(c.rentTotal) + '</p>' +
+                    '<p class="text-[11px] text-slate-400">入居 ' + esc(c.moveInDate || '未定') + '</p>' +
+                    '</div></div></div>';
+            }).join('');
+        }
+
+        function switchTab(t) {
+            TAB = t;
+            $('tabCases').classList.toggle('on', t === 'cases');
+            $('tabMaster').classList.toggle('on', t === 'master');
+            $('casesPane').classList.toggle('hidden', t !== 'cases');
+            $('masterPane').classList.toggle('hidden', t !== 'master');
+            if (t === 'master') loadMaster();
+        }
+
+        // ---------------- 詳細 ----------------
+        let CUR = null;
+
+        async function openCase(receiptNo) {
+            loading(true);
+            const r = await api('case', { receiptNo: receiptNo });
+            loading(false);
+            if (!r.ok || !r.data) { alert(r.error || '申込が見つかりませんでした。'); return; }
+            CUR = r.data;
+            renderDetail();
+        }
+
+        function v(key) { return CUR[key] == null ? '' : String(CUR[key]); }
+
+        function renderDetail() {
+            const c = CUR;
+            const status = v('ステータス') || '受付';
+            const sentTo = v('審査依頼先');
+
+            const rowsHtml = function (list) {
+                return list.filter(function (r) { return r[1] !== ''; }).map(function (r) {
+                    return '<div class="row"><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>';
+                }).join('');
+            };
+
+            // --- 保証会社への送信ボタン（どこに流すかは担当者が選ぶ） ---
+            const gcoHtml = GUARANTORS.map(function (g) {
+                const already = sentTo.indexOf(g.short) >= 0;
+                return '<div class="gco-card">' +
+                    '<h4>' + esc(g.short) + '</h4>' +
+                    '<p class="meta">' + esc(g.name) +
+                    (g.fax ? '<br>審査FAX：' + esc(g.fax) : '') + '</p>' +
+                    '<div class="gco-btns">' +
+                    '<button class="go" ' + (g.canEmail ? '' : 'disabled title="メール送信先が未設定です"') +
+                    ' onclick="send(\'' + g.key + '\',\'email\')">✉ メールで送信</button>' +
+                    '<button class="go" ' + (g.canFax ? '' : 'disabled title="インターネットFAXが未設定です"') +
+                    ' onclick="send(\'' + g.key + '\',\'fax\')">📠 FAXで送信</button>' +
+                    '<button onclick="send(\'' + g.key + '\',\'manual\')">📄 送付状PDFを作成</button>' +
+                    '</div>' +
+                    (already ? '<p class="sent">✓ 送信済み</p>' : '') +
+                    '</div>';
+            }).join('');
+
+            $('detailView').innerHTML =
+                '<div class="card">' +
+                '<div class="flex items-center justify-between gap-3 flex-wrap">' +
+                '<div><span class="badge ' + (BADGE[status] || 'b-uketsuke') + '">' + esc(status) + '</span>' +
+                '<h2 class="text-lg font-bold text-slate-900 mt-1.5">' + esc(v('物件名')) + '　' + esc(v('号室')) + '</h2>' +
+                '<p class="text-sm text-slate-600">' + esc(v('申込者氏名')) + '　様</p></div>' +
+                '<div class="text-right"><p class="text-xl font-bold">' + yen(v('月額賃料合計')) + '</p>' +
+                '<p class="text-[11px] text-slate-400">受付番号 ' + esc(v('受付番号')) + '</p></div>' +
+                '</div>' +
+                '<div class="flex gap-2 mt-3 flex-wrap">' +
+                '<a class="btn btn-ghost" style="text-decoration:none" target="_blank" rel="noopener" href="' +
+                esc(v('案件フォルダ')) + '">📁 案件フォルダを開く</a>' +
+                '<a class="btn btn-ghost" style="text-decoration:none" target="_blank" rel="noopener" href="' +
+                esc(v('申込書PDF')) + '">📄 入居申込書</a>' +
+                '</div>' +
+                '</div>' +
+
+                // ---- 保証会社への審査依頼 ----
+                '<div class="card">' +
+                '<p class="stage-title">① 保証会社へ審査を依頼する</p>' +
+                '<p class="note mb-3">どの保証会社に流すかを選んで送信してください。転記シートと本人確認書類が添付されます。' +
+                (sentTo ? '<br><b>送信済み：' + esc(sentTo) + '</b>' : '') + '</p>' +
+                '<div class="grid2" style="gap:10px">' + gcoHtml + '</div>' +
+                '<div class="mt-3">' +
+                '<label class="field-label" for="sendMsg">申し送り事項（任意・送信文に追記されます）</label>' +
+                '<textarea class="field-input" id="sendMsg" rows="2" placeholder="例）入居希望日が近いため、お急ぎでご審査をお願いいたします。"></textarea>' +
+                '</div>' +
+                '</div>' +
+
+                // ---- 審査結果 ----
+                '<div class="card">' +
+                '<p class="stage-title">② 審査結果を登録する</p>' +
+                '<div class="grid3">' +
+                '<button class="btn btn-ghost" onclick="setStatus(\'審査承認\')">✅ 承認</button>' +
+                '<button class="btn btn-ghost" onclick="setStatus(\'審査否認\')">❌ 否認</button>' +
+                '<button class="btn btn-ghost" onclick="setStatus(\'キャンセル\')">⏹ キャンセル</button>' +
+                '</div>' +
+                (v('審査結果メモ') ? '<div class="mt-3 text-xs text-slate-600 whitespace-pre-wrap bg-slate-50 rounded-lg p-3">' +
+                    esc(v('審査結果メモ')) + '</div>' : '') +
+                '</div>' +
+
+                // ---- 契約書類 ----
+                '<div class="card">' +
+                '<p class="stage-title">③ 契約書類</p>' +
+                '<p class="note mb-3">申込受付時に、見積書・請求書・賃貸借契約書・鍵受領書を自動作成しています。' +
+                '金額を直したい場合は下記を入力して作り直してください（空欄は物件マスターの値を使用）。</p>' +
+                '<div class="grid3 mb-3">' +
+                '<div><label class="field-label">仲介手数料</label><input class="field-input" id="ovChukai" inputmode="numeric" placeholder="円"></div>' +
+                '<div><label class="field-label">火災保険料</label><input class="field-input" id="ovKasai" inputmode="numeric" placeholder="円"></div>' +
+                '<div><label class="field-label">鍵交換費用</label><input class="field-input" id="ovKagi" inputmode="numeric" placeholder="円"></div>' +
+                '<div><label class="field-label">室内清掃費</label><input class="field-input" id="ovClean" inputmode="numeric" placeholder="円"></div>' +
+                '<div><label class="field-label">保証委託料</label><input class="field-input" id="ovHosho" inputmode="numeric" placeholder="円"></div>' +
+                '<div><label class="field-label">その他</label><input class="field-input" id="ovOther" inputmode="numeric" placeholder="円"></div>' +
+                '</div>' +
+                '<button class="btn btn-primary" onclick="rebuild()">📝 契約書類を作り直す</button>' +
+                '<p class="note mt-2">賃貸借契約書は紙でのやりとり用にPDFで出力されます。案件フォルダの「契約書類」に保存されます。</p>' +
+                '</div>' +
+
+                // ---- 申込内容 ----
+                '<div class="card">' +
+                '<p class="stage-title">申込内容</p>' +
+                '<dl>' + rowsHtml([
+                    ['受付日時', v('受付日時')],
+                    ['申込日', v('申込日')],
+                    ['入居希望日', v('入居希望日')],
+                    ['申込区分', v('申込区分')],
+                    ['物件', v('物件名') + '　' + v('号室')],
+                    ['物件所在地', v('物件〒') + ' ' + v('物件都道府県') + v('物件住所')],
+                    ['物件用途', v('物件用途')],
+                    ['入居理由', v('入居理由')],
+                    ['月額賃料合計', yen(v('月額賃料合計'))],
+                    ['内訳', '家賃 ' + yen(v('家賃')) + '／管理費 ' + yen(v('管理費共益費')) + '／駐車場 ' + yen(v('駐車場'))],
+                    ['一時金', '敷金 ' + yen(v('敷金保証金')) + '／礼金 ' + yen(v('礼金')) + '／敷引 ' + yen(v('敷引償却'))],
+                ]) + '</dl></div>' +
+
+                '<div class="card">' +
+                '<p class="stage-title">申込者</p>' +
+                '<dl>' + rowsHtml([
+                    ['氏名', v('申込者氏名') + '（' + v('申込者フリガナ') + '）'],
+                    ['性別・生年月日', v('性別') + '　' + v('生年月日') + '（' + v('年齢') + '歳）'],
+                    ['配偶者・国籍', v('配偶者') + '　' + v('国籍')],
+                    ['現住所', v('現住所〒') + ' ' + v('現住所都道府県') + v('現住所')],
+                    ['お住まい', v('住居区分')],
+                    ['携帯／自宅', v('携帯電話') + '　' + v('自宅電話')],
+                    ['メール', v('メール')],
+                    ['健康保険', v('健康保険')],
+                    ['雇用形態', v('雇用形態')],
+                    ['勤務先', v('勤務先名称')],
+                    ['勤務先住所', v('勤務先〒') + ' ' + v('勤務先都道府県') + v('勤務先住所')],
+                    ['勤務先TEL', v('勤務先TEL')],
+                    ['業種・職種', v('業種') + '　' + v('職種')],
+                    ['収入', '年収 ' + v('年収(万)') + '万円／月収 ' + v('月収(万)') + '万円'],
+                    ['勤続年数', v('勤続年') + '年' + v('勤続月') + 'ヶ月'],
+                    ['本人確認書類', v('本人確認書類') + '（添付 ' + v('添付点数') + '点）'],
+                ]) + '</dl></div>' +
+
+                '<div class="card">' +
+                '<p class="stage-title">入居者・緊急連絡先・連帯保証人</p>' +
+                '<dl>' + rowsHtml([
+                    ['入居形態', v('入居形態')],
+                    ['入居人数', '成人 ' + v('成人') + '人／未成年 ' + v('未成年') + '人'],
+                    ['同居人', v('同居人')],
+                    ['緊急連絡先', v('緊急氏名') + '（' + v('緊急続柄') + '）　' + v('緊急携帯')],
+                    ['緊急連絡先住所', v('緊急〒') + ' ' + v('緊急都道府県') + v('緊急住所')],
+                    ['連帯保証人', v('保証人有無') === 'あり'
+                        ? v('保証人氏名') + '（' + v('保証人続柄') + '）　' + v('保証人携帯') +
+                          '　勤務先：' + v('保証人勤務先') + '　年収 ' + v('保証人年収(万)') + '万円'
+                        : 'なし'],
+                    ['通信欄', v('通信欄')],
+                ]) + '</dl></div>';
+
+            $('listView').classList.add('hidden');
+            $('masterForm').classList.add('hidden');
+            $('detailView').classList.remove('hidden');
+            $('backBtn').classList.remove('hidden');
+            window.scrollTo(0, 0);
+        }
+
+        // ---------------- 操作 ----------------
+        async function send(key, method) {
+            const g = GUARANTORS.filter(function (x) { return x.key === key; })[0];
+            const how = method === 'email' ? 'メール送信' : (method === 'fax' ? 'FAX送信' : '送付状PDFの作成');
+            if (!confirm(g.short + ' へ ' + how + ' を行います。よろしいですか？')) return;
+
+            loading(true, '送信中…');
+            const r = await post({
+                action: 'sendGuarantor',
+                receiptNo: v('受付番号'),
+                guarantorKey: key,
+                method: method,
+                message: ($('sendMsg') && $('sendMsg').value || '').trim(),
+            });
+            loading(false);
+            alert(r.ok ? (r.message || '送信しました。') : (r.error || '送信に失敗しました。'));
+            if (r.ok) { await reload(); await openCase(v('受付番号')); }
+        }
+
+        async function setStatus(status) {
+            const memo = prompt(status + ' として登録します。メモがあればご入力ください。', '');
+            if (memo === null) return;
+            loading(true, '登録中…');
+            const r = await post({
+                action: 'updateStatus',
+                receiptNo: v('受付番号'),
+                status: status,
+                resultNote: memo || status,
+            });
+            loading(false);
+            if (!r.ok) { alert(r.error || '登録に失敗しました。'); return; }
+            await reload();
+            await openCase(v('受付番号'));
+        }
+
+        async function rebuild() {
+            loading(true, '作成中…');
+            const r = await post({
+                action: 'rebuildDocs',
+                receiptNo: v('受付番号'),
+                overrides: {
+                    chukaiFee: $('ovChukai').value, kasaiFee: $('ovKasai').value,
+                    kagiFee: $('ovKagi').value, cleaningFee: $('ovClean').value,
+                    hoshoFee: $('ovHosho').value, otherCost: $('ovOther').value,
+                },
+            });
+            loading(false);
+            alert(r.ok ? (r.message || '作成しました。') : (r.error || '作成に失敗しました。'));
+            if (r.ok) { await reload(); await openCase(v('受付番号')); }
+        }
+
+        // ---------------- 物件マスター ----------------
+        const MASTER_FIELDS = [
+            ['物件コード', 'text'], ['物件名', 'text'], ['物件名フリガナ', 'text'], ['号室', 'text'],
+            ['〒', 'text'], ['都道府県', 'text'], ['住所', 'text'],
+            ['物件用途', 'text'], ['構造', 'text'], ['床面積', 'text'],
+            ['家賃', 'num'], ['管理費共益費', 'num'], ['駐車場', 'num'], ['水道料町費', 'num'],
+            ['敷金保証金', 'num'], ['礼金', 'num'], ['敷引償却', 'num'],
+            ['契約期間(年)', 'num'], ['更新料', 'num'], ['賃料支払日', 'num'], ['支払方法', 'text'],
+            ['貸主名', 'text'], ['貸主住所', 'text'], ['貸主TEL', 'text'], ['管理会社', 'text'],
+            ['仲介手数料', 'num'], ['火災保険料', 'num'], ['鍵交換費用', 'num'], ['室内清掃費', 'num'],
+            ['その他初期費用', 'num'], ['その他初期費用名目', 'text'],
+            ['保証会社', 'text'], ['保証プラン', 'text'], ['初回保証料率(%)', 'num'],
+            ['鍵種別', 'text'], ['鍵本数', 'num'],
+            ['振込先銀行', 'text'], ['振込先支店', 'text'], ['口座種別', 'text'],
+            ['口座番号', 'text'], ['口座名義', 'text'],
+            ['契約書雛形DocID', 'text'], ['特約事項', 'area'], ['備考', 'area'],
+        ];
+
+        async function loadMaster() {
+            loading(true);
+            const r = await api('master');
+            loading(false);
+            if (!r.ok) { alert(r.error || '読み込みに失敗しました。'); return; }
+            MASTER = r.master || [];
+            if (r.masterUrl) $('masterSheetLink').href = r.masterUrl;
+            else $('masterSheetLink').classList.add('hidden');
+            $('masterList').innerHTML = MASTER.length ? MASTER.map(function (m, i) {
+                return '<div class="card cursor-pointer hover:border-coastal-500" onclick="openMasterForm(' + i + ')">' +
+                    '<div class="flex justify-between gap-3">' +
+                    '<div><p class="font-bold text-slate-900">' + esc(m['物件名']) + '　' + esc(m['号室'] || '（棟全体）') + '</p>' +
+                    '<p class="text-xs text-slate-500 mt-0.5">' + esc(m['都道府県'] || '') + esc(m['住所'] || '') + '</p>' +
+                    '<p class="text-xs mt-1 ' + (m['契約書雛形DocID'] ? 'text-green-700 font-bold' : 'text-slate-400') + '">' +
+                    (m['契約書雛形DocID'] ? '✓ 契約書雛形あり' : '契約書雛形なし（標準レイアウト）') + '</p></div>' +
+                    '<div class="text-right"><p class="text-sm font-bold">' + yen(m['家賃']) + '</p>' +
+                    '<p class="text-[11px] text-slate-400">敷 ' + yen(m['敷金保証金']) + '／礼 ' + yen(m['礼金']) + '</p></div>' +
+                    '</div></div>';
+            }).join('') : '<p class="text-center text-sm text-slate-500 py-10">物件がまだ登録されていません。</p>';
+        }
+
+        function openMasterForm(idx) {
+            const m = (idx != null && MASTER[idx]) ? MASTER[idx] : {};
+            $('masterForm').innerHTML =
+                '<div class="card">' +
+                '<p class="stage-title">' + (idx != null ? '物件マスターの編集' : '物件マスターの登録') + '</p>' +
+                '<p class="note mb-3">「物件名」と「号室」が一致する行を上書きします。号室を空欄にすると棟全体の既定値として使われます。</p>' +
+                '<div class="space-y-2.5">' +
+                MASTER_FIELDS.map(function (f) {
+                    const val = m[f[0]] == null ? '' : String(m[f[0]]);
+                    const id = 'mf_' + MASTER_FIELDS.indexOf(f);
+                    if (f[1] === 'area') {
+                        return '<div><label class="field-label">' + esc(f[0]) + '</label>' +
+                            '<textarea class="field-input" id="' + id + '" rows="2">' + esc(val) + '</textarea></div>';
+                    }
+                    return '<div><label class="field-label">' + esc(f[0]) + '</label>' +
+                        '<input class="field-input" id="' + id + '" ' +
+                        (f[1] === 'num' ? 'inputmode="numeric" ' : '') +
+                        'value="' + esc(val) + '"></div>';
+                }).join('') +
+                '</div>' +
+                '<div class="flex gap-2 mt-4">' +
+                '<button class="btn btn-ghost flex-1" onclick="showList();switchTab(\'master\')">戻る</button>' +
+                '<button class="btn btn-primary flex-1" onclick="saveMaster()">保存する</button>' +
+                '</div>' +
+                '<p class="note mt-3"><b>契約書雛形DocID について</b><br>' +
+                'Googleドキュメントで物件ごとの契約書式を作り、URLの <code>/d/</code> と <code>/edit</code> の間の文字列を貼り付けてください。<br>' +
+                '雛形の中に <code>{{契約者氏名}}</code> <code>{{物件名}}</code> <code>{{契約始期}}</code> などのタグを書いておくと、申込内容に置き換わります。' +
+                'タグの一覧は物件マスターの「雛形タグ一覧」シートにあります。</p>' +
+                '</div>';
+            $('listView').classList.add('hidden');
+            $('detailView').classList.add('hidden');
+            $('masterForm').classList.remove('hidden');
+            $('backBtn').classList.remove('hidden');
+            window.scrollTo(0, 0);
+        }
+
+        async function saveMaster() {
+            const row = {};
+            MASTER_FIELDS.forEach(function (f, i) {
+                row[f[0]] = ($('mf_' + i) || {}).value || '';
+            });
+            if (!row['物件名']) { alert('物件名をご入力ください。'); return; }
+            loading(true, '保存中…');
+            const r = await post({ action: 'saveMaster', row: row });
+            loading(false);
+            if (!r.ok) { alert(r.error || '保存に失敗しました。'); return; }
+            showList();
+            switchTab('master');
+        }
+
+        // ---------------- 起動 ----------------
+        document.addEventListener('DOMContentLoaded', openGate);
+    </script>
+</body>
+</html>
