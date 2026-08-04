@@ -65,6 +65,24 @@
         .tabs button { flex:1; font-size:13px; font-weight:700; padding:9px; border-radius:9px; border:1px solid #e2e8f0; background:#fff; color:#64748b; cursor:pointer; }
         .tabs button.on { background:#005f73; color:#fff; border-color:#005f73; }
         .note { font-size:11.5px; color:#64748b; line-height:1.7; }
+        /* 転記ビュー（WEB申込システムへの入力用） */
+        .tenki-sec { font-size:12px; font-weight:700; color:#fff; background:#005f73;
+            padding:5px 10px; border-radius:6px; margin:16px 0 8px; }
+        .tenki-sec:first-child { margin-top:0; }
+        .tenki-row { display:grid; grid-template-columns:1fr auto; gap:4px 10px;
+            align-items:center; padding:8px 0; border-bottom:1px solid #f1f5f9; }
+        .tenki-label { grid-column:1; font-size:11.5px; color:#64748b; }
+        .tenki-val { grid-column:1; font-size:15px; font-weight:700; color:#0f172a;
+            word-break:break-all; white-space:pre-wrap; line-height:1.5; }
+        .tenki-row .tenki-copy { grid-column:2; grid-row:1 / span 2; align-self:center;
+            font-size:11.5px; font-weight:700; padding:7px 12px; border-radius:7px;
+            border:1px solid #cbd5e1; background:#fff; color:#005f73; cursor:pointer; white-space:nowrap; }
+        .tenki-row .tenki-copy:hover { background:#f4fbfb; border-color:#028090; }
+        .tenki-row .tenki-copy.done { background:#005f73; color:#fff; border-color:#005f73; }
+        .tenki-pick, .tenki-note { grid-column:1 / -1; font-size:11px; color:#64748b; line-height:1.6; }
+        .tenki-pick b { color:#005f73; }
+        .tenki-row.empty .tenki-val { font-weight:400; }
+        .off { color:#94a3b8; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-16">
@@ -328,6 +346,7 @@
                     '<button class="go" ' + (g.canFax ? '' : 'disabled title="インターネットFAXが未設定です"') +
                     ' onclick="send(\'' + g.key + '\',\'fax\')">📠 FAXで自動送信</button>' +
                     '<button onclick="send(\'' + g.key + '\',\'manual\')">📄 FAX送信用PDFを作る</button>' +
+                    '<button onclick="openTenki(\'' + g.key + '\')">📋 転記ビュー</button>' +
                     '</div>' +
                     (already ? '<p class="sent">✓ 送信済み</p>' : '') +
                     '</div>';
@@ -354,6 +373,7 @@
                 '<div class="card">' +
                 '<p class="stage-title">① 保証会社へ審査を依頼する</p>' +
                 '<p class="note mb-3">どの保証会社に流すかを選んで送信してください。転記シートと本人確認書類が添付されます。<br>' +
+                '<b>📋 転記ビュー</b>…各社のWEB申込システムに入力するとき、項目ごとにワンタップでコピーできます。<br>' +
                 '<b>📄 FAX送信用PDFを作る</b>…送付状・転記シート・本人確認書類を1つのPDFにまとめます。' +
                 'そのPDFを開いて「印刷」→ プリンターに「EPSON FAX」を選べば、紙に出さずにFAX送信できます。' +
                 (sentTo ? '<br><b class="text-green-700">送信済み：' + esc(sentTo) + '</b>' : '') + '</p>' +
@@ -509,6 +529,96 @@
             loading(false);
             alert(r.ok ? (r.message || '作成しました。') : (r.error || '作成に失敗しました。'));
             if (r.ok) { await reload(); await openCase(v('受付番号')); }
+        }
+
+        // ---------------- 転記ビュー（WEB申込システムへの入力用） ----------------
+        let TENKI = null;
+
+        async function openTenki(key) {
+            loading(true, '転記データを作成中…');
+            const r = await api('tenki', { receiptNo: v('受付番号'), g: key });
+            loading(false);
+            if (!r.ok) { alert(r.error || '転記データを取得できませんでした。'); return; }
+            TENKI = r;
+            renderTenki();
+        }
+
+        function renderTenki() {
+            const t = TENKI;
+            let sec = '';
+            const body = t.rows.map(function (row, i) {
+                let head = '';
+                if (row.sec !== sec) { sec = row.sec; head = '<div class="tenki-sec">' + esc(sec) + '</div>'; }
+                const empty = !row.value;
+                return head +
+                    '<div class="tenki-row' + (empty ? ' empty' : '') + '">' +
+                    '<div class="tenki-label">' + esc(row.label) + '</div>' +
+                    '<div class="tenki-val" id="tv' + i + '">' + (empty ? '<span class="off">（未入力）</span>' : esc(row.value)) + '</div>' +
+                    (empty ? '' : '<button class="tenki-copy" onclick="copyVal(' + i + ',this)">コピー</button>') +
+                    (row.pick ? '<div class="tenki-pick">選択肢：' + row.pick.map(function (o) {
+                        return o === row.value ? '<b>' + esc(o) + '</b>' : esc(o);
+                    }).join(' ／ ') + '</div>' : '') +
+                    (row.note ? '<div class="tenki-note">' + esc(row.note) + '</div>' : '') +
+                    (row.tail ? '<div class="tenki-note">' + esc(row.tail) + '</div>' : '') +
+                    '</div>';
+            }).join('');
+
+            $('detailView').innerHTML =
+                '<div class="card">' +
+                '<div class="flex items-center justify-between gap-3 flex-wrap">' +
+                '<div><p class="stage-title" style="margin:0">' + esc(t.short) + '　転記ビュー</p>' +
+                '<p class="note mt-1">' + esc(t.name) + ' のWEB申込システムに入力するための一覧です。<br>' +
+                '項目名は同社の申込書の表記に合わせています。「コピー」を押して貼り付けてください。</p></div>' +
+                '<button class="btn btn-ghost" onclick="renderDetail()">‹ 戻る</button>' +
+                '</div>' +
+                '<div class="flex gap-2 mt-3 flex-wrap">' +
+                '<button class="btn btn-ghost" onclick="copyAll()">📋 全項目をまとめてコピー</button>' +
+                '</div>' +
+                '</div>' +
+                '<div class="card">' + body + '</div>';
+
+            $('listView').classList.add('hidden');
+            $('masterForm').classList.add('hidden');
+            $('detailView').classList.remove('hidden');
+            $('backBtn').classList.remove('hidden');
+            window.scrollTo(0, 0);
+        }
+
+        async function writeClipboard(text) {
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text);
+                    return true;
+                }
+            } catch (e) { /* 下のフォールバックへ */ }
+            // file:// や古い端末向けのフォールバック
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                const ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+                return ok;
+            } catch (e) { return false; }
+        }
+
+        async function copyVal(i, btn) {
+            const ok = await writeClipboard(TENKI.rows[i].value);
+            if (!ok) { alert('コピーできませんでした。値を長押しして選択してください。'); return; }
+            const prev = btn.textContent;
+            btn.textContent = '✓ コピー';
+            btn.classList.add('done');
+            setTimeout(function () { btn.textContent = prev; btn.classList.remove('done'); }, 1200);
+        }
+
+        async function copyAll() {
+            const text = TENKI.rows.filter(function (r) { return r.value; })
+                .map(function (r) { return r.label + '\t' + r.value; }).join('\n');
+            const ok = await writeClipboard(text);
+            alert(ok ? '全項目をコピーしました。' : 'コピーできませんでした。');
         }
 
         // ---------------- 物件マスター ----------------

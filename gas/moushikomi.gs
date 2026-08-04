@@ -159,6 +159,17 @@ function doGet(e) {
     if (action === 'master') {
       return json_({ ok: true, master: listMaster_(), masterUrl: masterUrl_() });
     }
+    // 保証会社のWEB申込システムへ入力するための、項目名と値の一覧
+    if (action === 'tenki') {
+      const c = getCase_(p.receiptNo);
+      if (!c) return json_({ ok: false, error: '申込が見つかりません：' + p.receiptNo });
+      const g = GUARANTORS.filter(function (x) { return x.key === p.g; })[0];
+      if (!g) return json_({ ok: false, error: '保証会社が特定できません。' });
+      return json_({
+        ok: true, key: g.key, short: g.short, name: g.name,
+        rows: tenkiPlainRows_(tenkiFields_(g, caseToData_(c))),
+      });
+    }
     return json_({ ok: false, error: 'unknown action: ' + action });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
@@ -858,13 +869,145 @@ function peopleTable_(list) {
  *  ② 保証会社ごとの転記シート PDF
  * ========================================================== */
 
+/**
+ * 転記シートの項目定義（ノード配列）
+ *
+ * 各社の申込書の「項目名・項目順・選択肢」をデータとして持ち、
+ *   ・PDF（FAX送信用）        → renderTenkiHtml_()
+ *   ・転記ビュー（システム入力用）→ tenkiPlainRows_()
+ * の2通りに描き分ける。項目を直すときはこの定義だけを直せばよい。
+ *
+ * ノードの種類：
+ *   { sec:'見出し', alt:true }                セクション見出し
+ *   { label, value }                          通常行
+ *   { label, value, bold:true }               値を強調して表示
+ *   { label, value, pick:[選択肢…] }          単一選択（PDFは ☑／☐ で表示）
+ *   { label, value, checks:[[名,真偽]…] }     複数チェック
+ *   { label, value, note:'…' }                値の下に小さい注記
+ *   { label, value, tail:'…' }                値の後ろに続ける補足
+ *   { table:{ head:[…], rows:[[…]] } }        表（同居人など）
+ *   { warn:'…' } / { note:'…' }               注意書き・注記
+ */
+
+/** 保証会社ごとの項目定義を取り出す */
+function tenkiFields_(g, d) {
+  if (g.key === 'ns') return tenkiFieldsNS_(d);
+  if (g.key === 'zh') return tenkiFieldsZH_(d);
+  if (g.key === 'nap') return tenkiFieldsNAP_(d);
+  return tenkiFieldsJID_(d);
+}
+
 /** 保証会社ごとの転記シート本体（HTML） */
 function tenkiBody_(g, data) {
-  if (g.key === 'ns') return tenkiNS_(data);
-  if (g.key === 'zh') return tenkiZH_(data);
-  if (g.key === 'nap') return tenkiNAP_(data);
-  return tenkiJID_(data);
+  return renderTenkiHtml_(tenkiFields_(g, data));
 }
+
+/* ---------- 描画：PDF用のHTML ---------- */
+
+function renderTenkiHtml_(nodes) {
+  let html = '';
+  let buf = [];
+
+  const flush = function () {
+    if (!buf.length) return;
+    html += '<table>' + buf.join('') + '</table>';
+    buf = [];
+  };
+
+  nodes.filter(function (n) { return n; }).forEach(function (n) {
+    if (n.sec != null) {
+      flush();
+      html += '<div class="sec' + (n.alt ? ' alt' : '') + '">' + esc_(n.sec) +
+        (n.secNote ? '<span style="font-weight:normal;font-size:10px;">' + esc_(n.secNote) + '</span>' : '') +
+        '</div>';
+      return;
+    }
+    if (n.warn != null) {
+      flush();
+      html += '<div class="warn">' + n.warn + '</div>';
+      return;
+    }
+    if (n.note != null && n.label == null) {
+      flush();
+      html += '<div class="note">' + esc_(n.note) + '</div>';
+      return;
+    }
+    if (n.table) {
+      flush();
+      html += '<table class="people"><tr>' +
+        n.table.head.map(function (h) { return '<th>' + esc_(h) + '</th>'; }).join('') + '</tr>' +
+        n.table.rows.map(function (r) {
+          return '<tr>' + r.map(function (c) { return '<td>' + esc_(c) + '</td>'; }).join('') + '</tr>';
+        }).join('') + '</table>';
+      return;
+    }
+
+    // 通常行
+    let v;
+    if (n.pick) {
+      v = pick_(n.value, n.pick);
+    } else if (n.checks) {
+      v = n.checks.map(function (c) { return flag_(c[1], c[0]); }).join('　');
+    } else {
+      const s = String(n.value == null ? '' : n.value);
+      v = s === '' ? '<span class="off">―</span>' : (n.bold ? '<b>' + esc_(s) + '</b>' : esc_(s));
+    }
+    if (n.tail) v += '　' + esc_(n.tail);
+    if (n.note) v += '<br><span class="note">' + esc_(n.note) + '</span>';
+    buf.push('<tr><th>' + esc_(n.label) + '</th><td class="v">' + v + '</td></tr>');
+  });
+
+  flush();
+  return html;
+}
+
+/* ---------- 描画：転記ビュー（コピペ用）の行データ ---------- */
+
+/**
+ * 保証会社のWEB申込システムへ入力するための、項目名と値の一覧を返す。
+ * 表（同居人など）は1セルずつの行に展開する。
+ */
+function tenkiPlainRows_(nodes) {
+  const out = [];
+  let sec = '';
+
+  nodes.filter(function (n) { return n; }).forEach(function (n) {
+    if (n.sec != null) { sec = n.sec; return; }
+    if (n.warn != null || n.table == null && n.label == null) return;
+
+    if (n.table) {
+      n.table.rows.forEach(function (r, ri) {
+        n.table.head.forEach(function (h, ci) {
+          if (h === '#') return;
+          const val = String(r[ci] == null ? '' : r[ci]);
+          if (!val) return;
+          out.push({ sec: sec, label: h + '（' + (ri + 1) + '人目）', value: val });
+        });
+      });
+      return;
+    }
+
+    let value = String(n.value == null ? '' : n.value);
+    if (n.checks) {
+      value = n.checks.filter(function (c) { return c[1]; })
+        .map(function (c) { return c[0]; }).join('・');
+    }
+    out.push({
+      sec: sec,
+      label: n.label,
+      value: value,
+      pick: n.pick || null,
+      note: n.note || '',
+      tail: n.tail || '',
+    });
+  });
+
+  return out;
+}
+
+/* ============================================================
+ *  転記シートPDF
+ * ========================================================== */
 
 function buildTenkiPdf_(g, data, receiptNo, now) {
   const body = tenkiBody_(g, data);
@@ -898,242 +1041,235 @@ function buildTenkiPdf_(g, data, receiptNo, now) {
 }
 
 /* ---------- 日本セーフティー株式会社 ---------- */
-function tenkiNS_(d) {
+function tenkiFieldsNS_(d) {
   const emp = conv_(MAP_EMPLOYMENT, d.aEmployment, 'ns');
   const gEmp = conv_(MAP_EMPLOYMENT, d.gEmployment, 'ns');
   const res = conv_(MAP_RESIDENCE, d.aResidence, 'ns');
   const gRes = conv_(MAP_RESIDENCE, d.gResidence, 'ns');
+  const nsUse = conv_(MAP_USE, d.use, 'ns');
   const jobOpts = ['公務員', '役員', '正社員', '契約社員', '派遣社員', 'パート・アルバイト', '自営', '学生',
     '失業保険受給', '年金受給', '生活保護受給', '無職'];
   const ks = d.kyoju || [];
 
-  return '<div class="sec">取扱店欄</div>' +
-    '<table>' + rows_([
-      ['取扱店NO.', or_(esc_(d.agentNo))],
-      ['担当者', or_(esc_(d.agentStaff) || esc_(d.agentCompany))],
-      ['TEL／FAX', esc_(M_CONFIG.COMPANY_TEL) + '　／　' + esc_(M_CONFIG.COMPANY_FAX)],
-      ['申込日', jpDate_(d.applyDate)],
-      ['申込区分', pick_(d.applyKind, ['新規申込', '入居中申込'])],
-      ['入居予定日', d.moveInUndecided ? '未定' : jpDate_(d.moveInDate)],
-      ['物件用途', pick_(conv_(MAP_USE, d.use, 'ns').replace(/（.*）/, ''), ['住居', '店舗', '事務所', '駐車場', 'その他']) +
-        (conv_(MAP_USE, d.use, 'ns').indexOf('その他') === 0 ? '　→　' + esc_(conv_(MAP_USE, d.use, 'ns')) : '') +
-        (d.useDetail ? '　' + esc_(d.useDetail) : '')],
-      ['フリガナ（物件名）', esc_(d.bukkenKana)],
-      ['物件名', esc_(d.bukken)],
-      ['号室', esc_(d.room)],
-      ['所在地', esc_(addr_(d.bukkenZip, d.bukkenPref, d.bukkenAddr))],
-      ['仲介店名／TEL', or_(esc_(d.chukai)) + '　／　' + or_(esc_(d.chukaiTel))],
-    ]) + '</table>' +
+  return [
+    { sec: '取扱店欄' },
+    { label: '取扱店NO.', value: d.agentNo },
+    { label: '担当者', value: d.agentStaff || d.agentCompany },
+    { label: 'TEL／FAX', value: M_CONFIG.COMPANY_TEL + '　／　' + M_CONFIG.COMPANY_FAX },
+    { label: '申込日', value: jpDate_(d.applyDate) },
+    { label: '申込区分', value: d.applyKind, pick: ['新規申込', '入居中申込'] },
+    { label: '入居予定日', value: d.moveInUndecided ? '未定' : jpDate_(d.moveInDate) },
+    { label: '物件用途', value: nsUse.replace(/（.*）/, ''),
+      pick: ['住居', '店舗', '事務所', '駐車場', 'その他'],
+      tail: (nsUse.indexOf('その他') === 0 ? '→ ' + nsUse : '') + (d.useDetail ? '　' + d.useDetail : '') },
+    { label: 'フリガナ（物件名）', value: d.bukkenKana },
+    { label: '物件名', value: d.bukken },
+    { label: '号室', value: d.room },
+    { label: '所在地', value: addr_(d.bukkenZip, d.bukkenPref, d.bukkenAddr) },
+    { label: '仲介店名／TEL', value: [d.chukai, d.chukaiTel].filter(String).join('　／　') },
 
-    '<div class="sec alt">賃料・一時金</div>' +
-    '<table>' + rows_([
-      ['礼金', yen_(d.reikin)],
-      ['敷金（一括納付）', yen_(d.shikikin)],
-      ['保証金（一括納付）', or_('')],
-      ['解約引／償却', yen_(d.shikibiki)],
-      ['月額賃料（税込）', yen_(d.rent)],
-      ['管理費／共益費', yen_(d.kanrihi)],
-      ['駐車場', yen_(d.parking)],
-      ['合計（税込）月額保証対象額', '<b>' + yen_(d.rentTotal) + '</b>'],
-      ['継続保証料 支払方法', pick_(d.planNSPay, ['月払い（弊社集金代行サービス利用必須）', '年払い'])],
-      ['賃貸保証プラン', pick_(d.planNS, ['プラス1（保証人あり）', 'パートナー（保証人なし）']) +
-        '<br><span class="note">※ 申込者の連帯保証人：' + esc_(d.hasGuarantor) + '</span>'],
-      ['賃料支払日／支払方法', '毎月 ' + or_(esc_(d.payDay)) + ' 日　／　' + pick_(d.payMethod, ['振込', '口座振替', '持参'])],
-    ]) + '</table>' +
+    { sec: '賃料・一時金', alt: true },
+    { label: '礼金', value: yen_(d.reikin) },
+    { label: '敷金（一括納付）', value: yen_(d.shikikin) },
+    { label: '保証金（一括納付）', value: '' },
+    { label: '解約引／償却', value: yen_(d.shikibiki) },
+    { label: '月額賃料（税込）', value: yen_(d.rent) },
+    { label: '管理費／共益費', value: yen_(d.kanrihi) },
+    { label: '駐車場', value: yen_(d.parking) },
+    { label: '合計（税込）月額保証対象額', value: yen_(d.rentTotal), bold: true },
+    { label: '継続保証料 支払方法', value: d.planNSPay, pick: ['月払い（弊社集金代行サービス利用必須）', '年払い'] },
+    { label: '賃貸保証プラン', value: d.planNS, pick: ['プラス1（保証人あり）', 'パートナー（保証人なし）'],
+      note: '※ 申込者の連帯保証人：' + d.hasGuarantor },
+    { label: '賃料支払日', value: d.payDay ? '毎月 ' + d.payDay + ' 日' : '' },
+    { label: '支払方法', value: d.payMethod, pick: ['振込', '口座振替', '持参'] },
 
-    '<div class="sec">申込者</div>' +
-    '<table>' + rows_([
-      ['フリガナ', esc_(d.aKana)],
-      ['氏名（※自署）', '<b>' + esc_(d.aName) + '</b>'],
-      ['男／女', pick_(d.aSex, ['男', '女'])],
-      ['現住所', esc_(addr_(d.aZip, d.aPref, d.aAddr))],
-      ['現住所の区分', pick_(res.replace(/（.*）/, ''), ['持家', '賃貸', '親族同居', '他']) +
-        (parseInt(d.aCurRent || '0', 10) > 0 ? '　家賃 ' + num_(Math.round(parseInt(d.aCurRent, 10) / 10000)) + '万円/月' : '')],
-      ['生年月日（T・S・H）', esc_(wareki_(d.aBirth))],
-      ['生年月日（西暦）', jpDate_(d.aBirth)],
-      ['年齢', esc_(d.aAge) + ' 歳'],
-      ['配偶者', pick_(d.aSpouse, ['有', '無'])],
-      ['携帯TEL', '<b>' + esc_(d.aMobile) + '</b>'],
-      ['自宅TEL', or_(esc_(d.aTel))],
-      ['職業', pick_(emp, jobOpts)],
-      ['健康保険', pick_(d.aHoken === '国民健康保険' ? '国民保険' : d.aHoken, ['社会保険', '国民保険', 'なし'])],
-      ['転居理由', esc_(d.moveReason)],
-      ['勤務先／学校名', esc_(d.aCompany)],
-      ['所在地', esc_(addr_(d.aCompanyZip, d.aCompanyPref, d.aCompanyAddr))],
-      ['勤務先TEL', esc_(d.aCompanyTel)],
-      ['勤続年数', esc_(d.aWorkYears) + ' 年'],
-      ['月収', '<b>' + num_(d.aIncomeMonth) + ' 万</b>'],
-      ['業種', esc_(d.aIndustry)],
-      ['職種', or_(esc_(d.aJobType))],
-    ]) + '</table>' +
+    { sec: '申込者' },
+    { label: 'フリガナ', value: d.aKana },
+    { label: '氏名（※自署）', value: d.aName, bold: true },
+    { label: '男／女', value: d.aSex, pick: ['男', '女'] },
+    { label: '現住所', value: addr_(d.aZip, d.aPref, d.aAddr) },
+    { label: '現住所の区分', value: res.replace(/（.*）/, ''), pick: ['持家', '賃貸', '親族同居', '他'],
+      tail: parseInt(d.aCurRent || '0', 10) > 0
+        ? '家賃 ' + num_(Math.round(parseInt(d.aCurRent, 10) / 10000)) + '万円/月' : '' },
+    { label: '生年月日（T・S・H）', value: wareki_(d.aBirth) },
+    { label: '生年月日（西暦）', value: jpDate_(d.aBirth) },
+    { label: '年齢', value: d.aAge ? d.aAge + ' 歳' : '' },
+    { label: '配偶者', value: d.aSpouse, pick: ['有', '無'] },
+    { label: '携帯TEL', value: d.aMobile, bold: true },
+    { label: '自宅TEL', value: d.aTel },
+    { label: '職業', value: emp, pick: jobOpts },
+    { label: '健康保険', value: d.aHoken === '国民健康保険' ? '国民保険' : d.aHoken,
+      pick: ['社会保険', '国民保険', 'なし'] },
+    { label: '転居理由', value: d.moveReason },
+    { label: '勤務先／学校名', value: d.aCompany },
+    { label: '所在地', value: addr_(d.aCompanyZip, d.aCompanyPref, d.aCompanyAddr) },
+    { label: '勤務先TEL', value: d.aCompanyTel },
+    { label: '勤続年数', value: d.aWorkYears ? d.aWorkYears + ' 年' : '' },
+    { label: '月収', value: d.aIncomeMonth ? num_(d.aIncomeMonth) + ' 万' : '', bold: true },
+    { label: '業種', value: d.aIndustry },
+    { label: '職種', value: d.aJobType },
 
-    '<div class="sec alt">入居者</div>' +
-    '<table>' + rows_([
-      ['区分', pick_(d.liveKind, ['申込者本人のみ', '申込者および同居人', '申込者以外'])],
-      ['合計', esc_(d.totalPeople) + ' 名'],
-    ]) + '</table>' +
-    (ks.length ? '<table class="people">' +
-      '<tr><th>#</th><th>フリガナ</th><th>氏名</th><th>男／女</th><th>続柄</th><th>生年月日（T・S・H・R）</th>' +
-      '<th>年齢</th><th>携帯TEL</th><th>勤務先／学校名</th><th>TEL</th></tr>' +
-      ks.slice(0, 3).map(function (k, i) {
-        return '<tr><td>' + (i + 1) + '</td><td>' + esc_(k.kana) + '</td><td>' + esc_(k.name) + '</td>' +
-          '<td>' + esc_(k.sex) + '</td><td>' + esc_(k.relation) + '</td><td>' + esc_(wareki_(k.birth)) + '</td>' +
-          '<td>' + esc_(k.age) + '</td><td>' + esc_(k.tel) + '</td><td>' + esc_(k.company) + '</td><td>' + esc_(k.companyTel) + '</td></tr>';
-      }).join('') + '</table>' +
-      (ks.length > 3 ? '<div class="warn">同居人が4名以上のため、4人目以降は通信欄へ記入してください。</div>' : '')
-      : '') +
+    { sec: '入居者', alt: true },
+    { label: '区分', value: d.liveKind, pick: ['申込者本人のみ', '申込者および同居人', '申込者以外'] },
+    { label: '合計', value: d.totalPeople ? d.totalPeople + ' 名' : '' },
+    ks.length ? {
+      table: {
+        head: ['#', 'フリガナ', '氏名', '男／女', '続柄', '生年月日（T・S・H・R）', '年齢', '携帯TEL', '勤務先／学校名', 'TEL'],
+        rows: ks.slice(0, 3).map(function (k, i) {
+          return [i + 1, k.kana, k.name, k.sex, k.relation, wareki_(k.birth), k.age, k.tel, k.company, k.companyTel];
+        }),
+      }
+    } : null,
+    ks.length > 3 ? { warn: '同居人が4名以上のため、4人目以降は通信欄へ記入してください。' } : null,
 
-    '<div class="sec">緊急連絡先<span style="font-weight:normal;font-size:10px;">（入居者以外のご親族・連帯保証人の有無に関わらず必須）</span></div>' +
-    '<table>' + rows_([
-      ['フリガナ', esc_(d.eKana)],
-      ['氏名', '<b>' + esc_(d.eName) + '</b>'],
-      ['男／女', pick_(d.eSex, ['男', '女'])],
-      ['続柄', esc_(d.eRelation)],
-      ['携帯TEL', '<b>' + esc_(d.eMobile) + '</b>'],
-      ['自宅TEL', or_(esc_(d.eTel))],
-      ['自宅住所', esc_(addr_(d.eZip, d.ePref, d.eAddr))],
-    ]) + '</table>' +
+    { sec: '緊急連絡先', secNote: '（入居者以外のご親族・連帯保証人の有無に関わらず必須）' },
+    { label: 'フリガナ', value: d.eKana },
+    { label: '氏名', value: d.eName, bold: true },
+    { label: '男／女', value: d.eSex, pick: ['男', '女'] },
+    { label: '続柄', value: d.eRelation },
+    { label: '携帯TEL', value: d.eMobile, bold: true },
+    { label: '自宅TEL', value: d.eTel },
+    { label: '自宅住所', value: addr_(d.eZip, d.ePref, d.eAddr) },
 
-    '<div class="sec alt">連帯保証人予定者</div>' +
-    (d.hasGuarantor === 'あり'
-      ? '<table>' + rows_([
-        ['フリガナ', esc_(d.gKana)],
-        ['氏名', '<b>' + esc_(d.gName) + '</b>'],
-        ['男／女', pick_(d.gSex, ['男', '女'])],
-        ['現住所', esc_(addr_(d.gZip, d.gPref, d.gAddr))],
-        ['現住所の区分', pick_(gRes.replace(/（.*）/, ''), ['持家', '賃貸', '親族同居', '他'])],
-        ['生年月日（T・S・H）', esc_(wareki_(d.gBirth))],
-        ['年齢', esc_(d.gAge) + ' 歳'],
-        ['続柄', esc_(d.gRelation)],
-        ['携帯TEL', '<b>' + esc_(d.gMobile) + '</b>'],
-        ['自宅TEL', or_(esc_(d.gTel))],
-        ['職業', pick_(gEmp, ['公務員', '役員', '正社員', '契約社員', '派遣社員', 'パート・アルバイト', '自営', '年金受給'])],
-        ['勤務先名称', esc_(d.gCompany)],
-        ['所在地', esc_(addr_(d.gCompanyZip, d.gCompanyPref, d.gCompanyAddr))],
-        ['勤務先TEL', esc_(d.gCompanyTel)],
-        ['勤続年数', esc_(d.gWorkYears) + ' 年'],
-        ['月収', d.gIncomeMonth ? num_(d.gIncomeMonth) + ' 万' : or_('')],
-        ['業種', or_(esc_(d.gIndustry))],
-        ['職種', or_(esc_(d.gJobType))],
-      ]) + '</table>'
-      : '<table><tr><th>連帯保証人予定者</th><td class="v">なし（「パートナー」プランをご検討ください）</td></tr></table>') +
-
-    '<div class="sec">通信欄</div>' +
-    '<table><tr><td class="v">' + or_(esc_(d.note)) +
-    (ks.length > 3 ? '<br><b>【4人目以降の入居者】</b><br>' + ks.slice(3).map(function (k) {
-      return esc_(k.name) + '（' + esc_(k.kana) + '）　続柄：' + esc_(k.relation) + '　' + jpDate_(k.birth);
-    }).join('<br>') : '') + '</td></tr></table>' +
-
-    '<div class="warn">本人確認書類の添付が必要です。記入漏れがないかご確認ください。</div>';
+    { sec: '連帯保証人予定者', alt: true },
+  ].concat(d.hasGuarantor === 'あり' ? [
+    { label: 'フリガナ', value: d.gKana },
+    { label: '氏名', value: d.gName, bold: true },
+    { label: '男／女', value: d.gSex, pick: ['男', '女'] },
+    { label: '現住所', value: addr_(d.gZip, d.gPref, d.gAddr) },
+    { label: '現住所の区分', value: gRes.replace(/（.*）/, ''), pick: ['持家', '賃貸', '親族同居', '他'] },
+    { label: '生年月日（T・S・H）', value: wareki_(d.gBirth) },
+    { label: '年齢', value: d.gAge ? d.gAge + ' 歳' : '' },
+    { label: '続柄', value: d.gRelation },
+    { label: '携帯TEL', value: d.gMobile, bold: true },
+    { label: '自宅TEL', value: d.gTel },
+    { label: '職業', value: gEmp,
+      pick: ['公務員', '役員', '正社員', '契約社員', '派遣社員', 'パート・アルバイト', '自営', '年金受給'] },
+    { label: '勤務先名称', value: d.gCompany },
+    { label: '所在地', value: addr_(d.gCompanyZip, d.gCompanyPref, d.gCompanyAddr) },
+    { label: '勤務先TEL', value: d.gCompanyTel },
+    { label: '勤続年数', value: d.gWorkYears ? d.gWorkYears + ' 年' : '' },
+    { label: '月収', value: d.gIncomeMonth ? num_(d.gIncomeMonth) + ' 万' : '' },
+    { label: '業種', value: d.gIndustry },
+    { label: '職種', value: d.gJobType },
+  ] : [
+    { label: '連帯保証人予定者', value: 'なし（「パートナー」プランをご検討ください）' },
+  ]).concat([
+    { sec: '通信欄' },
+    { label: '通信欄', value: (d.note || '') +
+      (ks.length > 3 ? (d.note ? '\n' : '') + '【4人目以降の入居者】\n' + ks.slice(3).map(function (k) {
+        return k.name + '（' + k.kana + '）　続柄：' + k.relation + '　' + jpDate_(k.birth);
+      }).join('\n') : '') },
+    { warn: '本人確認書類の添付が必要です。記入漏れがないかご確認ください。' },
+  ]);
 }
 
 /* ---------- 全保連株式会社 ---------- */
-function tenkiZH_(d) {
+function tenkiFieldsZH_(d) {
   const emp = conv_(MAP_EMPLOYMENT, d.aEmployment, 'zh');
   const use = conv_(MAP_USE, d.use, 'zh');
   const rel = MAP_RELATION_ZH[d.eRelation] || 'その他';
   const ks = d.kyoju || [];
 
-  return '<div class="sec">協定会社様（審査回答書送付先）の情報</div>' +
-    '<table>' + rows_([
-      ['会社名', or_(esc_(d.agentCompany) || esc_(M_CONFIG.COMPANY))],
-      ['担当', or_(esc_(d.agentStaff))],
-      ['TEL／FAX', esc_(M_CONFIG.COMPANY_TEL) + '　／　' + esc_(M_CONFIG.COMPANY_FAX)],
-      ['仲介会社名', or_(esc_(d.chukai))],
-      ['仲介会社 TEL／FAX', or_(esc_(d.chukaiTel)) + '　／　' + or_(esc_(d.chukaiFax))],
-    ]) + '</table>' +
+  return [
+    { sec: '協定会社様（審査回答書送付先）の情報' },
+    { label: '会社名', value: d.agentCompany || M_CONFIG.COMPANY },
+    { label: '担当', value: d.agentStaff },
+    { label: 'TEL／FAX', value: M_CONFIG.COMPANY_TEL + '　／　' + M_CONFIG.COMPANY_FAX },
+    { label: '仲介会社名', value: d.chukai },
+    { label: '仲介会社 TEL／FAX', value: [d.chukaiTel, d.chukaiFax].filter(String).join('　／　') },
 
-    '<div class="sec alt">物件内容（代理店記入欄）</div>' +
-    '<table>' + rows_([
-      ['申込日', mdDate_(d.applyDate)],
-      ['入居日', d.moveInUndecided ? pick_('未定', ['未定']) : mdDate_(d.moveInDate)],
-      ['入居済', d.applyKind === '入居中申込'
-        ? flag_(d.noArrears, '滞納無し') + '　' + flag_(d.leaseback, 'リースバック')
-        : '<span class="off">―（新規申込）</span>'],
-      ['フリガナ（物件名）', esc_(d.bukkenKana)],
-      ['物件名', esc_(d.bukken)],
-      ['号室', esc_(d.room) + '　' + flag_(d.isKodate, '戸建')],
-      ['住所', esc_(addr_(d.bukkenZip, d.bukkenPref, d.bukkenAddr))],
-      ['物件用途', pick_(use, ['住居用', '住居学生用', '住居火災保険', 'トランクルーム', '倉庫', '駐車場', '事務所', '店舗'])],
-      ['店舗の場合→利用目的', or_(esc_(d.useDetail))],
-      ['入居理由', esc_(d.moveReason)],
-      ['介護施設の場合', flag_(d.kaigoDaycare, 'デイケア') + '　' + flag_(d.kaigoStay, '宿泊有')],
-    ]) + '</table>' +
+    { sec: '物件内容（代理店記入欄）', alt: true },
+    { label: '申込日', value: mdDate_(d.applyDate) },
+    { label: '入居日', value: d.moveInUndecided ? '未定' : mdDate_(d.moveInDate) },
+    d.applyKind === '入居中申込'
+      ? { label: '入居済', value: '', checks: [['滞納無し', d.noArrears], ['リースバック', d.leaseback]] }
+      : { label: '入居済', value: '該当なし（新規申込）' },
+    { label: 'フリガナ（物件名）', value: d.bukkenKana },
+    { label: '物件名', value: d.bukken },
+    { label: '号室', value: d.room, tail: d.isKodate ? '☑ 戸建' : '☐ 戸建' },
+    { label: '住所', value: addr_(d.bukkenZip, d.bukkenPref, d.bukkenAddr) },
+    { label: '物件用途', value: use,
+      pick: ['住居用', '住居学生用', '住居火災保険', 'トランクルーム', '倉庫', '駐車場', '事務所', '店舗'] },
+    { label: '店舗の場合→利用目的', value: d.useDetail },
+    { label: '入居理由', value: d.moveReason },
+    { label: '介護施設の場合', value: '', checks: [['デイケア', d.kaigoDaycare], ['宿泊有', d.kaigoStay]] },
 
-    '<table>' + rows_([
-      ['① 家賃（賃料）', yen_(d.rent)],
-      ['② 共益費・管理費', yen_(d.kanrihi)],
-      ['③ 駐車場', yen_(d.parking)],
-      ['④ 水道料・町（区）費', yen_(d.suido)],
-      ['⑤ その他' + (d.otherFeeName ? '（' + d.otherFeeName + '）' : ''),
-        yen_(String(parseInt(d.otherFee || '0', 10) + parseInt(d.shunou || '0', 10)))],
-      ['⑥ 月額賃料', '<b>' + yen_(d.rentTotal) + '</b>'],
-      ['敷金・保証金', yen_(d.shikikin)],
-      ['礼金', yen_(d.reikin)],
-      ['敷引（解約引き）', yen_(d.shikibiki)],
-    ]) + '</table>' +
+    { label: '① 家賃（賃料）', value: yen_(d.rent) },
+    { label: '② 共益費・管理費', value: yen_(d.kanrihi) },
+    { label: '③ 駐車場', value: yen_(d.parking) },
+    { label: '④ 水道料・町（区）費', value: yen_(d.suido) },
+    { label: '⑤ その他' + (d.otherFeeName ? '（' + d.otherFeeName + '）' : ''),
+      value: yen_(String(parseInt(d.otherFee || '0', 10) + parseInt(d.shunou || '0', 10))) },
+    { label: '⑥ 月額賃料', value: yen_(d.rentTotal), bold: true },
+    { label: '敷金・保証金', value: yen_(d.shikikin) },
+    { label: '礼金', value: yen_(d.reikin) },
+    { label: '敷引（解約引き）', value: yen_(d.shikibiki) },
 
-    '<div class="sec">申込者・賃借人 記入欄</div>' +
-    '<table>' + rows_([
-      ['姓 / Family name', '<b>' + esc_(d.aSei) + '</b>'],
-      ['名 / Given name', '<b>' + esc_(d.aMei) + '</b>'],
-      ['フリガナ', esc_(d.aSeiKana) + '　' + esc_(d.aMeiKana)],
-      ['性別', pick_(d.aSex, ['男', '女', '無回答'])],
-      ['生年月日 / Date of Birth', '西暦 ' + jpDate_(d.aBirth) + '　（' + esc_(d.aAge) + ' 歳）'],
-      ['免許番号（お持ちの方）', or_(esc_(d.aLicense))],
-      ['住所 / Address', esc_(addr_(d.aZip, d.aPref, d.aAddr))],
-      ['メールアドレス', esc_(d.aEmail)],
-      ['自宅電話 / Phone number', or_(esc_(d.aTel))],
-      ['携帯電話 / Mobile number', '<b>' + esc_(d.aMobile) + '</b>'],
-      ['勤務先名称 / Name of workplace', esc_(d.aCompany)],
-      ['勤務先電話 / Workplace number', '<b>' + esc_(d.aCompanyTel) + '</b>'],
-      ['勤務先住所 / Workplace address', esc_(addr_(d.aCompanyZip, d.aCompanyPref, d.aCompanyAddr))],
-      ['雇用形態（○を付ける）', '<b>' + esc_(emp) + '</b><br>' +
-        '<span class="note">1.公務員　2.会社経営者　3.役員　4.正社員　5.契約社員　6.派遣社員　7.個人事業主　8.個人事業勤務　' +
-        '9.アルバイト・パート　10.学生　11.年金　12.生活保護受給　14.無職　15.その他</span>'],
-      ['年収 / Annual income', '<b>' + num_(d.aIncomeYear) + ' 万円</b>'],
-      ['勤続年数 / Work years', esc_(d.aWorkYears) + ' 年 ' + or_(esc_(d.aWorkMonths), '0') + ' ヶ月'],
-      ['勤務先業種 / Type of work', esc_(d.aIndustry)],
-      ['物件用途', esc_(use)],
-      ['利用目的 / 入居事由', esc_(d.useDetail || d.moveReason)],
-      ['入居人数（住居申込）', '成人 ' + esc_(d.adults) + ' 人　未成年 ' + esc_(d.minors) + ' 人'],
-    ]) + '</table>' +
+    { sec: '申込者・賃借人 記入欄' },
+    { label: '姓 / Family name', value: d.aSei, bold: true },
+    { label: '名 / Given name', value: d.aMei, bold: true },
+    { label: 'フリガナ', value: [d.aSeiKana, d.aMeiKana].filter(String).join('　') },
+    { label: '性別', value: d.aSex, pick: ['男', '女', '無回答'] },
+    { label: '生年月日 / Date of Birth', value: jpDate_(d.aBirth) ? '西暦 ' + jpDate_(d.aBirth) : '',
+      tail: d.aAge ? '（' + d.aAge + ' 歳）' : '' },
+    { label: '免許番号（お持ちの方）', value: d.aLicense },
+    { label: '住所 / Address', value: addr_(d.aZip, d.aPref, d.aAddr) },
+    { label: 'メールアドレス', value: d.aEmail },
+    { label: '自宅電話 / Phone number', value: d.aTel },
+    { label: '携帯電話 / Mobile number', value: d.aMobile, bold: true },
+    { label: '勤務先名称 / Name of workplace', value: d.aCompany },
+    { label: '勤務先電話 / Workplace number', value: d.aCompanyTel, bold: true },
+    { label: '勤務先住所 / Workplace address', value: addr_(d.aCompanyZip, d.aCompanyPref, d.aCompanyAddr) },
+    { label: '雇用形態（○を付ける）', value: emp, bold: true,
+      note: '1.公務員　2.会社経営者　3.役員　4.正社員　5.契約社員　6.派遣社員　7.個人事業主　8.個人事業勤務　' +
+        '9.アルバイト・パート　10.学生　11.年金　12.生活保護受給　14.無職　15.その他' },
+    { label: '年収 / Annual income', value: d.aIncomeYear ? num_(d.aIncomeYear) + ' 万円' : '', bold: true },
+    { label: '勤続年数 / Work years', value: (d.aWorkYears || '0') + ' 年 ' + (d.aWorkMonths || '0') + ' ヶ月' },
+    { label: '勤務先業種 / Type of work', value: d.aIndustry },
+    { label: '物件用途', value: use },
+    { label: '利用目的 / 入居事由', value: d.useDetail || d.moveReason },
+    { label: '入居人数（住居申込）', value: '成人 ' + (d.adults || '') + ' 人　未成年 ' + (d.minors || '') + ' 人' },
 
-    (ks.length ? '<table class="people">' +
-      '<tr><th>#</th><th>同居人／実入居者</th><th>フリガナ</th><th>氏名</th><th>続柄</th><th>生年月日（西暦）</th><th>携帯電話</th></tr>' +
-      ks.slice(0, 2).map(function (k, i) {
-        return '<tr><td>' + (i + 1) + '</td><td>☑ 同居人</td><td>' + esc_(k.kana) + '</td><td>' + esc_(k.name) + '</td>' +
-          '<td>' + esc_(k.relation) + '</td><td>' + jpDate_(k.birth) + '</td><td>' + esc_(k.tel) + '</td></tr>';
-      }).join('') + '</table>' +
-      (ks.length > 2 ? '<div class="warn">同居人が3名以上のため、3人目以降は別紙での提出が必要です。<br>' +
+    ks.length ? {
+      table: {
+        head: ['#', '同居人／実入居者', 'フリガナ', '氏名', '続柄', '生年月日（西暦）', '携帯電話'],
+        rows: ks.slice(0, 2).map(function (k, i) {
+          return [i + 1, '☑ 同居人', k.kana, k.name, k.relation, jpDate_(k.birth), k.tel];
+        }),
+      }
+    } : null,
+    ks.length > 2 ? {
+      warn: '同居人が3名以上のため、3人目以降は別紙での提出が必要です。<br>' +
         ks.slice(2).map(function (k) {
-          return '・' + esc_(k.name) + '（' + esc_(k.kana) + '）　続柄：' + esc_(k.relation) + '　' + jpDate_(k.birth) + '　' + esc_(k.tel);
-        }).join('<br>') + '</div>' : '')
-      : '') +
+          return '・' + esc_(k.name) + '（' + esc_(k.kana) + '）　続柄：' + esc_(k.relation) +
+            '　' + jpDate_(k.birth) + '　' + esc_(k.tel);
+        }).join('<br>')
+    } : null,
 
-    '<div class="sec alt">緊急連絡先</div>' +
-    '<table>' + rows_([
-      ['フリガナ', esc_(d.eKana)],
-      ['氏名', '<b>' + esc_(d.eName) + '</b>'],
-      ['続柄', pick_(rel, ['親子', '兄弟／姉妹', '親族', 'その他']) +
-        '　<span class="note">（申込内容：' + esc_(d.eRelation) + '）</span>'],
-      ['生年月日', '西暦 ' + jpDate_(d.eBirth) + (d.eAge ? '　（' + esc_(d.eAge) + ' 歳）' : '')],
-      ['現住所', esc_(addr_(d.eZip, d.ePref, d.eAddr))],
-      ['連絡先（自宅）', or_(esc_(d.eTel))],
-      ['連絡先（携帯）', '<b>' + esc_(d.eMobile) + '</b>'],
-    ]) + '</table>' +
+    { sec: '緊急連絡先', alt: true },
+    { label: 'フリガナ', value: d.eKana },
+    { label: '氏名', value: d.eName, bold: true },
+    { label: '続柄', value: rel, pick: ['親子', '兄弟／姉妹', '親族', 'その他'],
+      note: '（申込内容：' + (d.eRelation || '') + '）' },
+    { label: '生年月日', value: jpDate_(d.eBirth) ? '西暦 ' + jpDate_(d.eBirth) : '',
+      tail: d.eAge ? '（' + d.eAge + ' 歳）' : '' },
+    { label: '現住所', value: addr_(d.eZip, d.ePref, d.eAddr) },
+    { label: '連絡先（自宅）', value: d.eTel },
+    { label: '連絡先（携帯）', value: d.eMobile, bold: true },
 
-    (d.note ? '<div class="sec">連絡事項</div><table><tr><td class="v">' + esc_(d.note) + '</td></tr></table>' : '') +
+    d.note ? { sec: '連絡事項' } : null,
+    d.note ? { label: '連絡事項', value: d.note } : null,
 
-    '<div class="warn">' +
-    '※ 物件内容と申込人記載の両方の送付が必要です（審査専用FAX：050-3000-2321）。<br>' +
-    '※ 続柄・住所・連絡先はすべて記載必須です。外国籍の方は在留カードのコピーが必要です。' +
-    (d.aNationality && d.aNationality !== '日本' ? '<br><b>→ 本申込は外国籍（' + esc_(d.aNationality) + '）です。在留カードのコピーを添付してください。</b>' : '') +
-    '</div>';
+    { warn: '※ 物件内容と申込人記載の両方の送付が必要です（審査専用FAX：050-3000-2321）。<br>' +
+      '※ 続柄・住所・連絡先はすべて記載必須です。外国籍の方は在留カードのコピーが必要です。' +
+      (d.aNationality && d.aNationality !== '日本'
+        ? '<br><b>→ 本申込は外国籍（' + esc_(d.aNationality) + '）です。在留カードのコピーを添付してください。</b>' : '') },
+  ];
 }
 
 /* ---------- ナップ賃貸保証株式会社 ---------- */
-function tenkiNAP_(d) {
+function tenkiFieldsNAP_(d) {
   const emp = conv_(MAP_EMPLOYMENT, d.aEmployment, 'nap');
   const gEmp = conv_(MAP_EMPLOYMENT, d.gEmployment, 'nap');
   const res = conv_(MAP_RESIDENCE, d.aResidence, 'nap');
@@ -1146,125 +1282,115 @@ function tenkiNAP_(d) {
   const ks = d.kyoju || [];
   const napOpts = d.napOptions || [];
 
-  return '<div class="sec">加盟店様概要</div>' +
-    '<table>' + rows_([
-      ['会社名（商号）', or_(esc_(d.agentCompany) || esc_(M_CONFIG.COMPANY))],
-      ['所在地', '〒' + esc_(M_CONFIG.COMPANY_ZIP) + '　' + esc_(M_CONFIG.COMPANY_ADDR)],
-      ['TEL／FAX', esc_(M_CONFIG.COMPANY_TEL) + '　／　' + esc_(M_CONFIG.COMPANY_FAX)],
-      ['ご担当者', or_(esc_(d.agentStaff))],
-      ['申込日', jpDate_(d.applyDate)],
-      ['入居希望日', d.moveInUndecided ? '未定' : jpDate_(d.moveInDate)],
-      ['区分', pick_(d.applyKind === '新規申込' ? '新規' : '入居中', ['新規', '入居中'])],
-      ['引越・申込理由', esc_(d.moveReason)],
-    ]) + '</table>' +
+  return [
+    { sec: '加盟店様概要' },
+    { label: '会社名（商号）', value: d.agentCompany || M_CONFIG.COMPANY },
+    { label: '所在地', value: '〒' + M_CONFIG.COMPANY_ZIP + '　' + M_CONFIG.COMPANY_ADDR },
+    { label: 'TEL／FAX', value: M_CONFIG.COMPANY_TEL + '　／　' + M_CONFIG.COMPANY_FAX },
+    { label: 'ご担当者', value: d.agentStaff },
+    { label: '申込日', value: jpDate_(d.applyDate) },
+    { label: '入居希望日', value: d.moveInUndecided ? '未定' : jpDate_(d.moveInDate) },
+    { label: '区分', value: d.applyKind === '新規申込' ? '新規' : '入居中', pick: ['新規', '入居中'] },
+    { label: '引越・申込理由', value: d.moveReason },
 
-    '<div class="sec alt">加盟店様ご記入欄</div>' +
-    '<table>' + rows_([
-      ['物件用途', pick_(use, ['居住用', '居住用学生', '事務所', '店舗', '倉庫等', 'SOHO', '駐車場', 'コンテナ', 'トランクルーム']) +
-        '<br><span class="note">※ 事務所・店舗・倉庫等・SOHO は事業用補足資料が必要です。</span>'],
-      ['物件名 フリガナ', esc_(d.bukkenKana)],
-      ['物件名', esc_(d.bukken)],
-      ['号室', esc_(d.room)],
-      ['物件所在地', esc_(addr_(d.bukkenZip, d.bukkenPref, d.bukkenAddr))],
-      ['敷金・保証金', yen_(d.shikikin)],
-      ['収納代行', pick_(d.napShunou, ['有', '無'])],
-      ['ナップ付帯商品',
-        ['ナップ家財', 'ナップ駆付け', 'ナップ見守りセンサー', 'ナップ見守り電気'].map(function (o) {
-          return flag_(napOpts.indexOf(o) >= 0, o.replace('ナップ', 'ﾅｯﾌﾟ'));
-        }).join('　')],
-      ['保証プラン', or_(esc_(d.planNAP)) +
-        '<br><span class="note">居住用：安心／スタンダード／アシスト／学割V／学割（一括払型）　' +
-        '事業用：事業用S／事業用A／事業用B／貸地／駐車場・コンテナ・トランク</span>'],
-    ]) + '</table>' +
+    { sec: '加盟店様ご記入欄', alt: true },
+    { label: '物件用途', value: use,
+      pick: ['居住用', '居住用学生', '事務所', '店舗', '倉庫等', 'SOHO', '駐車場', 'コンテナ', 'トランクルーム'],
+      note: '※ 事務所・店舗・倉庫等・SOHO は事業用補足資料が必要です。' },
+    { label: '物件名 フリガナ', value: d.bukkenKana },
+    { label: '物件名', value: d.bukken },
+    { label: '号室', value: d.room },
+    { label: '物件所在地', value: addr_(d.bukkenZip, d.bukkenPref, d.bukkenAddr) },
+    { label: '敷金・保証金', value: yen_(d.shikikin) },
+    { label: '収納代行', value: d.napShunou, pick: ['有', '無'] },
+    { label: 'ナップ付帯商品', value: '',
+      checks: ['ナップ家財', 'ナップ駆付け', 'ナップ見守りセンサー', 'ナップ見守り電気'].map(function (o) {
+        return [o.replace('ナップ', 'ﾅｯﾌﾟ'), napOpts.indexOf(o) >= 0];
+      }) },
+    { label: '保証プラン', value: d.planNAP,
+      note: '居住用：安心／スタンダード／アシスト／学割V／学割（一括払型）　' +
+        '事業用：事業用S／事業用A／事業用B／貸地／駐車場・コンテナ・トランク' },
 
-    '<table>' + rows_([
-      ['① 家賃', yen_(d.rent)],
-      ['② 管理費・共益費', yen_(d.kanrihi)],
-      ['③ 駐車場', yen_(d.parking)],
-      ['④ 収納代行費用', yen_(d.shunou)],
-      ['⑤ ﾅｯﾌﾟ付帯商品費用', or_('')],
-      ['⑥ その他' + (d.otherFeeName ? '（' + d.otherFeeName + '）' : ''),
-        yen_(String(parseInt(d.otherFee || '0', 10) + parseInt(d.suido || '0', 10)))],
-      ['賃料合計額（①＋②＋③＋④＋⑤＋⑥）', '<b>' + yen_(d.rentTotal) + '</b>'],
-    ]) + '</table>' +
+    { label: '① 家賃', value: yen_(d.rent) },
+    { label: '② 管理費・共益費', value: yen_(d.kanrihi) },
+    { label: '③ 駐車場', value: yen_(d.parking) },
+    { label: '④ 収納代行費用', value: yen_(d.shunou) },
+    { label: '⑤ ﾅｯﾌﾟ付帯商品費用', value: '' },
+    { label: '⑥ その他' + (d.otherFeeName ? '（' + d.otherFeeName + '）' : ''),
+      value: yen_(String(parseInt(d.otherFee || '0', 10) + parseInt(d.suido || '0', 10))) },
+    { label: '賃料合計額（①＋②＋③＋④＋⑤＋⑥）', value: yen_(d.rentTotal), bold: true },
 
-    '<div class="sec">お申込者様ご記入欄</div>' +
-    '<table>' + rows_([
-      ['ﾌﾘｶﾞﾅ', esc_(d.aKana)],
-      ['氏名', '<b>' + esc_(d.aName) + '</b>'],
-      ['性別', pick_(d.aSex, ['男', '女'])],
-      ['配偶者', pick_(d.aSpouse, ['有', '無'])],
-      ['国籍', esc_(d.aNationality)],
-      ['住居区分', pick_(res, resOpts)],
-      ['生年月日', jpDate_(d.aBirth) + '　（' + esc_(d.aAge) + ' 歳）'],
-      ['現住所', esc_(addr_(d.aZip, d.aPref, d.aAddr))],
-      ['携帯電話', '<b>' + esc_(d.aMobile) + '</b>'],
-      ['自宅電話', or_(esc_(d.aTel))],
-      ['勤務先情報：名称', esc_(d.aCompany)],
-      ['勤務先情報：業種', esc_(d.aIndustry)],
-      ['勤務先 TEL', '<b>' + esc_(d.aCompanyTel) + '</b>'],
-      ['勤務先情報：住所', esc_(addr_(d.aCompanyZip, d.aCompanyPref, d.aCompanyAddr))],
-      ['年収', '<b>' + num_(d.aIncomeYear) + ' 万円</b>'],
-      ['勤続年数', esc_(d.aWorkYears) + ' 年 ' + or_(esc_(d.aWorkMonths), '0') + ' ヵ月'],
-      ['雇用形態', pick_(emp, empOpts)],
-    ]) + '</table>' +
+    { sec: 'お申込者様ご記入欄' },
+    { label: 'ﾌﾘｶﾞﾅ', value: d.aKana },
+    { label: '氏名', value: d.aName, bold: true },
+    { label: '性別', value: d.aSex, pick: ['男', '女'] },
+    { label: '配偶者', value: d.aSpouse, pick: ['有', '無'] },
+    { label: '国籍', value: d.aNationality },
+    { label: '住居区分', value: res, pick: resOpts },
+    { label: '生年月日', value: jpDate_(d.aBirth), tail: d.aAge ? '（' + d.aAge + ' 歳）' : '' },
+    { label: '現住所', value: addr_(d.aZip, d.aPref, d.aAddr) },
+    { label: '携帯電話', value: d.aMobile, bold: true },
+    { label: '自宅電話', value: d.aTel },
+    { label: '勤務先情報：名称', value: d.aCompany },
+    { label: '勤務先情報：業種', value: d.aIndustry },
+    { label: '勤務先 TEL', value: d.aCompanyTel, bold: true },
+    { label: '勤務先情報：住所', value: addr_(d.aCompanyZip, d.aCompanyPref, d.aCompanyAddr) },
+    { label: '年収', value: d.aIncomeYear ? num_(d.aIncomeYear) + ' 万円' : '', bold: true },
+    { label: '勤続年数', value: (d.aWorkYears || '0') + ' 年 ' + (d.aWorkMonths || '0') + ' ヵ月' },
+    { label: '雇用形態', value: emp, pick: empOpts },
 
-    '<div class="sec alt">入居者（居住用）</div>' +
-    (ks.length ? '<table class="people">' +
-      '<tr><th>#</th><th>氏名</th><th>続柄</th><th>生年月日</th><th>電話番号</th><th>勤務先名称</th><th>勤続年数</th><th>年収</th></tr>' +
-      ks.map(function (k, i) {
-        return '<tr><td>' + (i + 1) + '</td><td>' + esc_(k.name) + '</td><td>' + esc_(k.relation) + '</td>' +
-          '<td>' + jpDate_(k.birth) + '</td><td>' + esc_(k.tel) + '</td><td>' + esc_(k.company) + '</td>' +
-          '<td>' + esc_(k.workYears) + '</td><td>' + esc_(k.income) + '</td></tr>';
-      }).join('') + '</table>'
-      : '<table><tr><th>入居者</th><td class="v">' + esc_(d.liveKind) + '（合計 ' + esc_(d.totalPeople) + ' 名）</td></tr></table>') +
+    { sec: '入居者（居住用）', alt: true },
+    ks.length ? {
+      table: {
+        head: ['#', '氏名', '続柄', '生年月日', '電話番号', '勤務先名称', '勤続年数', '年収'],
+        rows: ks.map(function (k, i) {
+          return [i + 1, k.name, k.relation, jpDate_(k.birth), k.tel, k.company, k.workYears, k.income];
+        }),
+      }
+    } : { label: '入居者', value: (d.liveKind || '') + '（合計 ' + (d.totalPeople || '') + ' 名）' },
 
-    '<div class="sec">緊急連絡先</div>' +
-    '<table>' + rows_([
-      ['ﾌﾘｶﾞﾅ', esc_(d.eKana)],
-      ['氏名', '<b>' + esc_(d.eName) + '</b>'],
-      ['性別', pick_(d.eSex, ['男', '女'])],
-      ['配偶者', pick_(d.eSpouse, ['有', '無'])],
-      ['続柄', esc_(d.eRelation)],
-      ['住居区分', pick_(eRes, resOpts)],
-      ['生年月日', jpDate_(d.eBirth) + (d.eAge ? '　（' + esc_(d.eAge) + ' 歳）' : '')],
-      ['現住所', esc_(addr_(d.eZip, d.ePref, d.eAddr))],
-      ['携帯電話', '<b>' + esc_(d.eMobile) + '</b>'],
-      ['自宅電話', or_(esc_(d.eTel))],
-    ]) + '</table>' +
+    { sec: '緊急連絡先' },
+    { label: 'ﾌﾘｶﾞﾅ', value: d.eKana },
+    { label: '氏名', value: d.eName, bold: true },
+    { label: '性別', value: d.eSex, pick: ['男', '女'] },
+    { label: '配偶者', value: d.eSpouse, pick: ['有', '無'] },
+    { label: '続柄', value: d.eRelation },
+    { label: '住居区分', value: eRes, pick: resOpts },
+    { label: '生年月日', value: jpDate_(d.eBirth), tail: d.eAge ? '（' + d.eAge + ' 歳）' : '' },
+    { label: '現住所', value: addr_(d.eZip, d.ePref, d.eAddr) },
+    { label: '携帯電話', value: d.eMobile, bold: true },
+    { label: '自宅電話', value: d.eTel },
 
-    '<div class="sec alt">連帯保証人</div>' +
-    (d.hasGuarantor === 'あり'
-      ? '<table>' + rows_([
-        ['ﾌﾘｶﾞﾅ', esc_(d.gKana)],
-        ['氏名', '<b>' + esc_(d.gName) + '</b>'],
-        ['性別', pick_(d.gSex, ['男', '女'])],
-        ['続柄', esc_(d.gRelation)],
-        ['住居区分', pick_(gRes, resOpts)],
-        ['生年月日', jpDate_(d.gBirth) + (d.gAge ? '　（' + esc_(d.gAge) + ' 歳）' : '')],
-        ['現住所', esc_(addr_(d.gZip, d.gPref, d.gAddr))],
-        ['携帯電話', '<b>' + esc_(d.gMobile) + '</b>'],
-        ['自宅電話', or_(esc_(d.gTel))],
-        ['勤務先情報：名称', esc_(d.gCompany)],
-        ['勤務先情報：業種', or_(esc_(d.gIndustry))],
-        ['勤務先 TEL', esc_(d.gCompanyTel)],
-        ['勤務先情報：住所', esc_(addr_(d.gCompanyZip, d.gCompanyPref, d.gCompanyAddr))],
-        ['年収', num_(d.gIncomeYear) + ' 万円'],
-        ['勤続年数', esc_(d.gWorkYears) + ' 年 ' + or_(esc_(d.gWorkMonths), '0') + ' ヵ月'],
-        ['雇用形態', pick_(gEmp, empOpts)],
-      ]) + '</table>'
-      : '<table><tr><th>連帯保証人</th><td class="v">なし</td></tr></table>') +
-
-    (d.note ? '<div class="sec">連絡事項</div><table><tr><td class="v">' + esc_(d.note) + '</td></tr></table>' : '') +
-
-    '<div class="warn">' +
-    '※ 身分証を併せて提出してください。<br>' +
-    '※ 申込者様・緊急連絡人様の連絡先、または勤務先へ在籍確認の連絡を行う場合があります。' +
-    '</div>';
+    { sec: '連帯保証人', alt: true },
+  ].concat(d.hasGuarantor === 'あり' ? [
+    { label: 'ﾌﾘｶﾞﾅ', value: d.gKana },
+    { label: '氏名', value: d.gName, bold: true },
+    { label: '性別', value: d.gSex, pick: ['男', '女'] },
+    { label: '続柄', value: d.gRelation },
+    { label: '住居区分', value: gRes, pick: resOpts },
+    { label: '生年月日', value: jpDate_(d.gBirth), tail: d.gAge ? '（' + d.gAge + ' 歳）' : '' },
+    { label: '現住所', value: addr_(d.gZip, d.gPref, d.gAddr) },
+    { label: '携帯電話', value: d.gMobile, bold: true },
+    { label: '自宅電話', value: d.gTel },
+    { label: '勤務先情報：名称', value: d.gCompany },
+    { label: '勤務先情報：業種', value: d.gIndustry },
+    { label: '勤務先 TEL', value: d.gCompanyTel },
+    { label: '勤務先情報：住所', value: addr_(d.gCompanyZip, d.gCompanyPref, d.gCompanyAddr) },
+    { label: '年収', value: d.gIncomeYear ? num_(d.gIncomeYear) + ' 万円' : '' },
+    { label: '勤続年数', value: (d.gWorkYears || '0') + ' 年 ' + (d.gWorkMonths || '0') + ' ヵ月' },
+    { label: '雇用形態', value: gEmp, pick: empOpts },
+  ] : [
+    { label: '連帯保証人', value: 'なし' },
+  ]).concat([
+    d.note ? { sec: '連絡事項' } : null,
+    d.note ? { label: '連絡事項', value: d.note } : null,
+    { warn: '※ 身分証を併せて提出してください。<br>' +
+      '※ 申込者様・緊急連絡人様の連絡先、または勤務先へ在籍確認の連絡を行う場合があります。' },
+  ]);
 }
 
 /* ---------- 日本賃貸保証株式会社（JID） ---------- */
-function tenkiJID_(d) {
+function tenkiFieldsJID_(d) {
   const job = conv_(MAP_EMPLOYMENT, d.aEmployment, 'jid');
   const res = conv_(MAP_RESIDENCE, d.aResidence, 'jid');
   const use = conv_(MAP_USE, d.use, 'jid');
@@ -1281,120 +1407,106 @@ function tenkiJID_(d) {
   const fee1 = rate1 > 0 ? Math.round(jidTotal * rate1 / 100) : 0;
   const fee2 = rate2 > 0 ? Math.round(jidTotal * rate2 / 100) : 0;
 
-  return '<div class="sec">申込内容等（代理店記入欄）</div>' +
-    '<table>' + rows_([
-      ['物件用途', pick_(use, ['住居用', '住居用(学生プラン)', '事業用', '駐車場', 'その他'])],
-      ['その他の場合', or_(esc_(d.useDetail))],
-      ['フリガナ（物件名称）', esc_(d.bukkenKana)],
-      ['物件名称', esc_(d.bukken)],
-      ['号室', esc_(d.room)],
-      ['所在地', esc_(addr_(d.bukkenZip, d.bukkenPref, d.bukkenAddr))],
-    ]) + '</table>' +
+  return [
+    { sec: '申込内容等（代理店記入欄）' },
+    { label: '物件用途', value: use, pick: ['住居用', '住居用(学生プラン)', '事業用', '駐車場', 'その他'] },
+    { label: 'その他の場合', value: d.useDetail },
+    { label: 'フリガナ（物件名称）', value: d.bukkenKana },
+    { label: '物件名称', value: d.bukken },
+    { label: '号室', value: d.room },
+    { label: '所在地', value: addr_(d.bukkenZip, d.bukkenPref, d.bukkenAddr) },
 
-    '<table>' + rows_([
-      ['① 家賃', yen_(d.rent)],
-      ['② 管理費・共益費', yen_(d.kanrihi)],
-      ['③ 駐車場・ﾄﾗﾝｸﾙｰﾑ', yen_(d.parking)],
-      ['④ その他' + (d.otherFeeName ? '（' + d.otherFeeName + '）' : ''), yen_(String(jidOther))],
-      ['敷金または保証金', yen_(d.shikikin)],
-      ['敷引または償却', yen_(d.shikibiki)],
-      ['毎月支払総額（①＋②＋③＋④）', '<b>' + yen_(String(jidTotal)) + '</b>'],
-    ]) + '</table>' +
+    { label: '① 家賃', value: yen_(d.rent) },
+    { label: '② 管理費・共益費', value: yen_(d.kanrihi) },
+    { label: '③ 駐車場・ﾄﾗﾝｸﾙｰﾑ', value: yen_(d.parking) },
+    { label: '④ その他' + (d.otherFeeName ? '（' + d.otherFeeName + '）' : ''), value: yen_(String(jidOther)) },
+    { label: '敷金または保証金', value: yen_(d.shikikin) },
+    { label: '敷引または償却', value: yen_(d.shikibiki) },
+    { label: '毎月支払総額（①＋②＋③＋④）', value: yen_(String(jidTotal)), bold: true },
 
-    '<table>' + rows_([
-      ['利用保証商品', or_(esc_(d.planJID)) +
-        '<br><span class="note">JIDトリオ／JIDトリオA／JIDトリオB／JIDトリオTrust／JIDトリオTrust分割型／' +
-        'JIDトリオTrust分割型アイプラス／JIDトリオN／JIDトリオN分割型／その他</span>'],
-      ['保証委託契約年数', or_(esc_(d.jidYears)) + ' 年'],
-      ['初回保証料率', rate1 > 0 ? '毎月支払総額の ' + rate1 + ' ％' : or_('')],
-      ['初回保証料金額', fee1 > 0 ? yen_(String(fee1)) : or_('')],
-      ['集送金手数料（税込）', or_('')],
-      ['更新保証料率', rate2 > 0 ? '毎月支払総額の ' + rate2 + ' ％' : or_('')],
-      ['更新保証料金額', fee2 > 0 ? yen_(String(fee2)) : or_('')],
-    ]) + '</table>' +
-    '<div class="note">※ 保証料金額（初回／更新）が最低保証料未満の場合は、規定の最低保証料を記入してください。</div>' +
+    { label: '利用保証商品', value: d.planJID,
+      note: 'JIDトリオ／JIDトリオA／JIDトリオB／JIDトリオTrust／JIDトリオTrust分割型／' +
+        'JIDトリオTrust分割型アイプラス／JIDトリオN／JIDトリオN分割型／その他' },
+    { label: '保証委託契約年数', value: d.jidYears ? d.jidYears + ' 年' : '' },
+    { label: '初回保証料率', value: rate1 > 0 ? '毎月支払総額の ' + rate1 + ' ％' : '' },
+    { label: '初回保証料金額', value: fee1 > 0 ? yen_(String(fee1)) : '' },
+    { label: '集送金手数料（税込）', value: '' },
+    { label: '更新保証料率', value: rate2 > 0 ? '毎月支払総額の ' + rate2 + ' ％' : '' },
+    { label: '更新保証料金額', value: fee2 > 0 ? yen_(String(fee2)) : '' },
+    { note: '※ 保証料金額（初回／更新）が最低保証料未満の場合は、規定の最低保証料を記入してください。' },
 
-    '<div class="sec alt">申込者様記入欄</div>' +
-    '<table>' + rows_([
-      ['フリガナ', esc_(d.aKana)],
-      ['お名前', '<b>' + esc_(d.aName) + '</b>　<span class="note">※契約書にご捺印ください</span>'],
-      ['自宅電話', or_(esc_(d.aTel))],
-      ['携帯電話', '<b>' + esc_(d.aMobile) + '</b>'],
-      ['ご住所', esc_(addr_(d.aZip, d.aPref, d.aAddr))],
-      ['生年月日', jpDate_(d.aBirth) + '　（' + esc_(d.aAge) + ' 歳）'],
-      ['性別', pick_(d.aSex, ['男', '女'])],
-      ['国籍', esc_(d.aNationality)],
-      ['お勤め先（学校）名称', esc_(d.aCompany)],
-      ['電話番号', '<b>' + esc_(d.aCompanyTel) + '</b>'],
-      ['所在地', esc_(addr_(d.aCompanyZip, d.aCompanyPref, d.aCompanyAddr))],
-      ['社員数', d.aEmployees ? num_(d.aEmployees) + ' 人' : or_('')],
-      ['月収（手取）', '<b>' + num_(d.aIncomeMonth) + ' 万円</b>'],
-      ['勤続年数', esc_(d.aWorkYears) + ' 年 ' + or_(esc_(d.aWorkMonths), '0') + ' ヶ月'],
-      ['転居理由', esc_(d.moveReason)],
-      ['職業', pick_(job, jobOpts)],
-      ['居住年数（入居中の場合）', or_(esc_(d.aResidenceYears)) + ' 年 ' + or_(esc_(d.aResidenceMonths), '0') + ' ヶ月'],
-      ['お住い', pick_(res, ['自己所有', '社宅・寮', '賃貸・その他'])],
-    ]) + '</table>' +
+    { sec: '申込者様記入欄', alt: true },
+    { label: 'フリガナ', value: d.aKana },
+    { label: 'お名前', value: d.aName, bold: true, note: '※契約書にご捺印ください' },
+    { label: '自宅電話', value: d.aTel },
+    { label: '携帯電話', value: d.aMobile, bold: true },
+    { label: 'ご住所', value: addr_(d.aZip, d.aPref, d.aAddr) },
+    { label: '生年月日', value: jpDate_(d.aBirth), tail: d.aAge ? '（' + d.aAge + ' 歳）' : '' },
+    { label: '性別', value: d.aSex, pick: ['男', '女'] },
+    { label: '国籍', value: d.aNationality },
+    { label: 'お勤め先（学校）名称', value: d.aCompany },
+    { label: '電話番号', value: d.aCompanyTel, bold: true },
+    { label: '所在地', value: addr_(d.aCompanyZip, d.aCompanyPref, d.aCompanyAddr) },
+    { label: '社員数', value: d.aEmployees ? num_(d.aEmployees) + ' 人' : '' },
+    { label: '月収（手取）', value: d.aIncomeMonth ? num_(d.aIncomeMonth) + ' 万円' : '', bold: true },
+    { label: '勤続年数', value: (d.aWorkYears || '0') + ' 年 ' + (d.aWorkMonths || '0') + ' ヶ月' },
+    { label: '転居理由', value: d.moveReason },
+    { label: '職業', value: job, pick: jobOpts },
+    { label: '居住年数（入居中の場合）', value: (d.aResidenceYears || '0') + ' 年 ' + (d.aResidenceMonths || '0') + ' ヶ月' },
+    { label: 'お住い', value: res, pick: ['自己所有', '社宅・寮', '賃貸・その他'] },
 
-    '<div class="sec">入居者</div>' +
-    '<table>' + rows_([
-      ['入居人数', esc_(d.totalPeople) + ' 人'],
-      ['入居形態', esc_(d.liveKind)],
-    ]) + '</table>' +
-    (ks.length ? '<table class="people">' +
-      '<tr><th>#</th><th>フリガナ</th><th>お名前</th><th>携帯電話</th><th>生年月日</th><th>性別</th><th>続柄</th></tr>' +
-      ks.slice(0, 2).map(function (k, i) {
-        return '<tr><td>' + (i + 1) + '</td><td>' + esc_(k.kana) + '</td><td>' + esc_(k.name) + '</td>' +
-          '<td>' + esc_(k.tel) + '</td><td>' + jpDate_(k.birth) + '（' + esc_(k.age) + '歳）</td>' +
-          '<td>' + esc_(k.sex) + '</td><td>' + esc_(k.relation) + '</td></tr>';
-      }).join('') + '</table>' +
-      (ks.length > 2 ? '<div class="warn">入居者欄は2名分のため、3人目以降は「JIDへの連絡事項」欄へ記入してください。</div>' : '')
-      : '') +
+    { sec: '入居者' },
+    { label: '入居人数', value: d.totalPeople ? d.totalPeople + ' 人' : '' },
+    { label: '入居形態', value: d.liveKind },
+    ks.length ? {
+      table: {
+        head: ['#', 'フリガナ', 'お名前', '携帯電話', '生年月日', '性別', '続柄'],
+        rows: ks.slice(0, 2).map(function (k, i) {
+          return [i + 1, k.kana, k.name, k.tel, jpDate_(k.birth) + (k.age ? '（' + k.age + '歳）' : ''), k.sex, k.relation];
+        }),
+      }
+    } : null,
+    ks.length > 2 ? { warn: '入居者欄は2名分のため、3人目以降は「JIDへの連絡事項」欄へ記入してください。' } : null,
 
-    '<div class="sec alt">緊急連絡先</div>' +
-    '<table>' + rows_([
-      ['種別', pick_(d.eKind, ['緊急連絡先のみ', '連帯保証人 兼 緊急連絡先', '親権者'])],
-      ['申込者との関係', esc_(d.eRelation)],
-      ['フリガナ', esc_(d.eKana)],
-      ['お名前', '<b>' + esc_(d.eName) + '</b>'],
-      ['自宅電話', or_(esc_(d.eTel))],
-      ['携帯電話', '<b>' + esc_(d.eMobile) + '</b>'],
-      ['ご住所', esc_(addr_(d.eZip, d.ePref, d.eAddr))],
-      ['生年月日', jpDate_(d.eBirth) + (d.eAge ? '　（' + esc_(d.eAge) + ' 歳）' : '')],
-      ['性別', pick_(d.eSex, ['男', '女'])],
-      ['国籍', or_(esc_(d.eNationality))],
-    ]) + '</table>' +
-    '<div class="note">※ 緊急連絡先は原則、別世帯にお住いのお身内の方でお願いします。</div>' +
-
-    (d.hasGuarantor === 'あり'
-      ? '<div class="sec">連帯保証人（参考：統一申込書の内容）</div>' +
-      '<table>' + rows_([
-        ['フリガナ／お名前', esc_(d.gKana) + '　／　<b>' + esc_(d.gName) + '</b>'],
-        ['続柄・性別', esc_(d.gRelation) + '　' + esc_(d.gSex)],
-        ['生年月日', jpDate_(d.gBirth) + (d.gAge ? '　（' + esc_(d.gAge) + ' 歳）' : '')],
-        ['ご住所', esc_(addr_(d.gZip, d.gPref, d.gAddr))],
-        ['自宅電話／携帯電話', or_(esc_(d.gTel)) + '　／　<b>' + esc_(d.gMobile) + '</b>'],
-        ['職業', conv_(MAP_EMPLOYMENT, d.gEmployment, 'jid')],
-        ['お勤め先／電話番号', esc_(d.gCompany) + '　／　' + esc_(d.gCompanyTel)],
-        ['月収（手取）', d.gIncomeMonth ? num_(d.gIncomeMonth) + ' 万円' : or_('')],
-      ]) + '</table>' +
-      '<div class="note">※ 連帯保証人を立てる場合、緊急連絡先の「種別」で「連帯保証人 兼 緊急連絡先」を選択するか、所定の連帯保証人用書面をご使用ください。</div>'
-      : '') +
-
-    '<div class="sec alt">代理店</div>' +
-    '<table>' + rows_([
-      ['代理店コード', or_(esc_(d.agentNo))],
-      ['代理店名', or_(esc_(d.agentCompany) || esc_(M_CONFIG.COMPANY))],
-      ['電話番号', esc_(M_CONFIG.COMPANY_TEL)],
-      ['FAX番号', esc_(M_CONFIG.COMPANY_FAX)],
-      ['担当者氏名', or_(esc_(d.agentStaff))],
-      ['JIDへの連絡事項', or_(esc_(d.note)) +
-        (ks.length > 2 ? '<br><b>【3人目以降の入居者】</b><br>' + ks.slice(2).map(function (k) {
-          return esc_(k.name) + '（' + esc_(k.kana) + '）　続柄：' + esc_(k.relation) + '　' + jpDate_(k.birth);
-        }).join('<br>') : '')],
-    ]) + '</table>' +
-
-    '<div class="warn">※ 代理店情報（代理店コード、代理店名等）を必ず記入してください。　審査FAX：03-5620-2910</div>';
+    { sec: '緊急連絡先', alt: true },
+    { label: '種別', value: d.eKind, pick: ['緊急連絡先のみ', '連帯保証人 兼 緊急連絡先', '親権者'] },
+    { label: '申込者との関係', value: d.eRelation },
+    { label: 'フリガナ', value: d.eKana },
+    { label: 'お名前', value: d.eName, bold: true },
+    { label: '自宅電話', value: d.eTel },
+    { label: '携帯電話', value: d.eMobile, bold: true },
+    { label: 'ご住所', value: addr_(d.eZip, d.ePref, d.eAddr) },
+    { label: '生年月日', value: jpDate_(d.eBirth), tail: d.eAge ? '（' + d.eAge + ' 歳）' : '' },
+    { label: '性別', value: d.eSex, pick: ['男', '女'] },
+    { label: '国籍', value: d.eNationality },
+    { note: '※ 緊急連絡先は原則、別世帯にお住いのお身内の方でお願いします。' },
+  ].concat(d.hasGuarantor === 'あり' ? [
+    { sec: '連帯保証人（参考：統一申込書の内容）' },
+    { label: 'フリガナ', value: d.gKana },
+    { label: 'お名前', value: d.gName, bold: true },
+    { label: '続柄・性別', value: [d.gRelation, d.gSex].filter(String).join('　') },
+    { label: '生年月日', value: jpDate_(d.gBirth), tail: d.gAge ? '（' + d.gAge + ' 歳）' : '' },
+    { label: 'ご住所', value: addr_(d.gZip, d.gPref, d.gAddr) },
+    { label: '自宅電話', value: d.gTel },
+    { label: '携帯電話', value: d.gMobile, bold: true },
+    { label: '職業', value: conv_(MAP_EMPLOYMENT, d.gEmployment, 'jid') },
+    { label: 'お勤め先', value: d.gCompany },
+    { label: 'お勤め先 電話番号', value: d.gCompanyTel },
+    { label: '月収（手取）', value: d.gIncomeMonth ? num_(d.gIncomeMonth) + ' 万円' : '' },
+    { note: '※ 連帯保証人を立てる場合、緊急連絡先の「種別」で「連帯保証人 兼 緊急連絡先」を選択するか、所定の連帯保証人用書面をご使用ください。' },
+  ] : []).concat([
+    { sec: '代理店', alt: true },
+    { label: '代理店コード', value: d.agentNo },
+    { label: '代理店名', value: d.agentCompany || M_CONFIG.COMPANY },
+    { label: '電話番号', value: M_CONFIG.COMPANY_TEL },
+    { label: 'FAX番号', value: M_CONFIG.COMPANY_FAX },
+    { label: '担当者氏名', value: d.agentStaff },
+    { label: 'JIDへの連絡事項', value: (d.note || '') +
+      (ks.length > 2 ? (d.note ? '\n' : '') + '【3人目以降の入居者】\n' + ks.slice(2).map(function (k) {
+        return k.name + '（' + k.kana + '）　続柄：' + k.relation + '　' + jpDate_(k.birth);
+      }).join('\n') : '') },
+    { warn: '※ 代理店情報（代理店コード、代理店名等）を必ず記入してください。　審査FAX：03-5620-2910' },
+  ]);
 }
 
 /* ============================================================
