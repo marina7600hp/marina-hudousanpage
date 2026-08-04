@@ -56,7 +56,11 @@
         #gateBtn { width:100%; margin-top:12px; background:#005f73; color:#fff; border:none; padding:12px; border-radius:8px; font-size:15px; font-weight:700; cursor:pointer; }
         .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
         .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-        @media (max-width:640px){ .grid3 { grid-template-columns:1fr 1fr; } }
+        /* スマホでは1列にする（保証会社カードのボタンが潰れないように） */
+        @media (max-width:640px){
+            .grid2 { grid-template-columns:1fr; }
+            .grid3 { grid-template-columns:1fr 1fr; }
+        }
         .tabs { display:flex; gap:6px; margin-bottom:14px; }
         .tabs button { flex:1; font-size:13px; font-weight:700; padding:9px; border-radius:9px; border:1px solid #e2e8f0; background:#fff; color:#64748b; cursor:pointer; }
         .tabs button.on { background:#005f73; color:#fff; border-color:#005f73; }
