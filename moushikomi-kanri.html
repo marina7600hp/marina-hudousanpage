@@ -322,8 +322,8 @@
                     '<button class="go" ' + (g.canEmail ? '' : 'disabled title="メール送信先が未設定です"') +
                     ' onclick="send(\'' + g.key + '\',\'email\')">✉ メールで送信</button>' +
                     '<button class="go" ' + (g.canFax ? '' : 'disabled title="インターネットFAXが未設定です"') +
-                    ' onclick="send(\'' + g.key + '\',\'fax\')">📠 FAXで送信</button>' +
-                    '<button onclick="send(\'' + g.key + '\',\'manual\')">📄 送付状PDFを作成</button>' +
+                    ' onclick="send(\'' + g.key + '\',\'fax\')">📠 FAXで自動送信</button>' +
+                    '<button onclick="send(\'' + g.key + '\',\'manual\')">📄 FAX送信用PDFを作る</button>' +
                     '</div>' +
                     (already ? '<p class="sent">✓ 送信済み</p>' : '') +
                     '</div>';
@@ -349,8 +349,10 @@
                 // ---- 保証会社への審査依頼 ----
                 '<div class="card">' +
                 '<p class="stage-title">① 保証会社へ審査を依頼する</p>' +
-                '<p class="note mb-3">どの保証会社に流すかを選んで送信してください。転記シートと本人確認書類が添付されます。' +
-                (sentTo ? '<br><b>送信済み：' + esc(sentTo) + '</b>' : '') + '</p>' +
+                '<p class="note mb-3">どの保証会社に流すかを選んで送信してください。転記シートと本人確認書類が添付されます。<br>' +
+                '<b>📄 FAX送信用PDFを作る</b>…送付状・転記シート・本人確認書類を1つのPDFにまとめます。' +
+                'そのPDFを開いて「印刷」→ プリンターに「EPSON FAX」を選べば、紙に出さずにFAX送信できます。' +
+                (sentTo ? '<br><b class="text-green-700">送信済み：' + esc(sentTo) + '</b>' : '') + '</p>' +
                 '<div class="grid2" style="gap:10px">' + gcoHtml + '</div>' +
                 '<div class="mt-3">' +
                 '<label class="field-label" for="sendMsg">申し送り事項（任意・送信文に追記されます）</label>' +
@@ -462,8 +464,15 @@
                 message: ($('sendMsg') && $('sendMsg').value || '').trim(),
             });
             loading(false);
-            alert(r.ok ? (r.message || '送信しました。') : (r.error || '送信に失敗しました。'));
-            if (r.ok) { await reload(); await openCase(v('受付番号')); }
+            if (!r.ok) { alert(r.error || '送信に失敗しました。'); return; }
+            alert(r.message || '送信しました。');
+            // FAX送信用PDFを作った場合は、そのまま開けるようにする
+            if (r.fileUrl && confirm('作成したPDFを開きますか？\n\n' + (r.fileName || ''))) {
+                window.open(r.fileUrl, '_blank', 'noopener');
+            }
+            const no = v('受付番号');
+            await reload();
+            await openCase(no);
         }
 
         async function setStatus(status) {

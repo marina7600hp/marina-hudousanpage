@@ -434,20 +434,31 @@ function sendToGuarantor_(receiptNo, guarantorKey, method, message) {
     how = 'メール（' + g.email + '）';
   }
 
-  // FAX送付状PDFを作成（FAX送信時・手動送信時）
+  // FAX送信用の一括PDF（送付状＋転記シート＋本人確認書類）を作成する。
+  // PC-FAX（EPSON FAX Utility 等）で、この1ファイルを「印刷」するだけで送信できる。
   if (method === 'fax' || method === 'manual') {
-    const cover = buildFaxCoverPdf_(g, c, receiptNo, attachments.length, message);
-    tenkiFolder.createFile(cover);
-    attachments.unshift(cover);
-  }
+    const idBlobs = [];
+    const it3 = idFolder.getFiles();
+    while (it3.hasNext()) idBlobs.push(it3.next());
 
-  if (method === 'manual') {
-    updateStatus_(receiptNo, '審査依頼済', g.short + '：送付状PDFを作成（手動FAX）');
-    return {
-      ok: true,
-      message: g.short + ' 宛のFAX送付状PDFを案件フォルダに作成しました。印刷して ' +
-        (g.fax || '各社所定のFAX番号') + ' へ送信してください。'
-    };
+    const packet = buildFaxPacketPdf_(g, c, caseToData_(c), receiptNo, new Date(), idBlobs, message);
+    const packetFile = tenkiFolder.createFile(packet);
+
+    if (method === 'manual') {
+      updateStatus_(receiptNo, '審査依頼済', g.short + '：FAX送信用PDFを作成（PC-FAX／手動送信）');
+      return {
+        ok: true,
+        message: g.short + ' 宛のFAX送信用PDF（送付状・転記シート・本人確認書類を1つにまとめたもの）を作成しました。\n\n' +
+          'このPDFを開いて「印刷」→ プリンターに「EPSON FAX」を選び、FAX番号 ' +
+          (g.fax || '（各社所定の番号）') + ' へ送信してください。紙に印刷する必要はありません。',
+        fileUrl: packetFile.getUrl(),
+        fileName: packetFile.getName(),
+      };
+    }
+
+    // インターネットFAXへは、この一括PDF1つだけを送る
+    attachments.length = 0;
+    attachments.push(packet);
   }
 
   MailApp.sendEmail({
@@ -463,11 +474,56 @@ function sendToGuarantor_(receiptNo, guarantorKey, method, message) {
   return { ok: true, message: g.short + ' へ ' + how + ' で審査依頼を送信しました。' };
 }
 
-/** FAX送付状PDF */
-function buildFaxCoverPdf_(g, c, receiptNo, attachCount, message) {
-  const now = new Date();
+/**
+ * FAX送信用の一括PDFを作成する。
+ *
+ * 送付状 → 転記シート → 本人確認書類 を1つのPDFにまとめるので、
+ * EPSON EW-M5610FT などの PC-FAX（FAX Utility）で「印刷」→「EPSON FAX」を
+ * 選ぶだけで、紙に出さずにそのままFAX送信できる。
+ */
+function buildFaxPacketPdf_(g, c, data, receiptNo, now, idFiles, message) {
+  const brk = '<div style="page-break-before:always"></div>';
+
+  // 本人確認書類の画像をPDFへ埋め込む（PDFで提出されたものは埋め込めないので一覧のみ）
+  const imgs = [];
+  const others = [];
+  (idFiles || []).forEach(function (f) {
+    const blob = f.getBlob();
+    const type = blob.getContentType() || '';
+    if (type.indexOf('image/') === 0) {
+      imgs.push({
+        name: f.getName(),
+        src: 'data:' + type + ';base64,' + Utilities.base64Encode(blob.getBytes()),
+      });
+    } else {
+      others.push(f.getName());
+    }
+  });
+
+  const idPages = imgs.map(function (im, i) {
+    return brk +
+      '<div class="sec">本人確認書類（' + (i + 1) + '／' + imgs.length + '）　' + esc_(im.name) + '</div>' +
+      '<div style="text-align:center;">' +
+      '<img src="' + im.src + '" style="max-width:100%;max-height:880px;border:1px solid #999;">' +
+      '</div>';
+  }).join('');
+
   const html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' + pdfStyle_() + '</head><body>' +
-    '<div class="meta">' + Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy年M月d日') + '</div>' +
+    faxCoverBody_(g, c, receiptNo, 1 + imgs.length, message, others) +
+    brk +
+    tenkiBody_(g, data) +
+    idPages +
+    '</body></html>';
+
+  const name = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd') + '_FAX送信用_' +
+    safeName_(g.short) + '_' + safeName_(c.bukken) + '_' + safeName_(c.aName) + '.pdf';
+  return Utilities.newBlob(html, MimeType.HTML, name).getAs(MimeType.PDF).setName(name);
+}
+
+/** FAX送付状の本文（単体PDFにも一括PDFの1ページ目にも使う） */
+function faxCoverBody_(g, c, receiptNo, attachCount, message, others) {
+  const now = new Date();
+  return '<div class="meta">' + Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy年M月d日') + '</div>' +
     '<h1>Ｆ Ａ Ｘ 送 信 票</h1>' +
     '<div class="sub">賃貸保証委託申込書 送付のご案内</div>' +
     '<table>' + rows_([
@@ -491,7 +547,18 @@ function buildFaxCoverPdf_(g, c, receiptNo, attachCount, message) {
     '本紙に続き、賃貸保証委託申込書（転記シート）および本人確認書類を送信いたします。' +
     (message ? '<br><br>' + esc_(message) : '') +
     '</div>' +
-    '<div class="foot">本FAXの内容にお心当たりがない場合は、お手数ですが上記TELまでご連絡ください。</div>' +
+    ((others && others.length)
+      ? '<div class="warn">次の書類はPDFのため本FAXに含まれていません。別途送信してください。<br>' +
+        others.map(function (n) { return '・' + esc_(n); }).join('<br>') + '</div>'
+      : '') +
+    '<div class="foot">本FAXの内容にお心当たりがない場合は、お手数ですが上記TELまでご連絡ください。</div>';
+}
+
+/** FAX送付状PDF（送付状のみ・1枚） */
+function buildFaxCoverPdf_(g, c, receiptNo, attachCount, message) {
+  const now = new Date();
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' + pdfStyle_() + '</head><body>' +
+    faxCoverBody_(g, c, receiptNo, attachCount, message, []) +
     '</body></html>';
 
   const name = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd') + '_FAX送付状_' +
@@ -791,12 +858,16 @@ function peopleTable_(list) {
  *  ② 保証会社ごとの転記シート PDF
  * ========================================================== */
 
+/** 保証会社ごとの転記シート本体（HTML） */
+function tenkiBody_(g, data) {
+  if (g.key === 'ns') return tenkiNS_(data);
+  if (g.key === 'zh') return tenkiZH_(data);
+  if (g.key === 'nap') return tenkiNAP_(data);
+  return tenkiJID_(data);
+}
+
 function buildTenkiPdf_(g, data, receiptNo, now) {
-  let body = '';
-  if (g.key === 'ns') body = tenkiNS_(data);
-  else if (g.key === 'zh') body = tenkiZH_(data);
-  else if (g.key === 'nap') body = tenkiNAP_(data);
-  else body = tenkiJID_(data);
+  const body = tenkiBody_(g, data);
 
   const html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' + pdfStyle_() + '</head><body>' +
     '<div class="meta">受付番号：' + esc_(receiptNo) + '<br>' +
