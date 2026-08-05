@@ -43,6 +43,7 @@ const M_CONFIG = {
     tenki: '保証会社転記シート',
     id: '本人確認書類',
     docs: '契約書類',
+    keys: '鍵',
   },
 };
 
@@ -231,11 +232,13 @@ function doPost(e) {
       // 添付の保存に失敗しても申込自体は成立させる（通知メールで知らせる）
     }
 
-    // 4) 契約書類（見積書・請求書・賃貸借契約書・鍵受領書）を自動作成
+    // 4) 見積書を作成（初期費用をお客様へ提示するため、受付時点で用意する）
+    //    重要事項説明書・賃貸借契約書・請求書・鍵受領書は、
+    //    保証会社の審査に通ってから管理コンソールで作成します。
     let docFiles = [];
     let docError = '';
     try {
-      docFiles = buildAllDocuments_(caseFolder, data, receiptNo, now);
+      docFiles = [buildEstimateOnly_(caseFolder, data, receiptNo, now)];
     } catch (err) {
       docError = String(err);
     }
@@ -351,6 +354,21 @@ function handleAdmin_(data) {
     return json_({ ok: true });
   }
 
+  // 保証会社1社ごとの審査結果を登録（否認なら次に出せる会社を返す）
+  if (action === 'setResult') {
+    return json_(setGuarantorResult_(data.receiptNo, data.guarantorKey, data.result, data.memo));
+  }
+
+  // 鍵の情報・写真を登録して鍵受領書を作り直す
+  if (action === 'saveKeys') {
+    return json_(saveKeys_(data.receiptNo, data.keys || [], data.files || [], data.handoverDate));
+  }
+
+  // 審査通過後の契約書類一式（重要事項説明書・賃貸借契約書・請求書・鍵受領書）
+  if (action === 'buildContract') {
+    return json_(buildContractDocuments_(data.receiptNo, data.overrides || {}));
+  }
+
   // 契約書類の再作成（物件マスターや金額を直したあとに使う）
   if (action === 'rebuildDocs') {
     const r = rebuildDocuments_(data.receiptNo, data.overrides || {});
@@ -456,7 +474,7 @@ function sendToGuarantor_(receiptNo, guarantorKey, method, message) {
     const packetFile = tenkiFolder.createFile(packet);
 
     if (method === 'manual') {
-      updateStatus_(receiptNo, '審査依頼済', g.short + '：FAX送信用PDFを作成（PC-FAX／手動送信）');
+      markSent_(receiptNo, g, 'PC-FAX（手動送信）');
       return {
         ok: true,
         message: g.short + ' 宛のFAX送信用PDF（送付状・転記シート・本人確認書類を1つにまとめたもの）を作成しました。\n\n' +
@@ -481,8 +499,29 @@ function sendToGuarantor_(receiptNo, guarantorKey, method, message) {
     replyTo: M_CONFIG.NOTIFY_EMAIL,
   });
 
-  updateStatus_(receiptNo, '審査依頼済', g.short + '：' + how + ' で送信');
+  markSent_(receiptNo, g, how);
   return { ok: true, message: g.short + ' へ ' + how + ' で審査依頼を送信しました。' };
+}
+
+/** 1社へ送信したことを記録する */
+function markSent_(receiptNo, g, how) {
+  const c = getCase_(receiptNo);
+  if (!c) return;
+  const review = readReview_(c);
+  const now = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
+  review[g.key] = review[g.key] || {};
+  review[g.key].sentAt = now;
+  review[g.key].method = how;
+  // 出し直しの場合は前回の結果を消す
+  review[g.key].result = '';
+  review[g.key].resultAt = '';
+
+  const sheet = logSheet_();
+  const idx = headerIndex_(sheet);
+  if (idx['審査依頼日時']) sheet.getRange(c.rowNo, idx['審査依頼日時']).setValue(now);
+
+  writeReview_(receiptNo, review);
+  appendMemo_(receiptNo, g.short + '：' + how + ' で審査依頼を送信');
 }
 
 /**
@@ -1518,6 +1557,7 @@ function logColumns_() {
   return [
     ['受付日時', null], ['受付番号', null],
     ['ステータス', null], ['審査依頼先', null], ['審査依頼日時', null], ['審査結果メモ', null],
+    ['審査状況', null],
     ['案件フォルダ', null], ['案件フォルダID', null], ['申込書PDF', null],
     ['申込日', 'applyDate'], ['入居希望日', 'moveInDate'], ['申込区分', 'applyKind'],
     ['物件名フリガナ', 'bukkenKana'], ['物件名', 'bukken'], ['号室', 'room'],
@@ -1563,7 +1603,7 @@ function logColumns_() {
     ['取扱店', 'agentCompany'], ['担当者', 'agentStaff'], ['取扱店NO', 'agentNo'],
     ['仲介会社', 'chukai'], ['仲介TEL', 'chukaiTel'], ['仲介FAX', 'chukaiFax'],
     ['賃料支払日', 'payDay'], ['賃料支払方法', 'payMethod'],
-    ['本人確認書類', 'idType'], ['添付点数', null],
+    ['本人確認書類', 'idType'], ['添付点数', null], ['鍵情報', null],
     ['通信欄', 'note'], ['電子署名', 'signName'], ['同意', null],
   ];
 }
@@ -1652,6 +1692,99 @@ function getCase_(receiptNo) {
     }
   }
   return null;
+}
+
+/* ---------- 保証会社ごとの審査状況 ----------
+ * 「審査状況」列にJSONで保持する。
+ *   { ns:{ sentAt, method, result, resultAt, memo }, zh:{…}, … }
+ *   result … ''（審査中）／'承認'／'否認'／'取下げ'
+ * 1社が否認でも、他社へ出し直せるように会社ごとに独立して持つ。
+ */
+
+/** 審査状況を読み出す */
+function readReview_(c) {
+  try {
+    const o = JSON.parse(String(c['審査状況'] || '{}'));
+    return (o && typeof o === 'object') ? o : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+/** 審査状況を書き戻す（同時に全体ステータスを再計算する） */
+function writeReview_(receiptNo, review) {
+  const sheet = logSheet_();
+  const c = getCase_(receiptNo);
+  if (!c) throw new Error('申込が見つかりません：' + receiptNo);
+  const idx = headerIndex_(sheet);
+
+  if (idx['審査状況']) {
+    sheet.getRange(c.rowNo, idx['審査状況']).setValue(JSON.stringify(review));
+  }
+  // 送信済みの会社名を一覧列にも反映（スプレッドシートで見やすくするため）
+  if (idx['審査依頼先']) {
+    const names = GUARANTORS.filter(function (g) { return review[g.key] && review[g.key].sentAt; })
+      .map(function (g) {
+        const r = review[g.key];
+        return g.short + (r.result ? '（' + r.result + '）' : '');
+      });
+    sheet.getRange(c.rowNo, idx['審査依頼先']).setValue(names.join('・'));
+  }
+
+  // 全体ステータスを審査状況から決める（契約段階に進んだ案件は触らない）
+  const cur = String(c['ステータス'] || '受付');
+  if (['契約書類作成済', '契約完了', 'キャンセル'].indexOf(cur) < 0) {
+    const list = GUARANTORS.map(function (g) { return review[g.key]; })
+      .filter(function (r) { return r && r.sentAt; });
+    let status = '受付';
+    if (list.length) {
+      if (list.some(function (r) { return r.result === '承認'; })) status = '審査承認';
+      else if (list.length && list.every(function (r) { return r.result === '否認' || r.result === '取下げ'; })) status = '審査否認';
+      else status = '審査依頼済';
+    }
+    if (idx['ステータス']) sheet.getRange(c.rowNo, idx['ステータス']).setValue(status);
+  }
+}
+
+/** 1社の審査結果を登録する */
+function setGuarantorResult_(receiptNo, guarantorKey, result, memo) {
+  const g = GUARANTORS.filter(function (x) { return x.key === guarantorKey; })[0];
+  if (!g) return { ok: false, error: '保証会社が特定できません。' };
+  if (['承認', '否認', '取下げ', ''].indexOf(result) < 0) {
+    return { ok: false, error: '不明な審査結果です：' + result };
+  }
+
+  const c = getCase_(receiptNo);
+  if (!c) return { ok: false, error: '申込が見つかりません：' + receiptNo };
+
+  const review = readReview_(c);
+  const now = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
+  review[guarantorKey] = review[guarantorKey] || {};
+  review[guarantorKey].result = result;
+  review[guarantorKey].resultAt = now;
+  if (memo) review[guarantorKey].memo = memo;
+
+  writeReview_(receiptNo, review);
+  appendMemo_(receiptNo, g.short + '：' + (result || '審査中') + (memo ? '　' + memo : ''));
+
+  // 否認だった場合、まだ出していない保証会社を次の候補として返す
+  const rest = GUARANTORS.filter(function (x) {
+    return !(review[x.key] && review[x.key].sentAt);
+  }).map(function (x) { return { key: x.key, short: x.short }; });
+
+  return { ok: true, review: review, remaining: result === '否認' ? rest : [] };
+}
+
+/** 審査結果メモ列に1行追記する */
+function appendMemo_(receiptNo, text) {
+  const sheet = logSheet_();
+  const c = getCase_(receiptNo);
+  if (!c) return;
+  const idx = headerIndex_(sheet);
+  if (!idx['審査結果メモ']) return;
+  const now = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
+  const prev = String(c['審査結果メモ'] || '');
+  sheet.getRange(c.rowNo, idx['審査結果メモ']).setValue((prev ? prev + '\n' : '') + now + '　' + text);
 }
 
 /** ステータス・審査依頼先の更新 */
@@ -1762,7 +1895,7 @@ function sendNotifyMail_(data, receiptNo, now, unifiedFile, tenkiFiles, idFiles,
     .concat(tenkiFiles.map(function (f) { return '　・' + f.getName(); }))
     .concat([
       '',
-      '■ 契約書類（自動作成）',
+      '■ 見積書（自動作成）',
     ])
     .concat((docFiles || []).length
       ? docFiles.map(function (f) { return '　・' + f.getName(); })
@@ -1772,6 +1905,8 @@ function sendNotifyMail_(data, receiptNo, now, unifiedFile, tenkiFiles, idFiles,
       '───────────────────',
       '★ 保証会社への審査依頼は自動送信していません。',
       '　 管理コンソールから、どの保証会社に流すかを選んで送信してください。',
+      '★ 重要事項説明書・賃貸借契約書・請求書・鍵受領書は、',
+      '　 審査に通ってから管理コンソールで作成します。',
       '───────────────────',
       '',
       '■ 案件フォルダ：' + caseFolder.getUrl(),

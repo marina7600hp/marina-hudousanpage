@@ -83,6 +83,41 @@
         .tenki-pick b { color:#005f73; }
         .tenki-row.empty .tenki-val { font-weight:400; }
         .off { color:#94a3b8; }
+        /* お申込みの流れ（進捗） */
+        .stages { display:flex; gap:5px; margin-top:12px; }
+        .stage { flex:1; text-align:center; font-size:10.5px; font-weight:700; color:#94a3b8;
+            background:#f1f5f9; border-radius:7px; padding:7px 3px; line-height:1.4; }
+        .stage .n { display:block; font-size:13px; }
+        .stage.done { background:#e5f6f6; color:#005f73; }
+        .stage.now { background:#005f73; color:#fff; }
+        .hint-box { font-size:12px; line-height:1.7; background:#e0f2fe; color:#0c4a6e;
+            border-radius:8px; padding:10px 12px; margin-bottom:12px; }
+        .hint-box.warn-box { background:#fff7ed; color:#9a3412; }
+        .gco-card.ok { border-color:#22c55e; background:#f0fdf4; }
+        .gco-result { margin-top:9px; font-size:11.5px; color:#64748b; display:flex;
+            align-items:center; gap:6px; flex-wrap:wrap; }
+        .gco-result button { font-size:12px; font-weight:700; border-radius:7px; padding:6px 13px;
+            cursor:pointer; border:1px solid #cbd5e1; background:#fff; }
+        .gco-result button.ok { border-color:#16a34a; color:#15803d; }
+        .gco-result button.ok:hover { background:#dcfce7; }
+        .gco-result button.ng { border-color:#dc2626; color:#b91c1c; }
+        .gco-result button.ng:hover { background:#fee2e2; }
+        /* 鍵の写真アップロード */
+        .up-box { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
+            border:1px dashed #94a3b8; border-radius:10px; background:#fff; padding:18px 10px;
+            cursor:pointer; text-align:center; }
+        .up-box:hover { border-color:#028090; background:#f4fbfb; }
+        .up-box input[type=file] { display:none; }
+        .up-box .up-ico { font-size:24px; line-height:1; }
+        .up-box .up-txt { font-size:12.5px; font-weight:700; color:#005f73; }
+        .prev { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+        .prev .thumb { position:relative; border:1px solid #cbd5e1; border-radius:8px;
+            overflow:hidden; width:96px; background:#fff; }
+        .prev .thumb img { width:100%; height:68px; object-fit:cover; display:block; }
+        .prev .thumb .fname { font-size:9.5px; color:#475569; padding:3px 4px;
+            word-break:break-all; line-height:1.3; }
+        .prev .thumb .rm { position:absolute; top:3px; right:3px; background:rgba(15,23,42,.75);
+            color:#fff; border:none; border-radius:6px; font-size:10px; padding:1px 6px; cursor:pointer; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-16">
@@ -323,9 +358,8 @@
         function v(key) { return CUR[key] == null ? '' : String(CUR[key]); }
 
         function renderDetail() {
-            const c = CUR;
             const status = v('ステータス') || '受付';
-            const sentTo = v('審査依頼先');
+            const review = readReview();
 
             const rowsHtml = function (list) {
                 return list.filter(function (r) { return r[1] !== ''; }).map(function (r) {
@@ -333,24 +367,65 @@
                 }).join('');
             };
 
-            // --- 保証会社への送信ボタン（どこに流すかは担当者が選ぶ） ---
+            // 進捗バー（お申込みの流れ）
+            const stages = ['申込受付', '保証会社審査', '契約書類', '鍵引渡し'];
+            let stageNo = 1;
+            if (['審査依頼済', '審査承認', '審査否認'].indexOf(status) >= 0) stageNo = 2;
+            if (status === '契約書類作成済') stageNo = 3;
+            if (status === '契約完了') stageNo = 4;
+            const stageBar = '<div class="stages">' + stages.map(function (s, i) {
+                const cls = (i + 1 < stageNo) ? 'done' : (i + 1 === stageNo ? 'now' : '');
+                return '<div class="stage ' + cls + '"><span class="n">' + (i + 1) + '</span>' + esc(s) + '</div>';
+            }).join('') + '</div>';
+
+            // --- ① 保証会社ごとの審査状況 ---
+            const approved = GUARANTORS.some(function (g) {
+                return review[g.key] && review[g.key].result === '承認';
+            });
             const gcoHtml = GUARANTORS.map(function (g) {
-                const already = sentTo.indexOf(g.short) >= 0;
-                return '<div class="gco-card">' +
-                    '<h4>' + esc(g.short) + '</h4>' +
+                const r = review[g.key] || {};
+                let badge = '<span class="badge b-uketsuke">未送信</span>';
+                if (r.result === '承認') badge = '<span class="badge b-ok">承認</span>';
+                else if (r.result === '否認') badge = '<span class="badge b-ng">否認</span>';
+                else if (r.result === '取下げ') badge = '<span class="badge b-cancel">取下げ</span>';
+                else if (r.sentAt) badge = '<span class="badge b-irai">審査中</span>';
+
+                return '<div class="gco-card' + (r.result === '承認' ? ' ok' : '') + '">' +
+                    '<h4>' + esc(g.short) + '　' + badge + '</h4>' +
                     '<p class="meta">' + esc(g.name) +
-                    (g.fax ? '<br>審査FAX：' + esc(g.fax) : '') + '</p>' +
+                    (g.fax ? '<br>審査FAX：' + esc(g.fax) : '') +
+                    (r.sentAt ? '<br>送信：' + esc(r.sentAt) + '（' + esc(r.method || '') + '）' : '') +
+                    (r.resultAt ? '<br>結果：' + esc(r.resultAt) + (r.memo ? '　' + esc(r.memo) : '') : '') +
+                    '</p>' +
                     '<div class="gco-btns">' +
                     '<button class="go" ' + (g.canEmail ? '' : 'disabled title="メール送信先が未設定です"') +
-                    ' onclick="send(\'' + g.key + '\',\'email\')">✉ メールで送信</button>' +
+                    ' onclick="send(\'' + g.key + '\',\'email\')">✉ メール</button>' +
                     '<button class="go" ' + (g.canFax ? '' : 'disabled title="インターネットFAXが未設定です"') +
-                    ' onclick="send(\'' + g.key + '\',\'fax\')">📠 FAXで自動送信</button>' +
-                    '<button onclick="send(\'' + g.key + '\',\'manual\')">📄 FAX送信用PDFを作る</button>' +
+                    ' onclick="send(\'' + g.key + '\',\'fax\')">📠 FAX</button>' +
+                    '<button onclick="send(\'' + g.key + '\',\'manual\')">📄 FAX用PDF</button>' +
                     '<button onclick="openTenki(\'' + g.key + '\')">📋 転記ビュー</button>' +
                     '</div>' +
-                    (already ? '<p class="sent">✓ 送信済み</p>' : '') +
+                    (r.sentAt && !r.result
+                        ? '<div class="gco-result">審査結果：' +
+                          '<button class="ok" onclick="setResult(\'' + g.key + '\',\'承認\')">通過</button>' +
+                          '<button class="ng" onclick="setResult(\'' + g.key + '\',\'否認\')">不可</button>' +
+                          '</div>'
+                        : '') +
                     '</div>';
             }).join('');
+
+            // 否認された会社があり、まだ出していない会社が残っている場合の案内
+            const denied = GUARANTORS.filter(function (g) {
+                return review[g.key] && review[g.key].result === '否認';
+            });
+            const notSent = GUARANTORS.filter(function (g) { return !(review[g.key] && review[g.key].sentAt); });
+            const nextHint = (!approved && denied.length && notSent.length)
+                ? '<div class="hint-box">' +
+                  '<b>' + denied.map(function (g) { return esc(g.short); }).join('・') + ' は審査不可でした。</b><br>' +
+                  'まだ出していない ' + notSent.map(function (g) { return esc(g.short); }).join('・') +
+                  ' へ、上のボタンから出し直してください。' +
+                  '</div>'
+                : '';
 
             $('detailView').innerHTML =
                 '<div class="card">' +
@@ -361,22 +436,21 @@
                 '<div class="text-right"><p class="text-xl font-bold">' + yen(v('月額賃料合計')) + '</p>' +
                 '<p class="text-[11px] text-slate-400">受付番号 ' + esc(v('受付番号')) + '</p></div>' +
                 '</div>' +
+                stageBar +
                 '<div class="flex gap-2 mt-3 flex-wrap">' +
                 '<a class="btn btn-ghost" style="text-decoration:none" target="_blank" rel="noopener" href="' +
-                esc(v('案件フォルダ')) + '">📁 案件フォルダを開く</a>' +
+                esc(v('案件フォルダ')) + '">📁 案件フォルダ</a>' +
                 '<a class="btn btn-ghost" style="text-decoration:none" target="_blank" rel="noopener" href="' +
                 esc(v('申込書PDF')) + '">📄 入居申込書</a>' +
                 '</div>' +
                 '</div>' +
 
-                // ---- 保証会社への審査依頼 ----
+                // ---- ② 保証会社審査 ----
                 '<div class="card">' +
-                '<p class="stage-title">① 保証会社へ審査を依頼する</p>' +
-                '<p class="note mb-3">どの保証会社に流すかを選んで送信してください。転記シートと本人確認書類が添付されます。<br>' +
-                '<b>📋 転記ビュー</b>…各社のWEB申込システムに入力するとき、項目ごとにワンタップでコピーできます。<br>' +
-                '<b>📄 FAX送信用PDFを作る</b>…送付状・転記シート・本人確認書類を1つのPDFにまとめます。' +
-                'そのPDFを開いて「印刷」→ プリンターに「EPSON FAX」を選べば、紙に出さずにFAX送信できます。' +
-                (sentTo ? '<br><b class="text-green-700">送信済み：' + esc(sentTo) + '</b>' : '') + '</p>' +
+                '<p class="stage-title">② 保証会社の審査</p>' +
+                '<p class="note mb-3">どの保証会社に出すかを選んで送信してください。' +
+                '審査不可だった場合は、別の会社へ出し直せます。</p>' +
+                nextHint +
                 '<div class="grid2" style="gap:10px">' + gcoHtml + '</div>' +
                 '<div class="mt-3">' +
                 '<label class="field-label" for="sendMsg">申し送り事項（任意・送信文に追記されます）</label>' +
@@ -384,23 +458,15 @@
                 '</div>' +
                 '</div>' +
 
-                // ---- 審査結果 ----
+                // ---- ③ 契約書類 ----
                 '<div class="card">' +
-                '<p class="stage-title">② 審査結果を登録する</p>' +
-                '<div class="grid3">' +
-                '<button class="btn btn-ghost" onclick="setStatus(\'審査承認\')">✅ 承認</button>' +
-                '<button class="btn btn-ghost" onclick="setStatus(\'審査否認\')">❌ 否認</button>' +
-                '<button class="btn btn-ghost" onclick="setStatus(\'キャンセル\')">⏹ キャンセル</button>' +
-                '</div>' +
-                (v('審査結果メモ') ? '<div class="mt-3 text-xs text-slate-600 whitespace-pre-wrap bg-slate-50 rounded-lg p-3">' +
-                    esc(v('審査結果メモ')) + '</div>' : '') +
-                '</div>' +
-
-                // ---- 契約書類 ----
-                '<div class="card">' +
-                '<p class="stage-title">③ 契約書類</p>' +
-                '<p class="note mb-3">申込受付時に、見積書・請求書・賃貸借契約書・鍵受領書を自動作成しています。' +
-                '金額を直したい場合は下記を入力して作り直してください（空欄は物件マスターの値を使用）。</p>' +
+                '<p class="stage-title">③ 契約書類の作成</p>' +
+                (approved
+                    ? '<p class="note mb-3">審査に通過しています。申込内容をもとに' +
+                      '<b>重要事項説明書・賃貸借契約書・見積書・請求書・鍵受領書</b>を作成します。<br>' +
+                      '金額を調整する場合は下記に入力してください（空欄は物件マスターの値を使用）。</p>'
+                    : '<div class="hint-box warn-box">保証会社の審査に通過してから作成してください。' +
+                      '（審査前でも作成はできますが、内容が変わる場合があります）</div>') +
                 '<div class="grid3 mb-3">' +
                 '<div><label class="field-label">仲介手数料</label><input class="field-input" id="ovChukai" inputmode="numeric" placeholder="円"></div>' +
                 '<div><label class="field-label">火災保険料</label><input class="field-input" id="ovKasai" inputmode="numeric" placeholder="円"></div>' +
@@ -409,8 +475,30 @@
                 '<div><label class="field-label">保証委託料</label><input class="field-input" id="ovHosho" inputmode="numeric" placeholder="円"></div>' +
                 '<div><label class="field-label">その他</label><input class="field-input" id="ovOther" inputmode="numeric" placeholder="円"></div>' +
                 '</div>' +
-                '<button class="btn btn-primary" onclick="rebuild()">📝 契約書類を作り直す</button>' +
-                '<p class="note mt-2">賃貸借契約書は紙でのやりとり用にPDFで出力されます。案件フォルダの「契約書類」に保存されます。</p>' +
+                '<button class="btn ' + (approved ? 'btn-primary' : 'btn-ghost') + '" onclick="buildContract()">' +
+                '📝 契約書類を作成する</button>' +
+                '<p class="note mt-2">重要事項説明書と賃貸借契約書は、物件マスターに登録した物件ごとの雛形から作成します。' +
+                '紙でのやりとり用にPDFで出力されます。</p>' +
+                '</div>' +
+
+                // ---- ④ 鍵引渡し ----
+                '<div class="card">' +
+                '<p class="stage-title">④ 鍵の引渡し・鍵受領書</p>' +
+                '<p class="note mb-3">実際にお渡しする鍵を撮影してアップロードすると、' +
+                '写真つきの鍵受領書を作成します。</p>' +
+                '<div class="mb-3">' +
+                '<label class="field-label">引渡日</label>' +
+                '<input class="field-input" type="date" id="keyDate" style="max-width:220px">' +
+                '</div>' +
+                '<div id="keyRows"></div>' +
+                '<button class="btn btn-ghost mb-3" onclick="addKeyRow()">＋ 鍵を追加</button>' +
+                '<div>' +
+                '<label class="field-label">鍵の写真</label>' +
+                '<label class="up-box"><input type="file" id="keyFiles" accept="image/*" capture="environment" multiple>' +
+                '<span class="up-ico">🔑</span><span class="up-txt">タップして撮影・選択</span></label>' +
+                '<div id="keyPrev" class="prev"></div>' +
+                '</div>' +
+                '<button class="btn btn-primary mt-3" onclick="saveKeys()">🔑 鍵受領書を作成する</button>' +
                 '</div>' +
 
                 // ---- 申込内容 ----
@@ -464,13 +552,140 @@
                           '　勤務先：' + v('保証人勤務先') + '　年収 ' + v('保証人年収(万)') + '万円'
                         : 'なし'],
                     ['通信欄', v('通信欄')],
-                ]) + '</dl></div>';
+                ]) + '</dl></div>' +
+
+                (v('審査結果メモ') ? '<div class="card"><p class="stage-title">経過メモ</p>' +
+                    '<div class="text-xs text-slate-600 whitespace-pre-wrap">' + esc(v('審査結果メモ')) + '</div>' +
+                    '<div class="grid3 mt-3">' +
+                    '<button class="btn btn-ghost" onclick="setStatus(\'契約完了\')">✅ 契約完了にする</button>' +
+                    '<button class="btn btn-ghost" onclick="setStatus(\'キャンセル\')">⏹ キャンセル</button>' +
+                    '</div></div>'
+                    : '');
 
             $('listView').classList.add('hidden');
             $('masterForm').classList.add('hidden');
             $('detailView').classList.remove('hidden');
             $('backBtn').classList.remove('hidden');
+
+            restoreKeys();
+            bindKeyUpload();
             window.scrollTo(0, 0);
+        }
+
+        /** 保証会社ごとの審査状況（JSON列）を読む */
+        function readReview() {
+            try {
+                const o = JSON.parse(v('審査状況') || '{}');
+                return (o && typeof o === 'object') ? o : {};
+            } catch (e) { return {}; }
+        }
+
+        /* ---------------- 鍵の入力 ---------------- */
+        let KEY_FILES = [];
+
+        function addKeyRow(k) {
+            const i = document.querySelectorAll('#keyRows .key-row').length;
+            const div = document.createElement('div');
+            div.className = 'key-row grid3 mb-2';
+            div.innerHTML =
+                '<div><label class="field-label">鍵の種別</label>' +
+                '<input class="field-input k-type" placeholder="例）玄関錠"></div>' +
+                '<div><label class="field-label">本数</label>' +
+                '<input class="field-input k-count" inputmode="numeric" placeholder="3"></div>' +
+                '<div><label class="field-label">鍵番号・備考</label>' +
+                '<div style="display:flex;gap:6px"><input class="field-input k-no" placeholder="例）A-123">' +
+                '<button class="btn btn-ghost k-rm" style="padding:9px 11px">×</button></div></div>';
+            $('keyRows').appendChild(div);
+            div.querySelector('.k-rm').addEventListener('click', function (e) {
+                e.preventDefault(); div.remove();
+            });
+            if (k) {
+                div.querySelector('.k-type').value = k.type || '';
+                div.querySelector('.k-count').value = k.count || '';
+                div.querySelector('.k-no').value = k.no || '';
+            }
+        }
+
+        function collectKeys() {
+            return Array.prototype.map.call(document.querySelectorAll('#keyRows .key-row'), function (r) {
+                return {
+                    type: (r.querySelector('.k-type') || {}).value || '',
+                    count: (r.querySelector('.k-count') || {}).value || '',
+                    no: (r.querySelector('.k-no') || {}).value || '',
+                };
+            }).filter(function (k) { return k.type || k.count; });
+        }
+
+        /** 登録済みの鍵情報を画面に戻す */
+        function restoreKeys() {
+            KEY_FILES = [];
+            $('keyRows').innerHTML = '';
+            $('keyPrev').innerHTML = '';
+            let saved = { keys: [], handoverDate: '' };
+            try { saved = JSON.parse(v('鍵情報') || '{}'); } catch (e) { /* 未登録 */ }
+            const keys = (saved && saved.keys) || [];
+            if (keys.length) keys.forEach(addKeyRow);
+            else addKeyRow();
+            if (saved && saved.handoverDate) $('keyDate').value = saved.handoverDate;
+        }
+
+        function bindKeyUpload() {
+            $('keyFiles').addEventListener('change', async function () {
+                const fs = Array.prototype.slice.call(this.files || []);
+                for (let i = 0; i < fs.length; i++) {
+                    if (KEY_FILES.length >= 6) { alert('写真は6点までです。'); break; }
+                    try {
+                        KEY_FILES.push(await shrinkImage(fs[i]));
+                    } catch (err) { alert(String(err.message || err)); }
+                }
+                this.value = '';
+                renderKeyPrev();
+            });
+        }
+
+        function renderKeyPrev() {
+            $('keyPrev').innerHTML = KEY_FILES.map(function (p, i) {
+                return '<div class="thumb"><img src="' + p.dataUrl + '" alt="">' +
+                    '<div class="fname">' + esc(p.caption) + '</div>' +
+                    '<button class="rm" data-i="' + i + '">×</button></div>';
+            }).join('');
+            Array.prototype.forEach.call($('keyPrev').querySelectorAll('.rm'), function (b) {
+                b.addEventListener('click', function () {
+                    KEY_FILES.splice(Number(b.dataset.i), 1);
+                    renderKeyPrev();
+                });
+            });
+        }
+
+        /** 端末側で縮小・JPEG圧縮してから送る */
+        async function shrinkImage(file) {
+            if (file.size > 10 * 1024 * 1024) throw new Error(file.name + ' はサイズが大きすぎます（10MBまで）。');
+            const raw = await new Promise(function (res, rej) {
+                const fr = new FileReader();
+                fr.onload = function () { res(fr.result); };
+                fr.onerror = rej;
+                fr.readAsDataURL(file);
+            });
+            if (!/^image\//.test(file.type)) {
+                return { caption: file.name, mimeType: file.type, dataUrl: raw };
+            }
+            const img = await new Promise(function (res, rej) {
+                const im = new Image();
+                im.onload = function () { res(im); };
+                im.onerror = rej;
+                im.src = raw;
+            });
+            let w = img.naturalWidth, h = img.naturalHeight;
+            const s = Math.min(1, 1600 / Math.max(w, h));
+            w = Math.round(w * s); h = Math.round(h * s);
+            const cv = document.createElement('canvas');
+            cv.width = w; cv.height = h;
+            cv.getContext('2d').drawImage(img, 0, 0, w, h);
+            return {
+                caption: (file.name || '鍵').replace(/\.[^.]+$/, ''),
+                mimeType: 'image/jpeg',
+                dataUrl: cv.toDataURL('image/jpeg', 0.82),
+            };
         }
 
         // ---------------- 操作 ----------------
@@ -515,10 +730,39 @@
             await openCase(v('受付番号'));
         }
 
-        async function rebuild() {
+        /** 保証会社1社の審査結果を登録する（否認なら次の候補を案内） */
+        async function setResult(key, result) {
+            const g = GUARANTORS.filter(function (x) { return x.key === key; })[0];
+            const memo = prompt(g.short + ' の審査結果を「' + result + '」として登録します。\n' +
+                'メモがあればご入力ください（否認理由など）。', '');
+            if (memo === null) return;
+
+            loading(true, '登録中…');
+            const r = await post({
+                action: 'setResult', receiptNo: v('受付番号'),
+                guarantorKey: key, result: result, memo: memo,
+            });
+            loading(false);
+            if (!r.ok) { alert(r.error || '登録に失敗しました。'); return; }
+
+            if (result === '否認' && r.remaining && r.remaining.length) {
+                alert(g.short + ' を「否認」で登録しました。\n\n' +
+                    'まだ出していない保証会社があります：\n　' +
+                    r.remaining.map(function (x) { return '・' + x.short; }).join('\n') +
+                    '\n\n続けて別の会社へ出す場合は、その会社の送信ボタンを押してください。');
+            } else if (result === '承認') {
+                alert(g.short + ' の審査通過を登録しました。\n続いて「③ 契約書類の作成」へお進みください。');
+            }
+            const no = v('受付番号');
+            await reload();
+            await openCase(no);
+        }
+
+        /** 審査通過後：契約書類一式を作成する */
+        async function buildContract() {
             loading(true, '作成中…');
             const r = await post({
-                action: 'rebuildDocs',
+                action: 'buildContract',
                 receiptNo: v('受付番号'),
                 overrides: {
                     chukaiFee: $('ovChukai').value, kasaiFee: $('ovKasai').value,
@@ -528,7 +772,33 @@
             });
             loading(false);
             alert(r.ok ? (r.message || '作成しました。') : (r.error || '作成に失敗しました。'));
-            if (r.ok) { await reload(); await openCase(v('受付番号')); }
+            const no = v('受付番号');
+            await reload();
+            await openCase(no);
+        }
+
+        /** 鍵の情報・写真を登録して鍵受領書を作成する */
+        async function saveKeys() {
+            const keys = collectKeys();
+            if (!keys.length) { alert('鍵の種別と本数をご入力ください。'); return; }
+
+            loading(true, '作成中…');
+            const r = await post({
+                action: 'saveKeys',
+                receiptNo: v('受付番号'),
+                keys: keys,
+                handoverDate: $('keyDate').value,
+                files: KEY_FILES,
+            });
+            loading(false);
+            if (!r.ok) { alert(r.error || '作成に失敗しました。'); return; }
+            alert(r.message || '作成しました。');
+            if (r.fileUrl && confirm('作成した鍵受領書を開きますか？')) {
+                window.open(r.fileUrl, '_blank', 'noopener');
+            }
+            const no = v('受付番号');
+            await reload();
+            await openCase(no);
         }
 
         // ---------------- 転記ビュー（WEB申込システムへの入力用） ----------------

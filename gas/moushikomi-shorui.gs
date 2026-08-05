@@ -8,12 +8,18 @@
  * 役割：
  *  1. 「物件マスター」スプレッドシートで、物件ごとの条件・費用・
  *     賃貸借契約書の雛形（Googleドキュメント）を登録・管理する
- *  2. 入居申込を受け付けたときに、下記4点の書類を自動作成する
- *       ① 見積書（初期費用のお見積り）
- *       ② 請求書（初期費用のご請求）
- *       ③ 賃貸借契約書（物件ごとの雛形から差込。紙でのやりとり用にPDF出力）
- *       ④ 鍵受領書
- *  3. 管理コンソールから、金額を修正して書類を作り直す
+ *  2. 申込を受け付けたときに、見積書を作成する
+ *  3. 保証会社の審査に通過したあと、管理コンソールから次の書類を作成する
+ *       ① 重要事項説明書（物件ごとの雛形から差込）
+ *       ② 賃貸借契約書（物件ごとの雛形から差込。紙でのやりとり用にPDF出力）
+ *       ③ 見積書・請求書
+ *       ④ 鍵受領書（実際の鍵の写真つき）
+ *
+ * 書類の体裁について：
+ *  契約書類は位置ずれ・改行ずれ・文字化けを避けるため、
+ *  Googleドキュメントの雛形から差し込んでPDF化する方式を標準とします。
+ *  雛形が未登録の書類は、内蔵の標準レイアウト（HTML→PDF）で作成しますが、
+ *  これは雛形をご用意いただくまでの仮の出力です。
  *
  * 賃貸借契約書の雛形について：
  *  ・物件ごとに Googleドキュメント で雛形を作り、そのドキュメントIDを
@@ -39,9 +45,32 @@ const MASTER_COLUMNS = [
   '鍵種別', '鍵本数',
   '振込先銀行', '振込先支店', '口座種別', '口座番号', '口座名義',
   '契約書雛形DocID', '特約事項', '備考',
+  // ここから重要事項説明書（宅建業法第35条書面）用の項目
+  '重説雛形DocID', '取引態様', '免許証番号', '宅地建物取引士氏名', '宅地建物取引士登録番号',
+  '建築時期', '登記_所有権', '登記_所有権以外の権利', '法令に基づく制限', '私道に関する負担',
+  '飲用水', '電気', 'ガス', '排水', '石綿使用調査', '耐震診断',
+  '造成宅地防災区域', '土砂災害警戒区域', '津波災害警戒区域', '水害ハザードマップ',
+  '設備の整備状況', '用途その他の利用制限', '敷金等の精算に関する事項',
+  '管理委託先商号', '管理委託先登録番号', '管理委託先住所', '管理委託先TEL',
+  '契約終了時の金銭の清算', '契約の解除', '損害賠償額の予定・違約金', '支払金・預り金の保全措置',
 ];
 
-/** 賃貸借契約書の雛形で使える差込タグ */
+/**
+ * 書類の雛形（Googleドキュメント）のドキュメントID。
+ *
+ * 全物件で共通の様式を使う書類はここに登録します。
+ * 空欄のままなら、内蔵の標準レイアウトで作成されます。
+ *
+ * 賃貸借契約書と重要事項説明書は物件ごとに様式が異なるため、
+ * 物件マスターの「契約書雛形DocID」「重説雛形DocID」に登録してください。
+ */
+const DOC_TEMPLATES = {
+  estimate: '',    // 見積書の雛形DocID
+  invoice: '',     // 請求書の雛形DocID
+  keyReceipt: '',  // 鍵受領書の雛形DocID
+};
+
+/** 賃貸借契約書・重要事項説明書などの雛形で使える差込タグ */
 const LEASE_TAGS = [
   '{{契約日}}', '{{契約者氏名}}', '{{契約者フリガナ}}', '{{契約者生年月日}}', '{{契約者住所}}',
   '{{契約者電話}}', '{{契約者携帯}}', '{{契約者勤務先}}', '{{契約者勤務先電話}}',
@@ -54,6 +83,12 @@ const LEASE_TAGS = [
   '{{緊急連絡先氏名}}', '{{緊急連絡先続柄}}', '{{緊急連絡先電話}}', '{{緊急連絡先住所}}',
   '{{連帯保証人氏名}}', '{{連帯保証人住所}}', '{{連帯保証人電話}}',
   '{{同居人一覧}}', '{{保証会社}}', '{{鍵種別}}', '{{鍵本数}}', '{{特約事項}}',
+  // 重要事項説明書で使うタグ
+  '{{取引態様}}', '{{免許証番号}}', '{{宅地建物取引士氏名}}', '{{宅地建物取引士登録番号}}',
+  '{{建築時期}}', '{{設備の整備状況}}', '{{用途その他の利用制限}}',
+  // 見積書・請求書・鍵受領書で使うタグ
+  '{{発行日}}', '{{受付番号}}', '{{明細}}', '{{合計}}', '{{支払期限}}', '{{有効期限}}',
+  '{{鍵明細}}', '{{鍵合計本数}}', '{{引渡日}}',
 ];
 
 /* ============================================================
@@ -280,8 +315,40 @@ function bankBlock_(master) {
  *  ① 見積書
  * ========================================================== */
 
-function buildEstimatePdf_(data, master, cost, receiptNo, now) {
+/**
+ * 見積書・請求書・鍵受領書の雛形へ差し込む値。
+ * 契約書と同じタグに加えて、明細や日付のタグを足したもの。
+ */
+function docValues_(data, master, cost, receiptNo, now, extra) {
+  const values = leaseValues_(data, master, cost, now);
+  values['{{発行日}}'] = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy年M月d日');
+  values['{{受付番号}}'] = receiptNo;
+  if (cost) {
+    values['{{明細}}'] = cost.items.map(function (i) {
+      return i.name + '\t' + yen_(String(i.amount));
+    }).join('\n');
+    values['{{合計}}'] = yen_(String(cost.total));
+  }
+  const m = master || {};
+  ['取引態様', '免許証番号', '宅地建物取引士氏名', '宅地建物取引士登録番号',
+    '建築時期', '設備の整備状況', '用途その他の利用制限'].forEach(function (k) {
+    values['{{' + k + '}}'] = m[k] || '';
+  });
+  Object.keys(extra || {}).forEach(function (k) { values[k] = extra[k]; });
+  return values;
+}
+
+function buildEstimatePdf_(data, master, cost, receiptNo, now, workFolder) {
   const limit = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+  if (DOC_TEMPLATES.estimate) {
+    const name = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd') + '_見積書_' +
+      safeName_(data.bukken) + '_' + safeName_(data.room) + '_' + safeName_(data.aName) + '.pdf';
+    return mergeDocTemplate_(DOC_TEMPLATES.estimate,
+      docValues_(data, master, cost, receiptNo, now, {
+        '{{有効期限}}': Utilities.formatDate(limit, 'Asia/Tokyo', 'yyyy年M月d日'),
+      }), name, workFolder, '見積書の雛形', { 明細: costRows_(cost) });
+  }
 
   const html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' + pdfStyle_() + '</head><body>' +
     '<div class="meta">見積番号：' + esc_(receiptNo) + '-E<br>' +
@@ -320,12 +387,21 @@ function buildEstimatePdf_(data, master, cost, receiptNo, now) {
  *  ② 請求書
  * ========================================================== */
 
-function buildInvoicePdf_(data, master, cost, receiptNo, now) {
+function buildInvoicePdf_(data, master, cost, receiptNo, now, workFolder) {
   // 支払期限：入居予定日の前日、なければ発行から14日後
   let due = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
   if (data.moveInDate && !data.moveInUndecided) {
     const mm = String(data.moveInDate).match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (mm) due = new Date(Number(mm[1]), Number(mm[2]) - 1, Number(mm[3]) - 1);
+  }
+
+  if (DOC_TEMPLATES.invoice) {
+    const name = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd') + '_請求書_' +
+      safeName_(data.bukken) + '_' + safeName_(data.room) + '_' + safeName_(data.aName) + '.pdf';
+    return mergeDocTemplate_(DOC_TEMPLATES.invoice,
+      docValues_(data, master, cost, receiptNo, now, {
+        '{{支払期限}}': Utilities.formatDate(due, 'Asia/Tokyo', 'yyyy年M月d日'),
+      }), name, workFolder, '請求書の雛形', { 明細: costRows_(cost) });
   }
 
   const html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' + pdfStyle_() + '</head><body>' +
@@ -455,33 +531,8 @@ function buildLeasePdf_(data, master, cost, receiptNo, now, workFolder) {
     safeName_(data.bukken) + '_' + safeName_(data.room) + '_' + safeName_(data.aName) + '.pdf';
 
   if (docId) {
-    // ---- 物件ごとの雛形（Googleドキュメント）から差込 ----
-    let tmp = null;
-    try {
-      const src = DriveApp.getFileById(docId);
-      tmp = src.makeCopy('__作成中_' + name.replace('.pdf', ''), workFolder);
-      const doc = DocumentApp.openById(tmp.getId());
-      const body = doc.getBody();
-      Object.keys(values).forEach(function (tag) {
-        // {{ }} は正規表現のメタ文字を含まないためそのまま置換できる
-        body.replaceText(escapeRegex_(tag), String(values[tag] == null ? '' : values[tag]));
-      });
-      // ヘッダー・フッターにも同じ差込を行う
-      ['getHeader', 'getFooter'].forEach(function (fn) {
-        const sec = doc[fn]();
-        if (!sec) return;
-        Object.keys(values).forEach(function (tag) {
-          sec.replaceText(escapeRegex_(tag), String(values[tag] == null ? '' : values[tag]));
-        });
-      });
-      doc.saveAndClose();
-      const pdf = DriveApp.getFileById(tmp.getId()).getAs(MimeType.PDF).setName(name);
-      tmp.setTrashed(true);
-      return pdf;
-    } catch (err) {
-      if (tmp) { try { tmp.setTrashed(true); } catch (e) { /* 無視 */ } }
-      throw new Error('契約書雛形の差込に失敗しました（DocID：' + docId + '）：' + err);
-    }
+    return mergeDocTemplate_(docId, values, name, workFolder, '契約書雛形DocID',
+      { 同居人: kyojuRows_(data) });
   }
 
   // ---- 雛形が未登録の場合：内蔵の標準レイアウト ----
@@ -597,14 +648,295 @@ function escapeRegex_(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** 見積書・請求書の明細行 */
+function costRows_(cost) {
+  return ((cost && cost.items) || []).map(function (i) {
+    return { 項目: i.name, 金額: yen_(String(i.amount)), 摘要: i.note || '' };
+  }).concat([{ 項目: '合　計', 金額: yen_(String((cost && cost.total) || 0)), 摘要: '' }]);
+}
+
+/** 鍵受領書の鍵明細行 */
+function keyRows_(list) {
+  return (list || []).map(function (k) {
+    return { 種別: k.type || '', 本数: (k.count || '') + ' 本', 備考: k.no || '' };
+  });
+}
+
+/** 契約書・重説の同居人行 */
+function kyojuRows_(data) {
+  return ((data && data.kyoju) || []).map(function (k) {
+    return { 氏名: k.name || '', フリガナ: k.kana || '', 続柄: k.relation || '', 生年月日: jpDate_(k.birth) };
+  });
+}
+
+/**
+ * 雛形の表の中にある「見出し行」を、データの件数だけ複製して差し込む。
+ *
+ * 使い方：雛形（Googleドキュメント）の表に、次のような行を1行だけ用意します。
+ *   ｜{{明細.項目}}｜{{明細.金額}}｜{{明細.摘要}}｜
+ * この関数が、その行をデータの件数ぶん複製し、セルごとに値を入れます。
+ * データが0件のときは、その行を削除します。
+ *
+ * marker … '明細' のような接頭辞
+ * rows   … [{ 項目:'礼金', 金額:'50,000円', 摘要:'' }, …]
+ */
+function expandTableRows_(body, marker, rows) {
+  const tag = '{{' + marker + '.';
+  const tables = body.getTables();
+
+  for (let t = 0; t < tables.length; t++) {
+    const table = tables[t];
+    let tmplIdx = -1;
+    for (let r = 0; r < table.getNumRows(); r++) {
+      if (table.getRow(r).getText().indexOf(tag) >= 0) { tmplIdx = r; break; }
+    }
+    if (tmplIdx < 0) continue;
+
+    const tmplRow = table.getRow(tmplIdx);
+    const list = rows || [];
+
+    // 雛形行を複製して、下に挿し込んでいく
+    list.forEach(function (item, i) {
+      const copy = tmplRow.copy();
+      for (let c = 0; c < copy.getNumCells(); c++) {
+        const cell = copy.getCell(c);
+        Object.keys(item).forEach(function (k) {
+          cell.replaceText(escapeRegex_(tag + k + '}}'), String(item[k] == null ? '' : item[k]));
+        });
+        // 使われなかったタグは空にする
+        cell.replaceText(escapeRegex_(tag) + '[^}]*\\}\\}', '');
+      }
+      table.insertTableRow(tmplIdx + 1 + i, copy);
+    });
+
+    // 雛形行そのものは削除する
+    table.removeRow(tmplIdx);
+    return;
+  }
+}
+
+/**
+ * Googleドキュメントの雛形をコピーし、差込タグを置き換えてPDFにする。
+ * 賃貸借契約書と重要事項説明書で共用する。
+ */
+function mergeDocTemplate_(docId, values, name, workFolder, fieldLabel, tables) {
+  let tmp = null;
+  try {
+    const src = DriveApp.getFileById(docId);
+    tmp = src.makeCopy('__作成中_' + name.replace('.pdf', ''), workFolder);
+    const doc = DocumentApp.openById(tmp.getId());
+
+    // 明細などの繰り返し行を先に展開する（行数が可変の表）
+    Object.keys(tables || {}).forEach(function (marker) {
+      expandTableRows_(doc.getBody(), marker, tables[marker]);
+    });
+
+    const targets = [doc.getBody(), doc.getHeader(), doc.getFooter()];
+    targets.forEach(function (sec) {
+      if (!sec) return;
+      Object.keys(values).forEach(function (tag) {
+        sec.replaceText(escapeRegex_(tag), String(values[tag] == null ? '' : values[tag]));
+      });
+    });
+    doc.saveAndClose();
+    const pdf = DriveApp.getFileById(tmp.getId()).getAs(MimeType.PDF).setName(name);
+    tmp.setTrashed(true);
+    return pdf;
+  } catch (err) {
+    if (tmp) { try { tmp.setTrashed(true); } catch (e) { /* 無視 */ } }
+    throw new Error('雛形の差込に失敗しました（' + fieldLabel + '：' + docId + '）：' + err);
+  }
+}
+
 /* ============================================================
- *  ④ 鍵受領書
+ *  ④ 重要事項説明書（宅建業法第35条書面）
  * ========================================================== */
 
-function buildKeyReceiptPdf_(data, master, receiptNo, now) {
+/**
+ * 重要事項説明書PDFを作成する。
+ * 賃貸借契約書と同じく、物件マスターに雛形DocIDがあれば差込印刷し、
+ * なければ内蔵の標準レイアウトで作成する。
+ *
+ * ※ 本書は宅地建物取引士が記名し、説明を行う法定書面です。
+ *   自動作成されるのはあくまで下書きですので、必ず宅地建物取引士が
+ *   内容を確認・補記のうえ記名してからご使用ください。
+ */
+function buildJuusetsuPdf_(data, master, cost, receiptNo, now, workFolder) {
+  const m = master || {};
+  const docId = String(m['重説雛形DocID'] || '').trim();
+  const values = leaseValues_(data, master, cost, now);
+  const name = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd') + '_重要事項説明書_' +
+    safeName_(data.bukken) + '_' + safeName_(data.room) + '_' + safeName_(data.aName) + '.pdf';
+
+  // 重説だけで使う差込タグを足す
+  const extra = {
+    '{{取引態様}}': m['取引態様'] || '',
+    '{{免許証番号}}': m['免許証番号'] || '',
+    '{{宅地建物取引士氏名}}': m['宅地建物取引士氏名'] || '',
+    '{{宅地建物取引士登録番号}}': m['宅地建物取引士登録番号'] || '',
+    '{{建築時期}}': m['建築時期'] || '',
+    '{{設備の整備状況}}': m['設備の整備状況'] || '',
+    '{{用途その他の利用制限}}': m['用途その他の利用制限'] || '',
+  };
+  Object.keys(extra).forEach(function (k) { values[k] = extra[k]; });
+
+  if (docId) {
+    return mergeDocTemplate_(docId, values, name, workFolder, '重説雛形DocID',
+      { 同居人: kyojuRows_(data) });
+  }
+
+  const v = function (k) { return esc_(values[k] || ''); };
+  const mv = function (k) { return or_(esc_(m[k] || '')); };
+
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' + pdfStyle_() + '</head><body>' +
+    '<div class="meta">' + Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy年M月d日') + '</div>' +
+    '<h1>重要事項説明書</h1>' +
+    '<div class="sub">（賃貸借契約用）　' + v('{{物件名}}') + '　' + v('{{号室}}') + '</div>' +
+
+    '<div class="lead">' +
+    'この書面は、宅地建物取引業法第35条の規定に基づき、賃貸借契約の締結前に、' +
+    '借主となろうとする方に対して説明すべき重要な事項を記載したものです。' +
+    '内容を十分にご理解いただいたうえで、賃貸借契約をご締結ください。' +
+    '</div>' +
+
+    '<div class="sec">説明を受ける方</div>' +
+    '<table>' + rows_([
+      ['氏名', '<b>' + v('{{契約者氏名}}') + '</b>　様'],
+      ['住所', v('{{契約者住所}}')],
+    ]) + '</table>' +
+
+    '<div class="sec alt">宅地建物取引業者・宅地建物取引士</div>' +
+    '<table>' + rows_([
+      ['取引態様', mv('取引態様')],
+      ['商号', esc_(M_CONFIG.COMPANY)],
+      ['免許証番号', mv('免許証番号')],
+      ['所在地', '〒' + esc_(M_CONFIG.COMPANY_ZIP) + '　' + esc_(M_CONFIG.COMPANY_ADDR)],
+      ['電話番号', esc_(M_CONFIG.COMPANY_TEL)],
+      ['宅地建物取引士 氏名', mv('宅地建物取引士氏名') + '　　　　　　　　　　　　　㊞'],
+      ['宅地建物取引士 登録番号', mv('宅地建物取引士登録番号')],
+    ]) + '</table>' +
+
+    '<div class="sec">Ⅰ　対象となる宅地または建物に関する事項</div>' +
+    '<table>' + rows_([
+      ['名称・号室', '<b>' + v('{{物件名}}') + '　' + v('{{号室}}') + '</b>'],
+      ['所在地', v('{{物件所在地}}')],
+      ['種類・構造', v('{{構造}}')],
+      ['床面積', v('{{床面積}}')],
+      ['建築時期', mv('建築時期')],
+      ['登記記録／所有権に関する事項', mv('登記_所有権')],
+      ['登記記録／所有権以外の権利', mv('登記_所有権以外の権利')],
+      ['法令に基づく制限', mv('法令に基づく制限')],
+      ['私道に関する負担', mv('私道に関する負担')],
+    ]) + '</table>' +
+
+    '<table>' + rows_([
+      ['飲用水の供給施設', mv('飲用水')],
+      ['電気の供給施設', mv('電気')],
+      ['ガスの供給施設', mv('ガス')],
+      ['排水施設', mv('排水')],
+    ]) + '</table>' +
+
+    '<table>' + rows_([
+      ['石綿（アスベスト）使用調査の内容', mv('石綿使用調査')],
+      ['耐震診断の内容', mv('耐震診断')],
+      ['造成宅地防災区域内か否か', mv('造成宅地防災区域')],
+      ['土砂災害警戒区域内か否か', mv('土砂災害警戒区域')],
+      ['津波災害警戒区域内か否か', mv('津波災害警戒区域')],
+      ['水害ハザードマップにおける所在地', mv('水害ハザードマップ')],
+    ]) + '</table>' +
+    '<div class="note">※ 各区域の該当有無、ハザードマップ上の位置については、説明時に市区町村の公表資料をご提示のうえご説明します。</div>' +
+
+    '<div class="sec alt">Ⅱ　取引条件に関する事項</div>' +
+    '<table>' + rows_([
+      ['借賃（賃料）', v('{{家賃}}')],
+      ['管理費・共益費', v('{{管理費共益費}}')],
+      ['駐車場使用料', v('{{駐車場}}')],
+      ['月額合計', '<b>' + v('{{月額賃料合計}}') + '</b>'],
+      ['賃料の支払時期・方法', or_(v('{{賃料支払日}}')) + '　' + or_(v('{{支払方法}}'))],
+      ['敷金・保証金', v('{{敷金}}')],
+      ['礼金', v('{{礼金}}')],
+      ['敷引・償却', v('{{敷引}}')],
+      ['契約期間', v('{{契約始期}}') + '　から　' + v('{{契約終期}}') + '　まで（' + v('{{契約期間}}') + '）'],
+      ['更新および更新料', or_(v('{{更新料}}'))],
+      ['用途その他の利用の制限', mv('用途その他の利用制限')],
+      ['設備の整備状況', mv('設備の整備状況')],
+      ['敷金等の精算に関する事項', mv('敷金等の精算に関する事項')],
+      ['契約終了時における金銭の清算', mv('契約終了時の金銭の清算')],
+      ['契約の解除に関する事項', mv('契約の解除')],
+      ['損害賠償額の予定・違約金', mv('損害賠償額の予定・違約金')],
+      ['支払金・預り金の保全措置', mv('支払金・預り金の保全措置')],
+    ]) + '</table>' +
+
+    '<div class="sec">Ⅲ　管理の委託先</div>' +
+    '<table>' + rows_([
+      ['商号（名称）', or_(esc_(m['管理委託先商号'] || M_CONFIG.COMPANY))],
+      ['登録番号', mv('管理委託先登録番号')],
+      ['主たる事務所の所在地', or_(esc_(m['管理委託先住所'] || M_CONFIG.COMPANY_ADDR))],
+      ['電話番号', or_(esc_(m['管理委託先TEL'] || M_CONFIG.COMPANY_TEL))],
+    ]) + '</table>' +
+
+    '<div class="sec alt">Ⅳ　賃貸保証（家賃債務保証）に関する事項</div>' +
+    '<table>' + rows_([
+      ['保証会社', or_(v('{{保証会社}}'))],
+      ['連帯保証人', v('{{連帯保証人氏名}}') ? v('{{連帯保証人氏名}}') : 'なし（保証会社利用）'],
+    ]) + '</table>' +
+
+    (values['{{特約事項}}']
+      ? '<div class="sec">Ⅴ　特約事項</div>' +
+        '<div style="font-size:10.5px;line-height:1.9;padding:0 4px;">' + esc_(values['{{特約事項}}']) + '</div>'
+      : '') +
+
+    '<div class="sec alt">説明および受領の確認</div>' +
+    '<div class="lead">' +
+    '私は、宅地建物取引士から本書面に記載された重要事項について説明を受け、本書面を受領しました。<br>' +
+    '説明日：　　　　　年　　　月　　　日' +
+    '</div>' +
+    '<table>' +
+    '<tr><th style="width:20%">説明を受けた方</th><td class="v" style="height:60px;">' +
+    '住所：' + v('{{契約者住所}}') + '<br>氏名：' + v('{{契約者氏名}}') +
+    '　　　　　　　　　　　　　　　　　　　　㊞</td></tr>' +
+    '<tr><th>説明した宅地建物取引士</th><td class="v" style="height:60px;">' +
+    '登録番号：' + mv('宅地建物取引士登録番号') + '<br>氏名：' + mv('宅地建物取引士氏名') +
+    '　　　　　　　　　　　　　　　　　　　　㊞</td></tr>' +
+    '</table>' +
+
+    '<div class="warn">' +
+    '<b>本書は自動作成された下書きです。</b>宅地建物取引業法上、重要事項の説明は宅地建物取引士が' +
+    '取引士証を提示して行い、本書面に記名する必要があります。<br>' +
+    '空欄（<span class="off">―</span>）の項目は物件マスターに未登録です。' +
+    'ご使用前に必ず宅地建物取引士が内容を確認し、不足事項を補記してください。' +
+    (docId ? '' : '<br>物件ごとの書式をお使いの場合は、物件マスターの「重説雛形DocID」にドキュメントIDを登録してください。') +
+    '</div>' +
+    '</body></html>';
+
+  return Utilities.newBlob(html, MimeType.HTML, name).getAs(MimeType.PDF).setName(name);
+}
+
+/* ============================================================
+ *  ⑤ 鍵受領書（実際の鍵の写真つき）
+ * ========================================================== */
+
+function buildKeyReceiptPdf_(data, master, receiptNo, now, keys, keyPhotos, handoverDate, workFolder) {
   const m = master || {};
   const kagiType = m['鍵種別'] || '玄関錠';
   const kagiCount = m['鍵本数'] || '';
+  const list = (keys || []).filter(function (k) { return k && (k.type || k.count); });
+
+  if (DOC_TEMPLATES.keyReceipt) {
+    const name = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd') + '_鍵受領書_' +
+      safeName_(data.bukken) + '_' + safeName_(data.room) + '_' + safeName_(data.aName) + '.pdf';
+    const total = list.reduce(function (s, k) { return s + (parseInt(k.count || '0', 10) || 0); }, 0);
+    // ※ 雛形を使う場合、鍵の写真はPDFへ差し込めないため、
+    //   写真は案件フォルダの「鍵」フォルダに保存したものをご利用ください。
+    return mergeDocTemplate_(DOC_TEMPLATES.keyReceipt,
+      docValues_(data, master, null, receiptNo, now, {
+        '{{鍵明細}}': list.map(function (k) {
+          return (k.type || '') + '\t' + (k.count || '') + '本' + (k.no ? '\t' + k.no : '');
+        }).join('\n'),
+        '{{鍵合計本数}}': total ? total + ' 本' : '',
+        '{{引渡日}}': handoverDate ? jpDate_(handoverDate) : '',
+      }), name, workFolder, '鍵受領書の雛形', { 鍵: keyRows_(list) });
+  }
 
   const html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' + pdfStyle_() + '</head><body>' +
     '<div class="meta">整理番号：' + esc_(receiptNo) + '-K</div>' +
@@ -627,18 +959,12 @@ function buildKeyReceiptPdf_(data, master, receiptNo, now) {
     ]) + '</table>' +
 
     '<div class="sec alt">受領する鍵</div>' +
-    '<table>' +
-    '<tr><th style="width:34%">鍵の種別</th><th style="width:16%;text-align:center">本数</th><th>鍵番号・備考</th></tr>' +
-    '<tr><td>' + esc_(kagiType) + '</td><td style="text-align:center;font-size:13px;font-weight:bold">' +
-    (kagiCount ? esc_(kagiCount) + ' 本' : '　　　本') + '</td><td></td></tr>' +
-    '<tr><td>　</td><td style="text-align:center">　　　本</td><td></td></tr>' +
-    '<tr><td>　</td><td style="text-align:center">　　　本</td><td></td></tr>' +
-    '</table>' +
-    '<div class="note">※ 空欄は鍵の引渡し時にご記入ください（メールボックス錠・駐輪場錠・共用部錠など）。</div>' +
+    keyTable_(keys, kagiType, kagiCount) +
+    keyPhotoBlock_(keyPhotos) +
 
     '<div class="sec">受領者</div>' +
     '<table>' + rows_([
-      ['受領日', '　　　　　年　　　月　　　日'],
+      ['受領日', handoverDate ? jpDate_(handoverDate) : '　　　　　年　　　月　　　日'],
       ['住所', esc_(addr_(data.aZip, data.aPref, data.aAddr))],
       ['氏名', '<b>' + esc_(data.aName) + '</b>　　　　　　　　　　　　　　　　　　㊞'],
       ['電話番号', esc_(data.aMobile)],
@@ -646,7 +972,7 @@ function buildKeyReceiptPdf_(data, master, receiptNo, now) {
 
     '<div class="sec alt">引渡し担当者（' + esc_(M_CONFIG.COMPANY) + '）</div>' +
     '<table>' + rows_([
-      ['引渡日', '　　　　　年　　　月　　　日'],
+      ['引渡日', handoverDate ? jpDate_(handoverDate) : '　　　　　年　　　月　　　日'],
       ['担当者', or_(esc_(data.agentStaff)) + '　　　　　　　　　　　　　　　　　　㊞'],
     ]) + '</table>' +
 
@@ -660,35 +986,212 @@ function buildKeyReceiptPdf_(data, master, receiptNo, now) {
   return Utilities.newBlob(html, MimeType.HTML, name).getAs(MimeType.PDF).setName(name);
 }
 
+/** 受領する鍵の一覧表（未登録なら記入用の空欄を出す） */
+function keyTable_(keys, defType, defCount) {
+  const list = (keys || []).filter(function (k) { return k && (k.type || k.count); });
+  let body;
+  if (list.length) {
+    body = list.map(function (k) {
+      return '<tr><td>' + esc_(k.type || '') + '</td>' +
+        '<td style="text-align:center;font-size:13px;font-weight:bold">' +
+        (k.count ? esc_(k.count) + ' 本' : '　　　本') + '</td>' +
+        '<td>' + esc_(k.no || '') + '</td></tr>';
+    }).join('');
+  } else {
+    body = '<tr><td>' + esc_(defType) + '</td>' +
+      '<td style="text-align:center;font-size:13px;font-weight:bold">' +
+      (defCount ? esc_(defCount) + ' 本' : '　　　本') + '</td><td></td></tr>' +
+      '<tr><td>　</td><td style="text-align:center">　　　本</td><td></td></tr>' +
+      '<tr><td>　</td><td style="text-align:center">　　　本</td><td></td></tr>';
+  }
+  const total = list.reduce(function (s, k) { return s + (parseInt(k.count || '0', 10) || 0); }, 0);
+
+  return '<table>' +
+    '<tr><th style="width:34%">鍵の種別</th><th style="width:16%;text-align:center">本数</th><th>鍵番号・備考</th></tr>' +
+    body +
+    (total > 0
+      ? '<tr><td style="background:#eef2f4;font-weight:bold">合　計</td>' +
+        '<td style="background:#eef2f4;text-align:center;font-weight:bold;font-size:14px">' + total + ' 本</td>' +
+        '<td style="background:#eef2f4"></td></tr>'
+      : '') +
+    '</table>' +
+    (list.length ? '' :
+      '<div class="note">※ 空欄は鍵の引渡し時にご記入ください（メールボックス錠・駐輪場錠・共用部錠など）。</div>');
+}
+
+/** 実際に引き渡す鍵の写真（PDFへ埋め込む） */
+function keyPhotoBlock_(photos) {
+  const list = photos || [];
+  if (!list.length) return '';
+  // ※ display:flex は GAS の HTML→PDF 変換で崩れるため、表組みで並べる
+  const cells = list.map(function (p) {
+    return '<td style="width:33%;text-align:center;vertical-align:top;">' +
+      '<img src="' + p.src + '" style="max-width:100%;max-height:200px;">' +
+      '<div style="font-size:9px;color:#555;">' + esc_(p.caption || '') + '</div></td>';
+  });
+  const trs = [];
+  for (let i = 0; i < cells.length; i += 3) {
+    trs.push('<tr>' + cells.slice(i, i + 3).join('') + '</tr>');
+  }
+  return '<div class="sec">引き渡す鍵の写真</div>' +
+    '<table>' + trs.join('') + '</table>' +
+    '<div class="note">※ 上記の写真は、引渡し時に実際にお渡しした鍵を撮影したものです。退去時はこの本数をすべてご返却ください。</div>';
+}
+
 /* ============================================================
- *  書類の一括作成
+ *  書類の作成
+ *
+ *  お申込みの流れに合わせて、2段階で作成します。
+ *    受付時       → 見積書（初期費用をお客様へ提示するため）
+ *    審査に通過後 → 重要事項説明書・賃貸借契約書・請求書・鍵受領書
  * ========================================================== */
 
-/**
- * 見積書・請求書・賃貸借契約書・鍵受領書を作成して案件フォルダへ保存する。
- * 物件マスターに該当物件があれば、その条件・費用・契約書雛形を使用する。
- */
-function buildAllDocuments_(caseFolder, data, receiptNo, now, overrides) {
+/** 受付時：見積書だけを作成する */
+function buildEstimateOnly_(caseFolder, data, receiptNo, now, overrides) {
   const master = findMaster_(data.bukken, data.room);
   const cost = buildCostItems_(data, master, overrides);
   const folder = getOrCreateSubfolder_(caseFolder, M_CONFIG.SUBFOLDERS.docs);
+  return folder.createFile(buildEstimatePdf_(data, master, cost, receiptNo, now, folder));
+}
 
-  const files = [];
-  files.push(folder.createFile(buildEstimatePdf_(data, master, cost, receiptNo, now)));
-  files.push(folder.createFile(buildInvoicePdf_(data, master, cost, receiptNo, now)));
+/**
+ * 審査通過後：重要事項説明書・賃貸借契約書・請求書・鍵受領書を作成する。
+ * 見積書も金額を反映して作り直す。
+ */
+function buildContractDocuments_(receiptNo, overrides) {
+  const c = getCase_(receiptNo);
+  if (!c) return { ok: false, error: '申込が見つかりません：' + receiptNo };
+  if (!c.folderId) return { ok: false, error: '案件フォルダIDが記録されていません。' };
 
-  // 契約書は雛形の差込に失敗しても、他の書類は残す
-  try {
-    files.push(folder.createFile(buildLeasePdf_(data, master, cost, receiptNo, now, folder)));
-  } catch (err) {
-    folder.createFile(Utilities.newBlob(
-      '賃貸借契約書の作成に失敗しました。\n' + String(err) +
-      '\n\n物件マスターの「契約書雛形DocID」をご確認ください。',
-      'text/plain', '★賃貸借契約書_作成エラー.txt'));
+  const caseFolder = DriveApp.getFolderById(c.folderId);
+  const folder = getOrCreateSubfolder_(caseFolder, M_CONFIG.SUBFOLDERS.docs);
+  const now = new Date();
+  const data = caseToData_(c);
+  const master = findMaster_(data.bukken, data.room);
+  const cost = buildCostItems_(data, master, overrides);
+
+  const made = [];
+  const errors = [];
+
+  const add = function (label, fn) {
+    try {
+      made.push(folder.createFile(fn()));
+    } catch (err) {
+      errors.push(label + '：' + err);
+    }
+  };
+
+  add('見積書', function () { return buildEstimatePdf_(data, master, cost, receiptNo, now, folder); });
+  add('重要事項説明書', function () { return buildJuusetsuPdf_(data, master, cost, receiptNo, now, folder); });
+  add('賃貸借契約書', function () { return buildLeasePdf_(data, master, cost, receiptNo, now, folder); });
+  add('請求書', function () { return buildInvoicePdf_(data, master, cost, receiptNo, now, folder); });
+
+  const keys = readKeys_(c);
+  add('鍵受領書', function () {
+    return buildKeyReceiptPdf_(data, master, receiptNo, now,
+      keys.keys, keyPhotos_(caseFolder), keys.handoverDate, folder);
+  });
+
+  if (made.length) {
+    updateStatus_(receiptNo, '契約書類作成済', '契約書類を作成（' + made.length + '点）');
   }
 
-  files.push(folder.createFile(buildKeyReceiptPdf_(data, master, receiptNo, now)));
-  return files;
+  return {
+    ok: made.length > 0,
+    message: made.length
+      ? '契約書類を作成しました（' + made.length + '点）。' +
+        (errors.length ? '\n\n次の書類は作成できませんでした：\n' + errors.join('\n') : '')
+      : '書類を作成できませんでした。\n' + errors.join('\n'),
+    error: made.length ? '' : errors.join(' / '),
+    files: made.map(function (f) { return { name: f.getName(), url: f.getUrl() }; }),
+  };
+}
+
+/* ---------- 鍵の情報と写真 ---------- */
+
+/** 受付一覧に保存された鍵情報を読み出す */
+function readKeys_(c) {
+  try {
+    const o = JSON.parse(String(c['鍵情報'] || '{}'));
+    return {
+      keys: (o && o.keys) || [],
+      handoverDate: (o && o.handoverDate) || '',
+    };
+  } catch (e) {
+    return { keys: [], handoverDate: '' };
+  }
+}
+
+/** 案件フォルダの「鍵」フォルダにある写真を、PDF埋め込み用に読み込む */
+function keyPhotos_(caseFolder) {
+  const folder = getOrCreateSubfolder_(caseFolder, M_CONFIG.SUBFOLDERS.keys);
+  const out = [];
+  const it = folder.getFiles();
+  while (it.hasNext()) {
+    const f = it.next();
+    const blob = f.getBlob();
+    const type = blob.getContentType() || '';
+    if (type.indexOf('image/') !== 0) continue;
+    out.push({
+      caption: f.getName().replace(/\.[^.]+$/, ''),
+      src: 'data:' + type + ';base64,' + Utilities.base64Encode(blob.getBytes()),
+    });
+  }
+  return out;
+}
+
+/**
+ * 鍵の情報と写真を登録し、鍵受領書を作り直す。
+ * keys  … [{ type:'玄関錠', count:'3', no:'A-123' }, …]
+ * files … [{ name, mimeType, dataUrl }, …]（管理コンソールから撮影・選択した写真）
+ */
+function saveKeys_(receiptNo, keys, files, handoverDate) {
+  const c = getCase_(receiptNo);
+  if (!c) return { ok: false, error: '申込が見つかりません：' + receiptNo };
+  if (!c.folderId) return { ok: false, error: '案件フォルダIDが記録されていません。' };
+
+  const caseFolder = DriveApp.getFolderById(c.folderId);
+  const keyFolder = getOrCreateSubfolder_(caseFolder, M_CONFIG.SUBFOLDERS.keys);
+  const data = caseToData_(c);
+  const now = new Date();
+  const stamp = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd');
+
+  // 写真を保存
+  let saved = 0;
+  (files || []).forEach(function (f, i) {
+    const m = String(f.dataUrl || '').match(/^data:([^;]+);base64,(.*)$/);
+    if (!m) return;
+    const ext = m[1] === 'application/pdf' ? '.pdf' : '.jpg';
+    const label = f.caption || ('鍵' + (i + 1));
+    const name = stamp + '_' + safeName_(data.bukken) + '_' + safeName_(data.room) + '_' +
+      safeName_(label) + ext;
+    keyFolder.createFile(Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], name));
+    saved++;
+  });
+
+  // 鍵情報をシートへ保存
+  const sheet = logSheet_();
+  const idx = headerIndex_(sheet);
+  if (idx['鍵情報']) {
+    sheet.getRange(c.rowNo, idx['鍵情報']).setValue(JSON.stringify({
+      keys: keys || [], handoverDate: handoverDate || '',
+    }));
+  }
+
+  // 鍵受領書を作り直す
+  const master = findMaster_(data.bukken, data.room);
+  const folder = getOrCreateSubfolder_(caseFolder, M_CONFIG.SUBFOLDERS.docs);
+  const file = folder.createFile(buildKeyReceiptPdf_(
+    data, master, receiptNo, now, keys || [], keyPhotos_(caseFolder), handoverDate, folder));
+
+  appendMemo_(receiptNo, '鍵受領書を作成（写真 ' + saved + '点）');
+
+  return {
+    ok: true,
+    message: '鍵受領書を作成しました。（写真 ' + saved + ' 点を保存しました）',
+    fileUrl: file.getUrl(),
+    fileName: file.getName(),
+  };
 }
 
 /**
@@ -696,23 +1199,7 @@ function buildAllDocuments_(caseFolder, data, receiptNo, now, overrides) {
  * overrides で金額を上書きできる（例：{ chukaiFee: 55000, kasaiFee: 20000 }）。
  */
 function rebuildDocuments_(receiptNo, overrides) {
-  const c = getCase_(receiptNo);
-  if (!c) return { ok: false, error: '申込が見つかりません：' + receiptNo };
-  if (!c.folderId) return { ok: false, error: '案件フォルダIDが記録されていません。' };
-
-  const caseFolder = DriveApp.getFolderById(c.folderId);
-  const now = new Date();
-
-  // 受付一覧の記録から、書類作成に必要な項目を組み立てる
-  const data = caseToData_(c);
-  const files = buildAllDocuments_(caseFolder, data, receiptNo, now, overrides);
-
-  updateStatus_(receiptNo, '契約書類作成済', '契約書類を再作成（' + files.length + '点）');
-  return {
-    ok: true,
-    message: '契約書類を作り直しました（' + files.length + '点）。',
-    files: files.map(function (f) { return { name: f.getName(), url: f.getUrl() }; }),
-  };
+  return buildContractDocuments_(receiptNo, overrides);
 }
 
 /** 受付一覧の1行 → 書類作成用のデータ */
