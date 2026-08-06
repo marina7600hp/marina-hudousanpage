@@ -39,6 +39,9 @@
         .doc-tab.done:hover { background:#ceecee; }
         .doc-tab.todo { background:#f8fafc; color:#94a3b8; }
         .doc-tab .st { font-size:10px; font-weight:500; }
+        /* 見積の入力行（Tailwind CDNが読めない場合でも崩れないように） */
+        .est-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+        @media (min-width:640px){ .est-grid { grid-template-columns:repeat(4,1fr); } }
         .stage-title { font-size:14px; font-weight:700; color:#005f73; border-left:4px solid #028090; padding-left:8px; margin-bottom:10px; }
         #sigCanvas { touch-action:none; background:#fff; border:1px dashed #94a3b8; border-radius:8px; width:100%; height:160px; }
         .btn { font-weight:700; border-radius:9px; padding:10px 14px; font-size:14px; cursor:pointer; }
@@ -216,6 +219,10 @@
             <!-- ② 修繕見積書 -->
             <div class="card">
                 <p class="stage-title">② 修繕見積書</p>
+                <p class="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded p-2 mb-2">
+                    単価は<b>税抜</b>で入力してください（見積書の合計で消費税を加算します）。<br>
+                    立会いで入力した税込金額は、自動で税抜に換算して初期表示しています。
+                </p>
                 <div id="estItems" class="space-y-2"></div>
                 <button type="button" onclick="addEstItem()" class="btn btn-ghost text-xs mt-2">＋ 品目を追加</button>
                 <div id="estSummary" class="text-sm text-right mt-3 space-y-0.5 text-slate-600"></div>
@@ -380,6 +387,16 @@
         const PROGRESS = { '解約受付':20,'立会い済':40,'見積済':60,'精算済':80,'完了':100 };
         const DAMAGE_TYPES = ['傷','汚れ','カビ','穴','剥がれ','焦げ・ヤケ','へこみ','破損','その他'];
         const todayISO = ()=>{ const t=new Date(),p=n=>String(n).padStart(2,'0'); return t.getFullYear()+'-'+p(t.getMonth()+1)+'-'+p(t.getDate()); };
+        const TAX_RATE = 0.1;
+        // 税込金額 → 税抜金額（見積書は小計に消費税を加算するため）
+        const exTax = (v)=>Math.round(Number(v||0)/(1+TAX_RATE));
+        // 電話番号の先頭0が失われた場合に復元（スプレッドシートで数値化されるケース）
+        function normalizeTel(v){
+            const s = String(v==null?'':v).trim();
+            if(!s) return '';
+            if(/^[0-9]{9,10}$/.test(s) && s[0]!=='0') return '0'+s;
+            return s;
+        }
 
         function toast(msg) { const t=$('toast'); t.textContent=msg; t.classList.remove('hidden'); setTimeout(()=>t.classList.add('hidden'),2200); }
         function show(el){ $(el).classList.remove('hidden'); }
@@ -564,7 +581,7 @@
             $('stTenancy').value = d.tenancy||'';
             $('stEndDate').value = d.endDate||'';
             $('stNewAddress').value = d.newAddress||'';
-            $('stContact').value = d.contact || d.tel || '';
+            $('stContact').value = normalizeTel(d.contact || d.tel || '');
             $('stDeposit').value = d.deposit||'';
             $('stPenalty').value = d.penalty||0;
             $('stUnpaid').value = d.unpaidRent||0;
@@ -717,15 +734,19 @@
             const d=document.createElement('div'); d.className='border border-slate-200 rounded-lg p-2';
             d.innerHTML=
                 '<input class="field-input text-sm mb-1 est-name" placeholder="品目（例：クロス張替え LDK）" value="'+esc(it.name)+'">'+
-                '<div class="flex items-center gap-1 text-sm">'+
-                '<input type="number" class="field-input est-qty" style="max-width:60px" value="'+(it.qty||0)+'" oninput="calcEst()" placeholder="数量">'+
-                '<input class="field-input est-unit" style="max-width:56px" value="'+esc(it.unit||'')+'" placeholder="単位">'+
-                '<span class="text-slate-400">×</span>'+
-                '<input type="number" class="field-input est-price" style="max-width:90px" value="'+(it.unitPrice||0)+'" oninput="calcEst()" placeholder="単価">'+
-                '<span class="text-slate-400">負担</span>'+
-                '<input type="number" class="field-input est-rate" style="max-width:60px" value="'+(it.burdenRate!=null?it.burdenRate:100)+'" oninput="calcEst()" placeholder="%">'+
-                '<span class="text-slate-400 text-xs">%</span>'+
-                '<button class="rm ml-auto" style="position:static" onclick="this.closest(\'div.border\').remove();calcEst()">×</button>'+
+                '<div class="est-grid text-sm">'+
+                  '<div><label class="field-label" style="font-size:10px">数量</label>'+
+                    '<input type="number" class="field-input est-qty" value="'+(it.qty||0)+'" oninput="calcEst()" placeholder="数量"></div>'+
+                  '<div><label class="field-label" style="font-size:10px">単位</label>'+
+                    '<input class="field-input est-unit" value="'+esc(it.unit||'')+'" placeholder="式"></div>'+
+                  '<div><label class="field-label" style="font-size:10px">単価（税抜）</label>'+
+                    '<input type="number" class="field-input est-price" value="'+(it.unitPrice||0)+'" oninput="calcEst()" placeholder="単価"></div>'+
+                  '<div><label class="field-label" style="font-size:10px">借主負担率(%)</label>'+
+                    '<input type="number" class="field-input est-rate" value="'+(it.burdenRate!=null?it.burdenRate:100)+'" oninput="calcEst()" placeholder="%"></div>'+
+                '</div>'+
+                '<div class="flex items-center justify-between mt-1">'+
+                  '<span class="est-line text-[11px] text-slate-500"></span>'+
+                  '<button class="rm" style="position:static" onclick="this.closest(\'div.border\').remove();calcEst()">× この行を削除</button>'+
                 '</div>';
             return d;
         }
@@ -737,12 +758,15 @@
         }
         function defaultEstItems(){
             const ch=(CUR&&CUR.data&&CUR.data.charges)||{};
+            // 立会いの費用は「税込」で入力されるが、見積書は小計に消費税を加算するため、
+            // 単価には税抜に換算した金額を渡す（二重課税の防止）。
+            // ※クロス㎡単価はもともと「税別」なので換算しない。
             const arr=[{name:'クロス壁面張替え',qty:0,unit:'㎡',unitPrice:(ch.crossUnit||1800),burdenRate:100}];
-            if((ch.cleaning||0)>0) arr.push({name:'ハウスクリーニング（室内清掃）',qty:1,unit:'式',unitPrice:ch.cleaning,burdenRate:100});
-            if((ch.acCount||0)>0) arr.push({name:'エアコン洗浄（通常）',qty:ch.acCount,unit:'台',unitPrice:ch.acUnit,burdenRate:100});
-            if((ch.ac2Count||0)>0) arr.push({name:'エアコン洗浄（お掃除機能付き）',qty:ch.ac2Count,unit:'台',unitPrice:ch.ac2Unit,burdenRate:100});
-            if((ch.tatamiCount||0)>0) arr.push({name:'畳表替え',qty:ch.tatamiCount,unit:'枚',unitPrice:ch.tatamiUnit,burdenRate:100});
-            (ch.otherItems||[]).forEach(x=>arr.push({name:x.name,qty:1,unit:'式',unitPrice:x.amount,burdenRate:100}));
+            if((ch.cleaning||0)>0) arr.push({name:'ハウスクリーニング（室内清掃）',qty:1,unit:'式',unitPrice:exTax(ch.cleaning),burdenRate:100});
+            if((ch.acCount||0)>0) arr.push({name:'エアコン洗浄（通常）',qty:ch.acCount,unit:'台',unitPrice:exTax(ch.acUnit),burdenRate:100});
+            if((ch.ac2Count||0)>0) arr.push({name:'エアコン洗浄（お掃除機能付き）',qty:ch.ac2Count,unit:'台',unitPrice:exTax(ch.ac2Unit),burdenRate:100});
+            if((ch.tatamiCount||0)>0) arr.push({name:'畳表替え',qty:ch.tatamiCount,unit:'枚',unitPrice:exTax(ch.tatamiUnit),burdenRate:100});
+            (ch.otherItems||[]).forEach(x=>arr.push({name:x.name,qty:1,unit:'式',unitPrice:exTax(x.amount),burdenRate:100}));
             // 立会いで選択した「後日見積」箇所を、金額未入力の行としてあらかじめ表示
             (ch.laterItems||[]).forEach(li=>arr.push({name:li,qty:1,unit:'式',unitPrice:0,burdenRate:100}));
             return arr;
@@ -758,9 +782,18 @@
         }
         function calcEst(){
             let sub=0,tenant=0;
+            // 各行の金額（税抜）を行内に表示
+            Array.from($('estItems').children).forEach(row=>{
+                const q=parseFloat(row.querySelector('.est-qty').value)||0;
+                const u=parseFloat(row.querySelector('.est-price').value)||0;
+                const r=parseFloat(row.querySelector('.est-rate').value)||0;
+                const a=q*u, t=Math.round(a*r/100);
+                const lbl=row.querySelector('.est-line');
+                if(lbl) lbl.textContent = a? ('金額 '+yen(a)+'（税抜）　借主負担 '+yen(t)+'（税抜）') : '';
+            });
             collectEst().forEach(it=>{ const a=it.qty*it.unitPrice; sub+=a; tenant+=Math.round(a*it.burdenRate/100); });
-            const tax=Math.round(sub*0.1), total=sub+tax, tTax=Math.round(tenant*0.1), tTotal=tenant+tTax;
-            $('estSummary').innerHTML='小計 '+yen(sub)+'　消費税 '+yen(tax)+'　合計 '+yen(total)+
+            const tax=Math.round(sub*TAX_RATE), total=sub+tax, tTax=Math.round(tenant*TAX_RATE), tTotal=tenant+tTax;
+            $('estSummary').innerHTML='小計（税抜） '+yen(sub)+'　消費税 '+yen(tax)+'　合計（税込） '+yen(total)+
                 '<br><b>借主負担合計（税込）'+yen(tTotal)+'</b>';
         }
         function addEstItem(){ $('estItems').appendChild(estRow()); }

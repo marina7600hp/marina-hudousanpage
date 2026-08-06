@@ -35,7 +35,7 @@ const T_CONFIG = {
   KAIYAKU_LOG_ID: '',
   COMPANY: '有限会社仁方大森マリーナー',
   COMPANY_TEL: '0823-27-7600',
-  COMPANY_ADDR: '呉市仁方',
+  COMPANY_ADDR: '〒737-0821 広島県呉市三条4丁目7-20',
   // 送付状（書類送付御案内）の差出人情報
   COMPANY_ZIP: '737-0821',
   COMPANY_ADDR_FULL: '広島県呉市三条4丁目7-20',
@@ -185,7 +185,7 @@ function importableCases_() {
     const ac = parseAcLine_(r[11]);
     out.push({
       receiptNo: receiptNo, bukken: r[3], room: r[4], name: r[5], kana: r[6],
-      tel: r[7], email: r[8], endDate: r[9],
+      tel: normalizeTel_(r[7]), email: r[8], endDate: r[9],
       // 解約フォームで選ばれた金額（立会い同意書へ引き継ぐ）
       cleaning: Number(r[10]) || 0,
       acNormalUnit: ac.normalUnit, acNormalCount: ac.normalCount,
@@ -549,7 +549,7 @@ function saveSettlement_(data) {
     '<div class="to">' + esc_(c.name) + ' 様</div>' +
     '<table><tr><th style="width:22%">物件名</th><td>' + esc_(c.bukken) + '</td><th style="width:16%">号室</th><td>' + esc_(c.room) + '</td></tr>' +
     '<tr><th>入居期間</th><td>' + esc_(data.tenancy || '') + '</td><th>解約日</th><td>' + esc_(data.endDate || '') + '</td></tr>' +
-    '<tr><th>退去後連絡先</th><td>' + esc_(data.contact || '') + '</td><th>書類送付先</th><td>' + nl2br_(data.newAddress || '') + '</td></tr></table>' +
+    '<tr><th>退去後連絡先</th><td>' + esc_(normalizeTel_(data.contact || '')) + '</td><th>書類送付先</th><td>' + nl2br_(data.newAddress || '') + '</td></tr></table>' +
     '<table style="margin-top:10px">' +
     '<tr><th style="width:50%">預かり敷金</th><td class="right">' + fmtYen_(deposit) + '</td></tr>' +
     '<tr><th>違約金</th><td class="right">' + fmtYen_(penalty) + '</td></tr>' +
@@ -628,6 +628,15 @@ function buildInvoice_(caseId, c, data, shortage, dstamp, label) {
     '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) + '</div></body></html>';
   const folder = getOrCreateSubfolder_(parentFolder_(), T_CONFIG.SUBFOLDERS.invoice);
   return folder.createFile(htmlToPdf_(html, '御請求書_' + label + '_' + dstamp + '.pdf'));
+}
+
+/** 電話番号の先頭0が失われた場合に復元
+ *  （スプレッドシートに保存される際に数値化され「09012345678」→「9012345678」となるため） */
+function normalizeTel_(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return '';
+  if (/^[0-9]{9,10}$/.test(s) && s.charAt(0) !== '0') return '0' + s;
+  return s;
 }
 
 /** 改行をそのまま表示（<br>へ変換） */

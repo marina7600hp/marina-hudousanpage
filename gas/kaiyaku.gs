@@ -262,12 +262,17 @@ function appendLog_(parent, data, receiptNo, now, pdfUrl) {
     ]);
     sheet.setFrozenRows(1);
   }
+  // 電話番号・部屋番号は数値化されると先頭の0が消えるため、列の書式をテキストにしておく
+  try {
+    sheet.getRange(1, 5, sheet.getMaxRows(), 1).setNumberFormat('@'); // 部屋/区画
+    sheet.getRange(1, 8, sheet.getMaxRows(), 1).setNumberFormat('@'); // 電話番号
+  } catch (e) {}
   sheet.appendRow([
     Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'),
     receiptNo,
     isParking ? '月極駐車場' : '管理物件',
-    data.bukken, data.room, data.name, data.kana || '',
-    data.tel, data.email || '', fmtDateJa_(data.endDate),
+    data.bukken, String(data.room), data.name, data.kana || '',
+    String(data.tel), data.email || '', fmtDateJa_(data.endDate),
     !isParking && data.fee ? Number(data.fee) : '',
     !isParking ? acLine_(data) : '',
     !isParking && data.feeTotal ? Number(data.feeTotal) : '',
