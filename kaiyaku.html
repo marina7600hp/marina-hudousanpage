@@ -52,6 +52,12 @@
         .confirm-row { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 13.5px; }
         .confirm-row dt { flex: 0 0 118px; color: #64748b; }
         .confirm-row dd { flex: 1; color: #0f172a; font-weight: 500; white-space: pre-wrap; word-break: break-all; }
+        /* 入力エラーの強調表示 */
+        .field-input.err { border-color: #dc2626 !important; background: #fef2f2; outline-color: #dc2626; }
+        .err-msg { display: none; color: #dc2626; font-size: 12px; font-weight: 700; margin-top: 4px; line-height: 1.5; }
+        .err-msg.show { display: block; }
+        .field-label.err-label { color: #dc2626; }
+        .section-card.err-card { border-color: #fca5a5; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans min-h-screen">
@@ -97,18 +103,22 @@
                         <div>
                             <label class="field-label" for="name">ご契約者名<span class="req">必須</span></label>
                             <input class="field-input" type="text" id="name" required autocomplete="name" placeholder="例）賃貸 太郎">
+                                    <p class="err-msg" id="e_name"></p>
                         </div>
                         <div>
-                            <label class="field-label" for="kana">フリガナ<span class="req">必須</span></label>
-                            <input class="field-input" type="text" id="kana" required placeholder="例）チンタイ タロウ">
+                            <label class="field-label" for="kana">フリガナ<span class="req">必須</span><span class="opt">カタカナでご入力ください</span></label>
+                            <input class="field-input" type="text" id="kana" required placeholder="例）チンタイ タロウ" autocomplete="off">
+                                    <p class="err-msg" id="e_kana"></p>
                         </div>
                         <div>
                             <label class="field-label" for="tel">お電話番号<span class="req">必須</span></label>
                             <input class="field-input" type="tel" id="tel" required autocomplete="tel" inputmode="tel" placeholder="例）090-1234-5678">
+                                    <p class="err-msg" id="e_tel"></p>
                         </div>
                         <div>
                             <label class="field-label" for="email">メールアドレス<span class="opt">任意・受付控えをお送りします</span></label>
                             <input class="field-input" type="email" id="email" autocomplete="email" inputmode="email" placeholder="例）chintai@example.com">
+                                    <p class="err-msg" id="e_email"></p>
                         </div>
                     </div>
                 </section>
@@ -120,10 +130,12 @@
                         <div>
                             <label class="field-label" for="bukken"><span id="bukkenLabel">物件名</span><span class="req">必須</span></label>
                             <input class="field-input" type="text" id="bukken" required placeholder="例）○○ハイツ">
+                                    <p class="err-msg" id="e_bukken"></p>
                         </div>
                         <div>
                             <label class="field-label" for="room"><span id="roomLabel">部屋番号</span><span class="req">必須</span></label>
                             <input class="field-input" type="text" id="room" required placeholder="例）101">
+                                    <p class="err-msg" id="e_room"></p>
                         </div>
                     </div>
                 </section>
@@ -135,6 +147,7 @@
                         <div>
                             <label class="field-label" for="endDate">解約日（<span id="endDateLabel">退去予定日</span>）<span class="req">必須</span></label>
                             <input class="field-input" type="date" id="endDate" required>
+                                    <p class="err-msg" id="e_endDate"></p>
                             <p id="endDateWarn" class="hidden text-xs text-amber-600 mt-1.5 leading-relaxed">⚠ 解約日まで1ヶ月未満です。ご契約により解約予告期間（通常1ヶ月前）が定められている場合、解約日が調整となることがあります。詳細は担当者よりご連絡いたします。</p>
                         </div>
                         <div id="tachiaiWrap">
@@ -145,21 +158,27 @@
                                     <label class="field-label" for="t1d">第1候補<span class="req">必須</span></label>
                                     <div class="grid grid-cols-2 gap-3">
                                         <input class="field-input" type="date" id="t1d" required>
-                                        <select class="field-input tachiai-time" id="t1t" required><option value="">時間を選択</option></select>
+                                    <p class="err-msg" id="e_t1d"></p>
+                                        <select class="field-input tachiai-time" id="t1t" required>
+                                    <p class="err-msg" id="e_t1t"></p><option value="">時間を選択</option></select>
                                     </div>
                                 </div>
                                 <div>
                                     <label class="field-label" for="t2d">第2候補<span class="opt">任意</span></label>
                                     <div class="grid grid-cols-2 gap-3">
                                         <input class="field-input" type="date" id="t2d">
-                                        <select class="field-input tachiai-time" id="t2t"><option value="">時間を選択</option></select>
+                                    <p class="err-msg" id="e_t2d"></p>
+                                        <select class="field-input tachiai-time" id="t2t">
+                                    <p class="err-msg" id="e_t2t"></p><option value="">時間を選択</option></select>
                                     </div>
                                 </div>
                                 <div>
                                     <label class="field-label" for="t3d">第3候補<span class="opt">任意</span></label>
                                     <div class="grid grid-cols-2 gap-3">
                                         <input class="field-input" type="date" id="t3d">
-                                        <select class="field-input tachiai-time" id="t3t"><option value="">時間を選択</option></select>
+                                    <p class="err-msg" id="e_t3d"></p>
+                                        <select class="field-input tachiai-time" id="t3t">
+                                    <p class="err-msg" id="e_t3t"></p><option value="">時間を選択</option></select>
                                     </div>
                                 </div>
                             </div>
@@ -551,32 +570,161 @@
         function closeConfirm() { $('confirmModal').classList.add('hidden'); }
         function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+        // ---------------- 入力チェック（赤字表示） ----------------
+        // ひらがな → カタカナ変換
+        function toKatakana(s) {
+            return String(s).replace(/[ぁ-ゖ]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60));
+        }
+        // 全角カタカナ・長音・空白のみか
+        const KANA_OK = /^[ァ-ヴーー\s　]+$/;
+
+        function setErr(id, msg) {
+            const el = $(id);
+            if (el) {
+                el.classList.add('err');
+                const lbl = document.querySelector(`label[for="${id}"]`);
+                if (lbl) lbl.classList.add('err-label');
+                const card = el.closest('.section-card');
+                if (card) card.classList.add('err-card');
+            }
+            const m = $('e_' + id);
+            if (m) { m.textContent = msg; m.classList.add('show'); }
+        }
+        function clearErr(id) {
+            const el = $(id);
+            if (el) {
+                el.classList.remove('err');
+                const lbl = document.querySelector(`label[for="${id}"]`);
+                if (lbl) lbl.classList.remove('err-label');
+            }
+            const m = $('e_' + id);
+            if (m) m.classList.remove('show');
+        }
+        function clearAllErrs() {
+            document.querySelectorAll('.field-input.err').forEach((e) => e.classList.remove('err'));
+            document.querySelectorAll('.err-label').forEach((e) => e.classList.remove('err-label'));
+            document.querySelectorAll('.err-card').forEach((e) => e.classList.remove('err-card'));
+            document.querySelectorAll('.err-msg.show').forEach((e) => e.classList.remove('show'));
+            $('formError').classList.add('hidden');
+        }
+        // 今日（時刻を切り落とした比較用）
+        function todayDate() { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); }
+        function isPast(v) {
+            if (!v) return false;
+            const d = new Date(v + 'T00:00:00');
+            return !isNaN(d) && d < todayDate();
+        }
+
+        /** フォーム全体を検証。エラーがあれば赤字表示して最初の箇所へスクロール */
+        function validateForm() {
+            clearAllErrs();
+            const errs = [];
+            const req = (id, label) => {
+                if (!$(id) || $(id).closest('.hidden')) return;
+                if (!$(id).value.trim()) { setErr(id, label + 'をご入力ください'); errs.push(id); }
+            };
+            // 必須項目
+            req('name', 'ご契約者名');
+            req('kana', 'フリガナ');
+            req('tel', 'お電話番号');
+            req('bukken', TYPE === 'parking' ? '駐車場名' : '物件名');
+            req('room', TYPE === 'parking' ? '区画番号' : '部屋番号');
+            req('endDate', '解約日');
+
+            // フリガナ：カタカナのみ
+            const kana = $('kana').value.trim();
+            if (kana && !KANA_OK.test(kana)) {
+                setErr('kana', 'フリガナは全角カタカナでご入力ください（例：チンタイ タロウ）');
+                errs.push('kana');
+            }
+            // 電話番号：数字・ハイフンのみ
+            const tel = $('tel').value.trim();
+            if (tel && !/^[0-9０-９\-－ー\s]+$/.test(tel)) {
+                setErr('tel', 'お電話番号は数字とハイフンでご入力ください');
+                errs.push('tel');
+            }
+            // メール（任意だが形式チェック）
+            const email = $('email').value.trim();
+            if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                setErr('email', 'メールアドレスの形式をご確認ください');
+                errs.push('email');
+            }
+            // 解約日：過去日不可
+            if ($('endDate').value && isPast($('endDate').value)) {
+                setErr('endDate', '解約日に過去の日付は選べません。本日以降の日付をお選びください');
+                errs.push('endDate');
+            }
+            // 立会い候補日（管理物件のみ）
+            if (TYPE === 'kanri') {
+                if (!$('t1d').value || !$('t1t').value) {
+                    if (!$('t1d').value) { setErr('t1d', '立会い第1候補の日付をお選びください'); errs.push('t1d'); }
+                    if (!$('t1t').value) { setErr('t1t', '立会い第1候補の時間をお選びください'); errs.push('t1t'); }
+                }
+                [['t1d', 't1t', '第1候補'], ['t2d', 't2t', '第2候補'], ['t3d', 't3t', '第3候補']].forEach(([d, t, label]) => {
+                    const dd = $(d).value, tt = $(t).value;
+                    if (dd && isPast(dd)) { setErr(d, `立会い${label}に過去の日付は選べません`); errs.push(d); }
+                    if (dd && !tt) { setErr(t, `立会い${label}の時間をお選びください`); errs.push(t); }
+                    if (!dd && tt) { setErr(d, `立会い${label}の日付をお選びください`); errs.push(d); }
+                });
+            }
+            // 同意チェック
+            const agrees = [['agreeCleaning', '退去時清掃代の承諾', TYPE === 'kanri'],
+                            ['agreeTerms', '退去時の注意事項への同意', TYPE === 'kanri'],
+                            ['agreePrivacy', '個人情報の取り扱いへの同意', true],
+                            ['agreeWritten', '書面による通知の代替への同意', true],
+                            ['agree', '記載内容の確認', true]];
+            agrees.forEach(([id, label, need]) => {
+                if (need && $(id) && !$(id).checked) { errs.push(id); }
+            });
+            const unchecked = agrees.filter(([id, , need]) => need && $(id) && !$(id).checked);
+            if (unchecked.length) {
+                $('formError').textContent = '未チェックの同意項目があります（' + unchecked.map((x) => x[1]).join('／') + '）';
+                $('formError').classList.remove('hidden');
+            }
+
+            if (errs.length) {
+                if (!unchecked.length) {
+                    $('formError').textContent = '赤字の箇所をご確認ください（' + errs.length + '件）';
+                    $('formError').classList.remove('hidden');
+                }
+                const first = $(errs[0]);
+                if (first) { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); try { first.focus({ preventScroll: true }); } catch (e) {} }
+                return false;
+            }
+            return true;
+        }
+
         // ---------------- バリデーション → 確認 ----------------
         document.addEventListener('DOMContentLoaded', () => {
             init();
+
+            // フリガナ：入力中にひらがなを自動でカタカナへ／離れたときに形式チェック
+            $('kana').addEventListener('blur', () => {
+                const v = $('kana').value.trim();
+                if (!v) return;
+                const conv = toKatakana(v);
+                if (conv !== v) $('kana').value = conv;
+                if (KANA_OK.test($('kana').value.trim())) clearErr('kana');
+                else setErr('kana', 'フリガナは全角カタカナでご入力ください（例：チンタイ タロウ）');
+            });
+            // 日付：選んだ瞬間に過去日をチェック
+            ['endDate', 't1d', 't2d', 't3d'].forEach((id) => {
+                const el = $(id);
+                if (!el) return;
+                el.addEventListener('change', () => {
+                    if (isPast(el.value)) setErr(id, '過去の日付は選べません。本日以降の日付をお選びください');
+                    else clearErr(id);
+                });
+            });
+            // 入力し直したらエラー表示を消す
+            ['name', 'kana', 'tel', 'email', 'bukken', 'room', 'endDate', 't1d', 't1t', 't2d', 't2t', 't3d', 't3t'].forEach((id) => {
+                const el = $(id);
+                if (el) el.addEventListener('input', () => { if (el.value.trim() && !isPast(el.value)) clearErr(id); });
+            });
+
             $('kaiyakuForm').addEventListener('submit', (e) => {
                 e.preventDefault();
-                $('formError').classList.add('hidden');
-                const form = $('kaiyakuForm');
-                // 非表示セクションの required は種別初期化で外している
-                if (!form.checkValidity()) {
-                    form.reportValidity();
-                    $('formError').textContent = '未入力の必須項目があります。ご確認ください。';
-                    $('formError').classList.remove('hidden');
-                    return;
-                }
-                // 立会い第2・第3候補：日付と時間はセットで入力
-                if (TYPE === 'kanri') {
-                    for (const [d, t, label] of [['t2d', 't2t', '第2候補'], ['t3d', 't3t', '第3候補']]) {
-                        const dd = $(d).value, tt = $(t).value;
-                        if ((dd && !tt) || (!dd && tt)) {
-                            $('formError').textContent = `退去立会い${label}は、日付と時間の両方をご入力ください。`;
-                            $('formError').classList.remove('hidden');
-                            $(dd ? t : d).focus();
-                            return;
-                        }
-                    }
-                }
+                if (!validateForm()) return;
                 openConfirm();
             });
         });
