@@ -111,7 +111,7 @@
                                     <p class="err-msg" id="e_kana"></p>
                         </div>
                         <div>
-                            <label class="field-label" for="tel">お電話番号<span class="req">必須</span></label>
+                            <label class="field-label" for="tel">お電話番号<span class="req">必須</span><span class="opt">ハイフンを入れてご入力ください</span></label>
                             <input class="field-input" type="tel" id="tel" required autocomplete="tel" inputmode="tel" placeholder="例）090-1234-5678">
                                     <p class="err-msg" id="e_tel"></p>
                         </div>
@@ -578,6 +578,21 @@
         // 全角カタカナ・長音・空白のみか
         const KANA_OK = /^[ァ-ヴーー\s　]+$/;
 
+        /** 電話番号を整形（携帯・IP・フリーダイヤルはハイフン区切りに）
+         *  固定電話は市外局番の桁数が地域で異なり自動判別できないため、入力のまま */
+        function formatTel(v) {
+            let s = String(v == null ? '' : v).trim();
+            if (!s) return '';
+            s = s.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+                 .replace(/[－ー―‐]/g, '-');
+            const d = s.replace(/[^0-9]/g, '');
+            if (!d) return s;
+            if (/^(070|080|090|050)\d{8}$/.test(d)) return d.slice(0, 3) + '-' + d.slice(3, 7) + '-' + d.slice(7);
+            if (/^0120\d{6}$/.test(d)) return '0120-' + d.slice(4, 7) + '-' + d.slice(7);
+            if (/^0800\d{7}$/.test(d)) return '0800-' + d.slice(4, 7) + '-' + d.slice(7);
+            return s;
+        }
+
         function setErr(id, msg) {
             const el = $(id);
             if (el) {
@@ -706,6 +721,13 @@
                 if (conv !== v) $('kana').value = conv;
                 if (KANA_OK.test($('kana').value.trim())) clearErr('kana');
                 else setErr('kana', 'フリガナは全角カタカナでご入力ください（例：チンタイ タロウ）');
+            });
+            // 電話番号：入力欄を離れたときにハイフン区切りへ整形
+            $('tel').addEventListener('blur', () => {
+                const v = $('tel').value.trim();
+                if (!v) return;
+                const f = formatTel(v);
+                if (f !== v) $('tel').value = f;
             });
             // 日付：選んだ瞬間に過去日をチェック
             ['endDate', 't1d', 't2d', 't3d'].forEach((id) => {

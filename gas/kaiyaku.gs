@@ -124,6 +124,30 @@ function fmtDateJa_(s) {
   return p[0] + '年' + Number(p[1]) + '月' + Number(p[2]) + '日';
 }
 
+/** 電話番号を整形
+ *  ・先頭0が失われている場合は復元（スプレッドシートで数値化されたケース）
+ *  ・携帯／IP／フリーダイヤルはハイフン区切りに整形
+ *  ・固定電話は市外局番の桁数が地域で異なり自動判別できないため、入力のまま
+ */
+function formatTel_(v) {
+  let s = String(v == null ? '' : v).trim();
+  if (!s) return '';
+  // 全角数字・全角ハイフンを半角へ
+  s = s.replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+       .replace(/[－ー―‐]/g, '-');
+  const d = s.replace(/[^0-9]/g, '');
+  if (!d) return s;
+  // 先頭0の復元（9〜10桁で0始まりでない＝数値化で欠落したとみなす）
+  const num = (/^[0-9]{9,10}$/.test(d) && d.charAt(0) !== '0') ? '0' + d : d;
+  // 携帯・IP電話（11桁）
+  if (/^(070|080|090|050)\d{8}$/.test(num)) return num.slice(0, 3) + '-' + num.slice(3, 7) + '-' + num.slice(7);
+  // フリーダイヤル
+  if (/^0120\d{6}$/.test(num)) return '0120-' + num.slice(4, 7) + '-' + num.slice(7);
+  if (/^0800\d{7}$/.test(num)) return '0800-' + num.slice(4, 7) + '-' + num.slice(7);
+  // 固定電話：ハイフン入力済みならそのまま、未入力なら先頭0を復元した数字を返す
+  return /-/.test(s) ? s : num;
+}
+
 /** ファイル名に使えない文字を除去 */
 function safeName_(s) {
   return String(s || '').replace(/[\\\/:*?"<>|]/g, '_').trim();
@@ -151,7 +175,7 @@ function acLine_(data) {
 function buildRows_(data, isParking) {
   const rows = [
     ['ご契約者名', data.name + (data.kana ? '（' + data.kana + '）' : '')],
-    ['お電話番号', data.tel],
+    ['お電話番号', formatTel_(data.tel)],
     ['メールアドレス', data.email || '（未入力）'],
     [isParking ? '駐車場名' : '物件名', data.bukken],
     [isParking ? '区画番号' : '部屋番号', data.room],
@@ -272,7 +296,7 @@ function appendLog_(parent, data, receiptNo, now, pdfUrl) {
     receiptNo,
     isParking ? '月極駐車場' : '管理物件',
     data.bukken, String(data.room), data.name, data.kana || '',
-    String(data.tel), data.email || '', fmtDateJa_(data.endDate),
+    formatTel_(data.tel), data.email || '', fmtDateJa_(data.endDate),
     !isParking && data.fee ? Number(data.fee) : '',
     !isParking ? acLine_(data) : '',
     !isParking && data.feeTotal ? Number(data.feeTotal) : '',
@@ -349,6 +373,55 @@ function sendReceiptMail_(data, receiptNo, now) {
     body: body,
     name: CONFIG.SENDER_NAME,
   });
+}
+
+/**
+ * ============================================================
+ * 【既存データの修復】受付一覧の電話番号を直す
+ *
+ * すでに保存済みの行で、先頭の「0」が消えてしまった電話番号
+ * （例：9043549597）を「09043549597」に戻し、
+ * 携帯番号などはハイフン区切りに整形します。
+ * 部屋番号の先頭0も同様に文字列へ戻します。
+ *
+ * 使い方：エディタで関数「fixTelColumn」を選んで「実行」するだけ。
+ * 何度実行しても問題ありません。
+ * ============================================================
+ */
+function fixTelColumn() {
+  const parent = DriveApp.getFolderById(CONFIG.FOLDER_ID);
+  const it = parent.getFilesByName(CONFIG.LOG_SPREADSHEET_NAME);
+  if (!it.hasNext()) { Logger.log('受付一覧が見つかりませんでした。'); return; }
+  const sheet = SpreadsheetApp.open(it.next()).getSheets()[0];
+  const last = sheet.getLastRow();
+  if (last < 2) { Logger.log('データ行がありません。'); return; }
+
+  // 列をテキスト書式にしてから書き戻す（再び数値化されるのを防ぐ）
+  const telRange = sheet.getRange(2, 8, last - 1, 1);   // H列：電話番号
+  const roomRange = sheet.getRange(2, 5, last - 1, 1);  // E列：部屋/区画
+  telRange.setNumberFormat('@');
+  roomRange.setNumberFormat('@');
+
+  const tels = telRange.getValues();
+  const rooms = roomRange.getValues();
+  let fixedTel = 0, fixedRoom = 0;
+
+  for (let i = 0; i < tels.length; i++) {
+    const before = String(tels[i][0] == null ? '' : tels[i][0]);
+    if (!before) continue;
+    const after = formatTel_(before);
+    if (after !== before) { fixedTel++; Logger.log('電話番号 ' + before + ' → ' + after); }
+    tels[i][0] = after;
+  }
+  for (let i = 0; i < rooms.length; i++) {
+    const v = rooms[i][0];
+    if (v === '' || v == null) continue;
+    // 数値として保存されている部屋番号を文字列へ（先頭0の欠落があれば元に戻せないが型は揃える）
+    if (typeof v === 'number') { fixedRoom++; rooms[i][0] = String(v); }
+  }
+  telRange.setValues(tels);
+  roomRange.setValues(rooms);
+  Logger.log('完了：電話番号 ' + fixedTel + '件、部屋番号 ' + fixedRoom + '件を修正しました。');
 }
 
 /**
