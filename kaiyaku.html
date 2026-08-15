@@ -133,6 +133,22 @@
                                     <p class="err-msg" id="e_bukken"></p>
                         </div>
                         <div>
+                            <label class="field-label" for="owner">貸主（オーナー）<span class="req">必須</span><span class="opt">ご契約書に記載の貸主をお選びください</span></label>
+                            <select class="field-input" id="owner" required onchange="toggleOwnerOther()">
+                                <option value="">— 選択してください —</option>
+                                <option>エイホームトラスト株式会社</option>
+                                <option>大森栄作</option>
+                                <option>白島利江</option>
+                                <option>有限会社仁方大森マリーナー</option>
+                                <option>江口和弘</option>
+                                <option>EASY　HOUSE合同会社</option>
+                                <option value="__other__">その他（下の欄に入力）</option>
+                            </select>
+                            <p class="err-msg" id="e_owner"></p>
+                            <input class="field-input hidden" style="margin-top:8px" type="text" id="ownerOther" placeholder="貸主名を入力してください">
+                            <p class="err-msg" id="e_ownerOther"></p>
+                        </div>
+                        <div>
                             <label class="field-label" for="room"><span id="roomLabel">部屋番号</span><span class="req">必須</span></label>
                             <input class="field-input" type="text" id="room" required placeholder="例）101">
                                     <p class="err-msg" id="e_room"></p>
@@ -498,6 +514,20 @@
         }
 
         // ---------------- 入力値の収集 ----------------
+        /** 貸主：「その他」を選んだときだけ自由記述欄を表示 */
+        function toggleOwnerOther() {
+            const other = $('owner').value === '__other__';
+            $('ownerOther').classList.toggle('hidden', !other);
+            if (other) setTimeout(() => $('ownerOther').focus(), 50);
+            if ($('owner').value) clearErr('owner');
+        }
+        /** 選択された貸主名（「その他」の場合は自由記述の内容） */
+        function ownerValue() {
+            const sel = $('owner').value;
+            if (!sel) return '';
+            return sel === '__other__' ? $('ownerOther').value.trim() : sel;
+        }
+
         function collect() {
             const v = (id) => $(id).value.trim();
             const bank = [v('bankName'), v('bankBranch'), v('bankType'), v('bankNumber'), v('bankHolder')];
@@ -514,7 +544,7 @@
                 acAutoUnit: AC_PRICE_AUTO,
                 feeTotal: TYPE === 'kanri' && (FEE || AC_N || AC_A) ? FEE_TOTAL : null,
                 name: v('name'), kana: v('kana'), tel: v('tel'), email: v('email'),
-                bukken: v('bukken'), room: v('room'),
+                bukken: v('bukken'), room: v('room'), owner: ownerValue(),
                 endDate: v('endDate'),
                 tachiai: tachiai,
                 reason: [v('reason'), v('reasonText')].filter(Boolean).join(' / '),
@@ -546,6 +576,7 @@
                 ['お電話番号', d.tel],
                 ['メール', d.email || '（未入力）'],
                 [isParking ? '駐車場名' : '物件名', d.bukken],
+                ['貸主', d.owner || '（未選択）'],
                 [isParking ? '区画番号' : '部屋番号', d.room],
                 ['解約日', fmtDate(d.endDate)],
             ];
@@ -645,6 +676,15 @@
             req('bukken', TYPE === 'parking' ? '駐車場名' : '物件名');
             req('room', TYPE === 'parking' ? '区画番号' : '部屋番号');
             req('endDate', '解約日');
+
+            // 貸主（「その他」を選んだ場合は自由記述欄が必須）
+            if (!$('owner').value) {
+                setErr('owner', '貸主をお選びください');
+                errs.push('owner');
+            } else if ($('owner').value === '__other__' && !$('ownerOther').value.trim()) {
+                setErr('ownerOther', '貸主名をご入力ください');
+                errs.push('ownerOther');
+            }
 
             // フリガナ：カタカナのみ
             const kana = $('kana').value.trim();

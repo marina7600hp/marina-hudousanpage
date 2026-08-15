@@ -171,7 +171,7 @@ function importableCases_() {
   const sheet = ss.getSheets()[0];
   const last = sheet.getLastRow();
   if (last < 2) return [];
-  const rows = sheet.getRange(2, 1, last - 1, 13).getValues();
+  const rows = sheet.getRange(2, 1, last - 1, Math.max(13, sheet.getLastColumn())).getValues();
   const existing = {};
   listCases_().forEach(function (c) { if (c.data && c.data.receiptNo) existing[c.data.receiptNo] = true; });
   // 一度削除／非表示にした受付番号は再表示しない
@@ -190,6 +190,7 @@ function importableCases_() {
       cleaning: Number(r[10]) || 0,
       acNormalUnit: ac.normalUnit, acNormalCount: ac.normalCount,
       acAutoUnit: ac.autoUnit, acAutoCount: ac.autoCount,
+      owner: String(r[22] == null ? '' : r[22]).trim(),  // 貸主（23列目）
     });
   });
   return out;
@@ -246,7 +247,7 @@ function createCase_(data) {
   const caseId = data.receiptNo || ('T' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMddHHmmss'));
   const info = {
     receiptNo: data.receiptNo || '', tel: data.tel || '', email: data.email || '',
-    endDate: data.endDate || '',
+    endDate: data.endDate || '', owner: data.owner || '',
   };
   // 解約フォームで選ばれた金額を、立会い同意書の初期値（charges）として引き継ぐ
   const cleaning = Number(data.cleaning || 0);
@@ -559,7 +560,7 @@ function saveSettlement_(data) {
     '</table>' +
     '<table style="margin-top:10px"><tr><th style="width:22%">敷金返金口座</th><td>' + esc_(bankLine || '（後日ご連絡）') + '</td></tr></table>' +
     (data.note ? '<div class="foot">備考：' + esc_(data.note) + '</div>' : '') +
-    '<div class="foot">貸主：' + esc_(T_CONFIG.COMPANY) + '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) +
+    '<div class="foot">貸主：' + esc_(data.owner || T_CONFIG.COMPANY) + '　（お問い合わせ：' + esc_(T_CONFIG.COMPANY) + '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) + '）' +
     (data.staff ? '　精算書作成者：' + esc_(data.staff) : '') +
     '<br>' + (shortage > 0 ? '不足金額を上記のとおりご請求いたします。' : '預かり敷金から相殺のうえ、上記返金額を指定口座へお振込みいたします。') +
     '（振込手数料は差引かせていただきます）</div></body></html>';
@@ -583,7 +584,7 @@ function saveSettlement_(data) {
     status: '精算済', settlementUrl: file.getUrl(),
     data: { deposit: deposit, penalty: penalty, unpaidRent: unpaidRent, restoreCost: restoreCost,
             refund: refund, shortage: shortage, settlementStaff: data.staff || '',
-            tenancy: data.tenancy || '', endDate: data.endDate || '', newAddress: data.newAddress || '', contact: data.contact || '',
+            tenancy: data.tenancy || '', endDate: data.endDate || '', newAddress: data.newAddress || '', contact: data.contact || '', owner: data.owner || '',
             paymentDue: data.paymentDue || '', invoiceUrl: invoiceUrl, coverUrl: coverUrl },
   });
   try {
@@ -711,7 +712,8 @@ function buildCover_(caseId, c, data, shortage, dstamp, label) {
     '.half{height:133mm;box-sizing:border-box;padding:5mm 7mm;position:relative;overflow:hidden;}' +
     '.date{text-align:right;font-size:11px;}' +
     '.title{text-align:center;font-size:18px;font-weight:bold;letter-spacing:6px;margin:2mm 0 6mm;}' +
-    '.copy .title{margin:1.5mm 0 4mm;} .copy .greet{margin:4mm 0 1.5mm;line-height:1.75;}' +
+    '.copy{padding-top:3.5mm;} .copy .title{margin:1mm 0 3mm;font-size:16px;} .copy .greet{margin:2.5mm 0 1mm;line-height:1.6;}' +
+    '.copy .list td{padding:2px 6px;} .copy .head{gap:6mm;}' +
     '.head{display:flex;justify-content:space-between;align-items:flex-start;gap:10mm;}' +
     '.to{width:50%;padding-top:4mm;}' +
     '.to .toaddr{font-size:11px;margin-bottom:3px;}' +
@@ -725,11 +727,11 @@ function buildCover_(caseId, c, data, shortage, dstamp, label) {
     '.list td.n{width:8%;} .list td.b{width:16%;text-align:right;}' +
     '.ijou{text-align:right;font-size:11px;margin-top:5px;}' +
     '.cut{border-top:1px dashed #666;text-align:center;font-size:10px;color:#666;padding-top:1mm;}' +
-    '.envwrap{display:flex;align-items:center;gap:4mm;margin-top:3mm;}' +
+    '.envwrap{display:flex;align-items:center;gap:4mm;margin-top:2mm;}' +
     // 封筒貼り付け用の宛名：横60mm×縦35mm（実寸）
-    '.env{border:1px dashed #333;width:60mm;height:35mm;box-sizing:border-box;padding:2.5mm 3.5mm;font-size:10px;line-height:1.4;overflow:hidden;}' +
+    '.env{border:1px dashed #333;width:70mm;height:40mm;box-sizing:border-box;padding:3mm 4mm;font-size:12.5px;line-height:1.5;overflow:hidden;}' +
     '.env .zip{display:inline-block;margin-bottom:1px;}' +
-    '.env .envname{font-weight:bold;font-size:11px;line-height:1.35;margin-top:3px;}' +
+    '.env .envname{font-weight:bold;font-size:14px;line-height:1.4;margin-top:4px;}' +
     '.envnote{font-size:10px;color:#555;}' +
     '</style></head><body>' +
     letter(false) +

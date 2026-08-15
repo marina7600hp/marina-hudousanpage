@@ -535,6 +535,7 @@
             if(d.moveoutDate) dl.push('退去日 '+d.moveoutDate);
             if(d.tachiaiDate) dl.push('立会日 '+d.tachiaiDate);
             if(d.staffTachiai) dl.push('立会担当 '+d.staffTachiai);
+            if(d.owner) dl.unshift('貸主 '+d.owner);
             $('cvDates').textContent = dl.join('　/　');
             // ステータス
             $('cvStatus').className = 'badge '+(STATUS_MAP[CUR.status]||'b-kaiyaku');
@@ -818,7 +819,8 @@
                 deposit:numv('stDeposit'), penalty:numv('stPenalty'), unpaidRent:numv('stUnpaid'), restoreCost:numv('stRestore'),
                 bank:{ name:$('stBankName').value.trim(), branch:$('stBankBranch').value.trim(), type:$('stBankType').value.trim(),
                        number:$('stBankNumber').value.trim(), holder:$('stBankHolder').value.trim() },
-                note:$('stNote').value.trim(), staff:$('stStaff').value.trim(), paymentDue:$('stPayDue').value };
+                note:$('stNote').value.trim(), staff:$('stStaff').value.trim(), paymentDue:$('stPayDue').value,
+                owner:((CUR.data&&CUR.data.owner)||'') };
             const isShortagePreview = (numv('stDeposit')-numv('stPenalty')-numv('stUnpaid')-numv('stRestore'))<0;
             await run(payload, isShortagePreview?'精算書・御請求書・送付状を作成しました':'精算書・送付状を作成しました');
         }
@@ -862,7 +864,7 @@
                 const j=await apiPost({ action:'newCase', receiptNo:imp.receiptNo||'', name:imp.name||'', kana:imp.kana||'',
                     bukken:imp.bukken||'', room:imp.room||'', tel:imp.tel||'', email:imp.email||'', endDate:imp.endDate||'',
                     cleaning:imp.cleaning||0, acNormalUnit:imp.acNormalUnit||0, acNormalCount:imp.acNormalCount||0,
-                    acAutoUnit:imp.acAutoUnit||0, acAutoCount:imp.acAutoCount||0 });
+                    acAutoUnit:imp.acAutoUnit||0, acAutoCount:imp.acAutoCount||0, owner:imp.owner||'' });
                 if(!j.ok) throw new Error(j.error||'error');
                 await loadCases();
                 const nc=CASES.find(c=>c.id===j.caseId);
@@ -920,7 +922,7 @@
             const payload={ action:'newCase', receiptNo:imp.receiptNo||'', name:$('ncName').value.trim(), kana:$('ncKana').value.trim(),
                 bukken:$('ncBukken').value.trim(), room:$('ncRoom').value.trim(), tel:imp.tel||'', email:imp.email||'', endDate:imp.endDate||'',
                 cleaning:imp.cleaning||0, acNormalUnit:imp.acNormalUnit||0, acNormalCount:imp.acNormalCount||0,
-                acAutoUnit:imp.acAutoUnit||0, acAutoCount:imp.acAutoCount||0 };
+                acAutoUnit:imp.acAutoUnit||0, acAutoCount:imp.acAutoCount||0, owner:imp.owner||'' };
             closeNewCase();
             show('loading');
             try{ const j=await apiPost(payload); if(!j.ok)throw 0; await loadCases(); const nc=CASES.find(c=>c.id===j.caseId); hide('loading'); if(nc) openCase(nc.id); }

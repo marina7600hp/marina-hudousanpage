@@ -178,6 +178,7 @@ function buildRows_(data, isParking) {
     ['お電話番号', formatTel_(data.tel)],
     ['メールアドレス', data.email || '（未入力）'],
     [isParking ? '駐車場名' : '物件名', data.bukken],
+    ['貸主', data.owner || ''],
     [isParking ? '区画番号' : '部屋番号', data.room],
     [isParking ? '解約日（利用終了日）' : '解約日（退去予定日）', fmtDateJa_(data.endDate)],
   ];
@@ -240,7 +241,7 @@ function buildPdf_(data, receiptNo, now) {
     '<div class="meta">通知日（受付日時）：' + Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy年M月d日 HH:mm') + '</div>' +
     '<h1>解約通知書</h1>' +
     '<div class="sub">' + esc_(title) + '</div>' +
-    '<div class="to">貸主様<br>' + esc_(CONFIG.COMPANY) + ' 御中</div>' +
+    '<div class="to">貸主様<br>' + esc_(data.owner || CONFIG.COMPANY) + ' 御中</div>' +
     '<div class="lead">私は、下記のとおり賃貸借契約を解約することを通知いたします。<br>' +
     '本通知は、契約書に「解約は書面により通知する」旨の定めがある場合においても、当該書面による解約通知に代わるものとして、' +
     '借主（契約者）の同意のもと電磁的方法（Webフォーム）により行ったものであり、本書（電磁的記録）を書面による解約通知と同等のものとして取り扱います。</div>' +
@@ -282,7 +283,7 @@ function appendLog_(parent, data, receiptNo, now, pdfUrl) {
       '受付日時', '受付番号', '種別', '物件名/駐車場名', '部屋/区画', '契約者名', 'フリガナ',
       '電話番号', 'メール', '解約日', '室内清掃代', 'エアコン洗浄代', '清掃代等合計',
       '解約理由', '立会い希望', '転居先', '返金先口座', '車両', '備考',
-      '個人情報同意', '注意事項同意', '書面通知同意', 'PDFリンク',
+      '個人情報同意', '注意事項同意', '書面通知同意', 'PDFリンク', '貸主',
     ]);
     sheet.setFrozenRows(1);
   }
@@ -308,6 +309,7 @@ function appendLog_(parent, data, receiptNo, now, pdfUrl) {
     !isParking ? (data.agreeTerms ? '同意' : '') : '',
     data.agreeWritten ? '同意' : '',
     pdfUrl,
+    data.owner || '',
   ]);
 }
 
