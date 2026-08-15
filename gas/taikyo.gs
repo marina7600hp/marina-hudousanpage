@@ -205,6 +205,12 @@ function handleLineWebhook_(body) {
       const src = ev.source || {};
       const id = src.groupId || src.roomId || src.userId || '';
       if (!id) return;
+      // 受信したIDは必ず控えておく（登録に失敗しても後から setLineToFromLast で設定できる）
+      try {
+        PropertiesService.getScriptProperties()
+          .setProperty('LINE_LAST_SOURCE_ID', id)
+          .setProperty('LINE_LAST_EVENT', ev.type + ' / ' + (src.type || '') + ' / ' + new Date());
+      } catch (e2) {}
       // 招待された（join）／グループから発言があったとき、未登録なら通知先として登録
       if (ev.type === 'join' || ev.type === 'message' || ev.type === 'follow') {
         const props = PropertiesService.getScriptProperties();
@@ -244,10 +250,59 @@ function lineReply_(replyToken, text) {
   } catch (e) {}
 }
 
-/** 登録済みの通知先IDを確認する（解約フォーム側の設定にも使えます） */
+/** 現在の設定状況を確認する（診断用） */
 function showLineTo() {
+  const props = PropertiesService.getScriptProperties();
+  const token = lineToken_();
   const to = lineStaffTo_();
-  Logger.log(to ? ('現在の通知先ID：' + to) : '通知先は未登録です。公式アカウントをグループに招待してください。');
+  const last = props.getProperty('LINE_LAST_SOURCE_ID') || '';
+  const lastEv = props.getProperty('LINE_LAST_EVENT') || '';
+  Logger.log(
+    '── LINE設定の状況 ──\n' +
+    '1) トークン：' + (token ? '設定あり（末尾 ' + token.slice(-6) + '）' : '未設定') + '\n' +
+    '2) 通知先ID：' + (to || '未登録（未設定なら友だち全員へ一斉送信）') + '\n' +
+    '3) 最後に受信したLINEからの通信：' + (last ? (last + '\n   （' + lastEv + '）') : 'なし') + '\n' +
+    '\n' +
+    (last && !to
+      ? '→ グループからの通信は届いています。関数「setLineToFromLast」を実行すると、\n' +
+        '   そのグループを通知先として登録できます。'
+      : (!last
+        ? '→ LINEからの通信がまだ届いていません。\n' +
+          '   ・Webhook URL が設定され「Webhookの利用」がオンか\n' +
+          '   ・最新コードを「新バージョン」でデプロイ済みか\n' +
+          '   ・デプロイのアクセス権が「全員」か\n' +
+          '   をご確認のうえ、グループで何か発言してみてください。'
+        : '→ 設定は完了しています。testLine で送信テストできます。'))
+  );
+}
+
+/** 最後にLINEから受信したトーク（グループ）を、通知先として登録する
+ *  自動登録がうまくいかなかったときの手動設定用です。 */
+function setLineToFromLast() {
+  const props = PropertiesService.getScriptProperties();
+  const last = (props.getProperty('LINE_LAST_SOURCE_ID') || '').trim();
+  if (!last) {
+    Logger.log('LINEからの通信がまだ届いていません。\n' +
+      'Webhookの設定を確認し、通知したいグループで何か発言してから、もう一度実行してください。');
+    return;
+  }
+  props.setProperty('LINE_STAFF_TO', last);
+  Logger.log('通知先として登録しました：' + last + '\n' +
+    'testLine を実行して、そのグループに届くかご確認ください。');
+}
+
+/** 通知先IDを直接指定して登録する（IDが分かっている場合） */
+function setLineTo(id) {
+  const v = String(id || '').trim();
+  if (!v) { Logger.log('IDを引数に指定してください。例： setLineTo("Cxxxxxxxx")'); return; }
+  PropertiesService.getScriptProperties().setProperty('LINE_STAFF_TO', v);
+  Logger.log('通知先として登録しました：' + v);
+}
+
+/** 通知先の登録を解除する（友だち全員への一斉送信に戻す） */
+function clearLineTo() {
+  PropertiesService.getScriptProperties().deleteProperty('LINE_STAFF_TO');
+  Logger.log('通知先の登録を解除しました。以降は友だち全員への一斉送信になります。');
 }
 
 /** LINE通知のテスト（設定後にこの関数を実行して届くか確認） */
