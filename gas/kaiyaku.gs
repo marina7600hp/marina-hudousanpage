@@ -148,6 +148,46 @@ function formatTel_(v) {
   return /-/.test(s) ? s : num;
 }
 
+// ================= LINE通知 =================
+// トークン・送信先は「プロジェクトの設定 → スクリプト プロパティ」に登録します。
+//   LINE_CHANNEL_ACCESS_TOKEN … チャネルアクセストークン
+//   LINE_STAFF_TO             … 通知先のグループID
+// どちらも未設定なら、LINE通知は行いません（メール通知のみ）。
+function lineProp_(key) {
+  try {
+    const v = PropertiesService.getScriptProperties().getProperty(key);
+    return v ? v.trim() : '';
+  } catch (e) { return ''; }
+}
+
+/** LINEへ通知（未設定なら何もしない） */
+function lineSend_(text) {
+  const token = lineProp_('LINE_CHANNEL_ACCESS_TOKEN');
+  const to = lineProp_('LINE_STAFF_TO');
+  if (!token || !to || !text) return false;
+  try {
+    const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + token },
+      payload: JSON.stringify({ to: to, messages: [{ type: 'text', text: String(text).slice(0, 4900) }] }),
+      muteHttpExceptions: true,
+    });
+    if (res.getResponseCode() !== 200) Logger.log('LINE送信エラー：' + res.getContentText());
+    return res.getResponseCode() === 200;
+  } catch (e) {
+    Logger.log('LINE送信例外：' + e);
+    return false;
+  }
+}
+
+/** LINE通知のテスト（設定後に実行して届くか確認） */
+function testLine() {
+  if (!lineProp_('LINE_CHANNEL_ACCESS_TOKEN')) { Logger.log('LINE_CHANNEL_ACCESS_TOKEN が未設定です。'); return; }
+  if (!lineProp_('LINE_STAFF_TO')) { Logger.log('LINE_STAFF_TO（通知先グループID）が未設定です。'); return; }
+  Logger.log(lineSend_('【テスト送信】解約通知フォームからのLINE通知です。') ? '送信しました。' : '送信に失敗しました。');
+}
+
 /** ファイル名に使えない文字を除去 */
 function safeName_(s) {
   return String(s || '').replace(/[\\\/:*?"<>|]/g, '_').trim();
@@ -341,6 +381,19 @@ function sendNotifyMail_(data, receiptNo, now, file, sheetError) {
     attachments: [file.getBlob()],
     name: CONFIG.SENDER_NAME,
   });
+
+  // メール通知と連動してLINEにも通知（未設定なら何もしません）
+  const isParking2 = data.type === 'parking';
+  lineSend_(
+    '【解約通知を受付】' + kind + '\n' +
+    data.bukken + ' ' + data.room + '（' + data.name + '様）\n' +
+    '解約日：' + fmtDateJa_(data.endDate) + '\n' +
+    (data.owner ? '貸主：' + data.owner + '\n' : '') +
+    (!isParking2 && data.feeTotal ? '清掃代等 合計：' + fmtYen_(data.feeTotal) + '\n' : '') +
+    (data.tachiai ? '立会い希望：' + data.tachiai + '\n' : '') +
+    '受付番号：' + receiptNo + '\n' +
+    '解約通知書：' + file.getUrl()
+  );
 }
 
 /** 入居者への受付完了メール（自動返信） */

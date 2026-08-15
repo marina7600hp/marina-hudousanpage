@@ -187,41 +187,60 @@ function lineNotify_(stage, c, staffText, ownerText) {
 }
 
 /**
- * 【LINEグループIDの調べ方】
- * 1. LINE公式アカウントを対象のグループに招待する
- * 2. このGASのウェブアプリURLを LINE Developers の Webhook URL に設定し、
- *    「Webhookの利用」をオンにする
- * 3. そのグループで何かメッセージを送る
- * 4. 親フォルダ内のシート「LINEグループID一覧」に、グループIDが記録されます
- *    （そのIDを T_CONFIG.LINE.OWNER_GROUPS / STAFF_TO に設定してください）
+ * LINEからのWebhook受信
+ * 公式アカウントをグループに招待した時点で、そのグループを通知先として自動登録します。
+ * （利用者側の操作は「招待するだけ」。発言も、IDの控えも不要です）
  */
 function handleLineWebhook_(body) {
   try {
     const events = (body && body.events) || [];
-    if (!events.length) return json_({ ok: true });
-    const parent = parentFolder_();
-    const NAME = 'LINEグループID一覧';
-    let ss;
-    const it = parent.getFilesByName(NAME);
-    if (it.hasNext()) ss = SpreadsheetApp.open(it.next());
-    else { ss = SpreadsheetApp.create(NAME); DriveApp.getFileById(ss.getId()).moveTo(parent); }
-    const sheet = ss.getSheets()[0];
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow(['記録日時', '種別', 'ID（これを設定に貼り付け）', '送信者ユーザーID', 'メッセージ']);
-      sheet.setFrozenRows(1);
-    }
     events.forEach(function (ev) {
       const src = ev.source || {};
       const id = src.groupId || src.roomId || src.userId || '';
-      const kind = src.groupId ? 'グループ' : (src.roomId ? 'トークルーム' : '個人');
-      const msg = (ev.message && ev.message.text) || ev.type || '';
-      sheet.appendRow([new Date(), kind, id, src.userId || '', msg]);
+      if (!id) return;
+      // 招待された（join）／グループから発言があったとき、未登録なら通知先として登録
+      if (ev.type === 'join' || ev.type === 'message' || ev.type === 'follow') {
+        const props = PropertiesService.getScriptProperties();
+        const cur = (props.getProperty('LINE_STAFF_TO') || '').trim();
+        if (!cur) {
+          props.setProperty('LINE_STAFF_TO', id);
+          if (ev.replyToken) lineReply_(ev.replyToken,
+            '✅ 通知先として登録しました。\n今後、退去精算の進捗をこのトークにお知らせします。');
+          Logger.log('LINE通知先を登録しました：' + id);
+        } else if (ev.type === 'join' && cur !== id) {
+          // 既に別の通知先が登録済み（貸主グループなど）→ IDを案内するだけ
+          if (ev.replyToken) lineReply_(ev.replyToken,
+            'このトークのIDは次のとおりです。貸主グループとして登録する場合は担当者へお伝えください。\n' + id);
+          Logger.log('別グループに招待されました：' + id);
+        }
+      }
     });
     return json_({ ok: true });
   } catch (e) {
     Logger.log('Webhook処理エラー：' + e);
     return json_({ ok: true }); // LINEには常に200を返す
   }
+}
+
+/** Webhookへの返信（招待時の確認メッセージ用） */
+function lineReply_(replyToken, text) {
+  const token = lineToken_();
+  if (!token || !replyToken) return;
+  try {
+    UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + token },
+      payload: JSON.stringify({ replyToken: replyToken, messages: [{ type: 'text', text: text }] }),
+      muteHttpExceptions: true,
+    });
+  } catch (e) {}
+}
+
+/** 登録済みの通知先IDを確認する（解約フォーム側の設定にも使えます） */
+function showLineTo() {
+  const to = lineStaffTo_();
+  Logger.log(to ? ('現在の通知先ID：' + to) : '通知先は未登録です。公式アカウントをグループに招待してください。');
 }
 
 /** LINE通知のテスト（設定後にこの関数を実行して届くか確認） */
@@ -235,7 +254,7 @@ function testLine() {
   if (!to) {
     Logger.log('送信先IDが未設定です。\n' +
       'スクリプト プロパティ LINE_STAFF_TO、または T_CONFIG.LINE.STAFF_TO に設定してください。\n' +
-      '（グループIDは、公式アカウントを招待したグループで発言すると「LINEグループID一覧」シートに記録されます）');
+      '（公式アカウントを通知したいグループに招待すると、自動で登録されます）');
     return;
   }
   const ok = lineSend_(to, '【テスト送信】退去精算システムからのLINE通知です。');
