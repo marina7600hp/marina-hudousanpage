@@ -55,7 +55,10 @@ const T_CONFIG = {
   // ---------------- LINE通知（任意・未設定なら何もしません） ----------------
   // 設定手順は TAIKYO_SETUP.md「LINE通知の設定」を参照してください。
   LINE: {
-    // LINE Developers で発行したチャネルアクセストークン（長期）
+    // ★チャネルアクセストークンはここには書かないでください（GitHubで公開されるため）。
+    //   Apps Script の「プロジェクトの設定 → スクリプト プロパティ」に
+    //   プロパティ名 LINE_CHANNEL_ACCESS_TOKEN で登録してください。
+    //   （どうしても直接指定する場合のみ、下に記入。※非公開運用のときだけ）
     CHANNEL_ACCESS_TOKEN: '',
     // 社内用の送信先（グループID or ユーザーID）。すべての通知がここに届きます
     STAFF_TO: '',
@@ -127,15 +130,34 @@ function json_(obj) {
 }
 
 // ================= LINE通知 =================
+/** チャネルアクセストークンを取得
+ *  安全のため「スクリプト プロパティ」を優先して読み込みます（コードには残しません）。 */
+function lineToken_() {
+  try {
+    const v = PropertiesService.getScriptProperties().getProperty('LINE_CHANNEL_ACCESS_TOKEN');
+    if (v && v.trim()) return v.trim();
+  } catch (e) {}
+  return ((T_CONFIG.LINE || {}).CHANNEL_ACCESS_TOKEN || '').trim();
+}
+
+/** 送信先IDを取得（スクリプトプロパティ LINE_STAFF_TO があればそちらを優先） */
+function lineStaffTo_() {
+  try {
+    const v = PropertiesService.getScriptProperties().getProperty('LINE_STAFF_TO');
+    if (v && v.trim()) return v.trim();
+  } catch (e) {}
+  return ((T_CONFIG.LINE || {}).STAFF_TO || '').trim();
+}
+
 /** LINEへメッセージを送る（宛先が空、またはトークン未設定なら何もしない） */
 function lineSend_(to, text) {
-  const cfg = T_CONFIG.LINE || {};
-  if (!cfg.CHANNEL_ACCESS_TOKEN || !to || !text) return false;
+  const token = lineToken_();
+  if (!token || !to || !text) return false;
   try {
     const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
       method: 'post',
       contentType: 'application/json',
-      headers: { Authorization: 'Bearer ' + cfg.CHANNEL_ACCESS_TOKEN },
+      headers: { Authorization: 'Bearer ' + token },
       payload: JSON.stringify({ to: to, messages: [{ type: 'text', text: String(text).slice(0, 4900) }] }),
       muteHttpExceptions: true,
     });
@@ -152,9 +174,9 @@ function lineSend_(to, text) {
  *  stage: 'tachiai' | 'estimate' | 'settlement' | 'complete' */
 function lineNotify_(stage, c, staffText, ownerText) {
   const cfg = T_CONFIG.LINE || {};
-  if (!cfg.CHANNEL_ACCESS_TOKEN) return;
+  if (!lineToken_()) return;
   // 社内へ（全段階）
-  lineSend_(cfg.STAFF_TO, staffText);
+  lineSend_(lineStaffTo_(), staffText);
   // 貸主グループへ（設定された貸主・段階のみ）
   const owner = (c && c.owner) || '';
   const groups = cfg.OWNER_GROUPS || {};
@@ -204,11 +226,20 @@ function handleLineWebhook_(body) {
 
 /** LINE通知のテスト（設定後にこの関数を実行して届くか確認） */
 function testLine() {
-  const cfg = T_CONFIG.LINE || {};
-  if (!cfg.CHANNEL_ACCESS_TOKEN) { Logger.log('チャネルアクセストークンが未設定です。'); return; }
-  if (!cfg.STAFF_TO) { Logger.log('STAFF_TO（送信先ID）が未設定です。'); return; }
-  const ok = lineSend_(cfg.STAFF_TO, '【テスト送信】退去精算システムからのLINE通知です。');
-  Logger.log(ok ? '送信しました。LINEをご確認ください。' : '送信に失敗しました。ログをご確認ください。');
+  if (!lineToken_()) {
+    Logger.log('チャネルアクセストークンが未設定です。\n' +
+      '「プロジェクトの設定 → スクリプト プロパティ」に LINE_CHANNEL_ACCESS_TOKEN を登録してください。');
+    return;
+  }
+  const to = lineStaffTo_();
+  if (!to) {
+    Logger.log('送信先IDが未設定です。\n' +
+      'スクリプト プロパティ LINE_STAFF_TO、または T_CONFIG.LINE.STAFF_TO に設定してください。\n' +
+      '（グループIDは、公式アカウントを招待したグループで発言すると「LINEグループID一覧」シートに記録されます）');
+    return;
+  }
+  const ok = lineSend_(to, '【テスト送信】退去精算システムからのLINE通知です。');
+  Logger.log(ok ? '送信しました。LINEをご確認ください。' : '送信に失敗しました。実行ログをご確認ください。');
 }
 
 // ---------------- フォルダ・シート ----------------
