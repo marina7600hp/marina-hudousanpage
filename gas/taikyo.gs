@@ -32,7 +32,7 @@ const T_CONFIG = {
   // （任意）解約フォームの「解約通知受付一覧」スプレッドシートID。
   // 設定すると、管理画面で解約済みの案件を取り込んで立会いを開始できます。
   // 空欄の場合は管理画面で手入力して案件を作成します。
-  KAIYAKU_LOG_ID: '',
+  KAIYAKU_LOG_ID: '1PLLagMO8xALs1ry_fY4JxC7SCwncGygNEz_xhcCMK-M',
   COMPANY: '有限会社仁方大森マリーナー',
   COMPANY_TEL: '0823-27-7600',
   COMPANY_ADDR: '〒737-0821 広島県呉市三条4丁目7-20',
@@ -51,6 +51,22 @@ const T_CONFIG = {
   },
   PROGRESS_SHEET_NAME: '退去精算_進捗管理',
   SENDER_NAME: '仁方大森マリーナー 退去精算',
+
+  // ---------------- LINE通知（任意・未設定なら何もしません） ----------------
+  // 設定手順は TAIKYO_SETUP.md「LINE通知の設定」を参照してください。
+  LINE: {
+    // LINE Developers で発行したチャネルアクセストークン（長期）
+    CHANNEL_ACCESS_TOKEN: '',
+    // 社内用の送信先（グループID or ユーザーID）。すべての通知がここに届きます
+    STAFF_TO: '',
+    // 貸主ごとのグループID。設定した貸主の案件は、そのグループにも通知します
+    // 例： 'エイホームトラスト株式会社': 'Cxxxxxxxxxxxxxxxx',
+    OWNER_GROUPS: {},
+    // 貸主グループへ送る通知の段階（社内には常に全段階を送ります）
+    OWNER_STAGES: { tachiai: true, estimate: true, settlement: true, complete: true },
+    // 貸主グループへ金額を含めるか（false なら物件名と進捗のみ）
+    OWNER_INCLUDE_AMOUNT: true,
+  },
   SUBFOLDERS: {
     report: '原状回復箇所報告書',
     consent: '退去立会い同意書',
@@ -87,6 +103,8 @@ function doGet(e) {
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
+    // LINEからのWebhook（グループID取得用）
+    if (data && data.events && !data.action) return handleLineWebhook_(data);
     const action = data.action;
     if (action === 'newCase') return json_(createCase_(data));
     if (action === 'report') return json_(saveReport_(data));
@@ -106,6 +124,91 @@ function doPost(e) {
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ================= LINE通知 =================
+/** LINEへメッセージを送る（宛先が空、またはトークン未設定なら何もしない） */
+function lineSend_(to, text) {
+  const cfg = T_CONFIG.LINE || {};
+  if (!cfg.CHANNEL_ACCESS_TOKEN || !to || !text) return false;
+  try {
+    const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + cfg.CHANNEL_ACCESS_TOKEN },
+      payload: JSON.stringify({ to: to, messages: [{ type: 'text', text: String(text).slice(0, 4900) }] }),
+      muteHttpExceptions: true,
+    });
+    const code = res.getResponseCode();
+    if (code !== 200) Logger.log('LINE送信エラー(' + code + ')：' + res.getContentText());
+    return code === 200;
+  } catch (e) {
+    Logger.log('LINE送信例外：' + e);
+    return false;
+  }
+}
+
+/** 案件の通知を、社内グループと（設定があれば）貸主グループへ送る
+ *  stage: 'tachiai' | 'estimate' | 'settlement' | 'complete' */
+function lineNotify_(stage, c, staffText, ownerText) {
+  const cfg = T_CONFIG.LINE || {};
+  if (!cfg.CHANNEL_ACCESS_TOKEN) return;
+  // 社内へ（全段階）
+  lineSend_(cfg.STAFF_TO, staffText);
+  // 貸主グループへ（設定された貸主・段階のみ）
+  const owner = (c && c.owner) || '';
+  const groups = cfg.OWNER_GROUPS || {};
+  const stages = cfg.OWNER_STAGES || {};
+  if (owner && groups[owner] && stages[stage]) {
+    lineSend_(groups[owner], ownerText || staffText);
+  }
+}
+
+/**
+ * 【LINEグループIDの調べ方】
+ * 1. LINE公式アカウントを対象のグループに招待する
+ * 2. このGASのウェブアプリURLを LINE Developers の Webhook URL に設定し、
+ *    「Webhookの利用」をオンにする
+ * 3. そのグループで何かメッセージを送る
+ * 4. 親フォルダ内のシート「LINEグループID一覧」に、グループIDが記録されます
+ *    （そのIDを T_CONFIG.LINE.OWNER_GROUPS / STAFF_TO に設定してください）
+ */
+function handleLineWebhook_(body) {
+  try {
+    const events = (body && body.events) || [];
+    if (!events.length) return json_({ ok: true });
+    const parent = parentFolder_();
+    const NAME = 'LINEグループID一覧';
+    let ss;
+    const it = parent.getFilesByName(NAME);
+    if (it.hasNext()) ss = SpreadsheetApp.open(it.next());
+    else { ss = SpreadsheetApp.create(NAME); DriveApp.getFileById(ss.getId()).moveTo(parent); }
+    const sheet = ss.getSheets()[0];
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(['記録日時', '種別', 'ID（これを設定に貼り付け）', '送信者ユーザーID', 'メッセージ']);
+      sheet.setFrozenRows(1);
+    }
+    events.forEach(function (ev) {
+      const src = ev.source || {};
+      const id = src.groupId || src.roomId || src.userId || '';
+      const kind = src.groupId ? 'グループ' : (src.roomId ? 'トークルーム' : '個人');
+      const msg = (ev.message && ev.message.text) || ev.type || '';
+      sheet.appendRow([new Date(), kind, id, src.userId || '', msg]);
+    });
+    return json_({ ok: true });
+  } catch (e) {
+    Logger.log('Webhook処理エラー：' + e);
+    return json_({ ok: true }); // LINEには常に200を返す
+  }
+}
+
+/** LINE通知のテスト（設定後にこの関数を実行して届くか確認） */
+function testLine() {
+  const cfg = T_CONFIG.LINE || {};
+  if (!cfg.CHANNEL_ACCESS_TOKEN) { Logger.log('チャネルアクセストークンが未設定です。'); return; }
+  if (!cfg.STAFF_TO) { Logger.log('STAFF_TO（送信先ID）が未設定です。'); return; }
+  const ok = lineSend_(cfg.STAFF_TO, '【テスト送信】退去精算システムからのLINE通知です。');
+  Logger.log(ok ? '送信しました。LINEをご確認ください。' : '送信に失敗しました。ログをご確認ください。');
 }
 
 // ---------------- フォルダ・シート ----------------
@@ -462,6 +565,12 @@ function saveConsent_(data) {
     });
   } catch (e) {}
 
+  // LINE通知
+  const label1 = c.bukken + ' ' + c.room + '（' + c.name + '様）';
+  lineNotify_('tachiai', { owner: data.owner || caseOwner_(caseId) },
+    '【退去立会い完了】' + label1 + '\n借主負担（確定分・税込）：' + fmtYen_(fixedTotal) + '\n次は修繕見積書の作成です。',
+    '【退去立会い完了】' + label1 + '\n' + (T_CONFIG.LINE.OWNER_INCLUDE_AMOUNT ? '借主負担（確定分・税込）：' + fmtYen_(fixedTotal) + '\n' : '') + '立会いが完了しました。');
+
   return { ok: true, caseId: caseId, consentUrl: consentFile.getUrl() };
 }
 
@@ -525,6 +634,10 @@ function saveEstimate_(data) {
     data: { estimateItems: items, estimateNote: data.note || '', estimateStaff: data.staff || '',
             tenantTotal: tenantTotal, ownerTotal: ownerTotal, estimateTotal: totalA },
   });
+  const label2 = c.bukken + ' ' + c.room + '（' + c.name + '様）';
+  lineNotify_('estimate', { owner: caseOwner_(caseId) },
+    '【修繕見積書 作成】' + label2 + '\n借主負担 合計（税込）：' + fmtYen_(tenantTotal) + '\n貸主負担 合計（税込）：' + fmtYen_(ownerTotal),
+    '【修繕見積書 作成】' + label2 + (T_CONFIG.LINE.OWNER_INCLUDE_AMOUNT ? '\n借主負担（税込）：' + fmtYen_(tenantTotal) + '\n貸主負担（税込）：' + fmtYen_(ownerTotal) : ''));
   return { ok: true, caseId: caseId, estimateUrl: file.getUrl(), tenantTotal: tenantTotal };
 }
 
@@ -598,6 +711,11 @@ function saveSettlement_(data) {
       name: T_CONFIG.SENDER_NAME,
     });
   } catch (e) {}
+  const label3 = c.bukken + ' ' + c.room + '（' + c.name + '様）';
+  const money3 = shortage > 0 ? '不足金額（ご請求）：' + fmtYen_(shortage) : '返金額：' + fmtYen_(refund);
+  lineNotify_('settlement', { owner: data.owner || caseOwner_(caseId) },
+    '【退去精算書 作成】' + label3 + '\n' + money3 + (invoiceUrl ? '\n御請求書を作成しました。' : '') + '\n送付状も作成済みです。',
+    '【退去精算書 作成】' + label3 + (T_CONFIG.LINE.OWNER_INCLUDE_AMOUNT ? '\n' + money3 : ''));
   return { ok: true, caseId: caseId, settlementUrl: file.getUrl(), refund: refund, shortage: shortage,
            invoiceUrl: invoiceUrl, coverUrl: coverUrl };
 }
@@ -629,6 +747,17 @@ function buildInvoice_(caseId, c, data, shortage, dstamp, label) {
     '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) + '</div></body></html>';
   const folder = getOrCreateSubfolder_(parentFolder_(), T_CONFIG.SUBFOLDERS.invoice);
   return folder.createFile(htmlToPdf_(html, '御請求書_' + label + '_' + dstamp + '.pdf'));
+}
+
+/** 案件IDから貸主名を取り出す（進捗シートのデータJSONより） */
+function caseOwner_(caseId) {
+  try {
+    const sheet = progressSheet_();
+    const row = findRow_(sheet, caseId);
+    if (row < 0) return '';
+    const d = JSON.parse(sheet.getRange(row, PS_COL.json).getValue() || '{}');
+    return d.owner || '';
+  } catch (e) { return ''; }
 }
 
 /** 電話番号の先頭0が失われた場合に復元
@@ -809,6 +938,10 @@ function saveComplete_(data) {
       name: T_CONFIG.SENDER_NAME,
     });
   } catch (e) {}
+  const label4 = (data.bukken || '') + ' ' + (data.room || '') + '（' + (data.name || '') + '様）';
+  lineNotify_('complete', { owner: caseOwner_(caseId) },
+    '【退去精算 完了】' + label4 + '\n' + label + '（' + date + '）' + (data.confirmer ? '\n確認者：' + data.confirmer : ''),
+    '【退去精算 完了】' + label4 + '\n' + label + '（' + date + '）');
   return { ok: true, caseId: caseId, status: '完了', completionDate: date, completionLabel: label };
 }
 
