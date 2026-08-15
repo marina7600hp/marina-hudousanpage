@@ -227,7 +227,6 @@
                 <button type="button" onclick="addEstItem()" class="btn btn-ghost text-xs mt-2">＋ 品目を追加</button>
                 <div id="estSummary" class="text-sm text-right mt-3 space-y-0.5 text-slate-600"></div>
                 <input id="estNote" class="field-input text-sm mt-2" placeholder="諸条件・備考（任意）">
-                <div class="mt-2"><label class="field-label">見積作成者</label><input id="estStaff" class="field-input text-sm" placeholder="作成者名"></div>
                 <button onclick="submitEstimate()" class="btn btn-primary w-full mt-3">見積書を作成</button>
             </div>
 
@@ -575,7 +574,6 @@
             // 見積 プリフィル
             renderEstItems(d.estimateItems);
             $('estNote').value = d.estimateNote||'';
-            $('estStaff').value = d.estimateStaff||'';
             $('stStaff').value = d.settlementStaff||'';
 
             // 精算 プリフィル
@@ -802,7 +800,7 @@
             if(!requireBackend()) return;
             const items=collectEst();
             if(!items.length){ toast('品目を入力してください'); return; }
-            await run({ action:'estimate', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room, items, note:$('estNote').value.trim(), staff:$('estStaff').value.trim() }, '見積書を作成しました');
+            await run({ action:'estimate', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room, items, note:$('estNote').value.trim() }, '見積書を作成しました');
         }
 
         // ---------------- 精算 ----------------

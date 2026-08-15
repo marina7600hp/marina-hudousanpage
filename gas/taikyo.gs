@@ -36,6 +36,8 @@ const T_CONFIG = {
   COMPANY: '有限会社仁方大森マリーナー',
   COMPANY_TEL: '0823-27-7600',
   COMPANY_ADDR: '〒737-0821 広島県呉市三条4丁目7-20',
+  // 見積書の作成者名（見積書のフッターに「見積作成者：〇〇」と記載）
+  ESTIMATOR: 'エイホームトラスト株式会社',
   // 送付状（書類送付御案内）の差出人情報
   COMPANY_ZIP: '737-0821',
   COMPANY_ADDR_FULL: '広島県呉市三条4丁目7-20',
@@ -734,8 +736,7 @@ function saveEstimate_(data) {
     '<table style="margin-top:8px"><tr><th style="width:50%">貸主負担 合計（税込）</th><td class="right">' + fmtYen_(ownerTotal) + '</td></tr>' +
     '<tr><th>借主負担 合計（税込）</th><td class="right"><b>' + fmtYen_(tenantTotal) + '</b></td></tr></table>' +
     (data.note ? '<div class="foot">【諸条件】' + esc_(data.note) + '</div>' : '') +
-    '<div class="foot">' + esc_(T_CONFIG.COMPANY) + '　' + esc_(T_CONFIG.COMPANY_ADDR) + '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) +
-    (data.staff ? '　見積作成者：' + esc_(data.staff) : '') + '</div>' +
+    '<div class="foot">見積作成者：' + esc_(T_CONFIG.ESTIMATOR) + '</div>' +
     '</body></html>';
 
   const label = caseLabel_(c);
