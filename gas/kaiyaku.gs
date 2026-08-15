@@ -160,17 +160,24 @@ function lineProp_(key) {
   } catch (e) { return ''; }
 }
 
-/** LINEへ通知（未設定なら何もしない） */
+/** LINEへ通知
+ *  LINE_STAFF_TO を設定していればそのグループへ、
+ *  未設定なら「公式アカウントを友だち追加している全員」へ一斉送信します。
+ *  トークン未設定なら何もしません（メール通知のみ）。 */
 function lineSend_(text) {
   const token = lineProp_('LINE_CHANNEL_ACCESS_TOKEN');
   const to = lineProp_('LINE_STAFF_TO');
-  if (!token || !to || !text) return false;
+  if (!token || !text) return false;
+  const msg = { type: 'text', text: String(text).slice(0, 4900) };
+  const url = to ? 'https://api.line.me/v2/bot/message/push'
+                 : 'https://api.line.me/v2/bot/message/broadcast';
+  const payload = to ? { to: to, messages: [msg] } : { messages: [msg] };
   try {
-    const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+    const res = UrlFetchApp.fetch(url, {
       method: 'post',
       contentType: 'application/json',
       headers: { Authorization: 'Bearer ' + token },
-      payload: JSON.stringify({ to: to, messages: [{ type: 'text', text: String(text).slice(0, 4900) }] }),
+      payload: JSON.stringify(payload),
       muteHttpExceptions: true,
     });
     if (res.getResponseCode() !== 200) Logger.log('LINE送信エラー：' + res.getContentText());
@@ -183,9 +190,17 @@ function lineSend_(text) {
 
 /** LINE通知のテスト（設定後に実行して届くか確認） */
 function testLine() {
-  if (!lineProp_('LINE_CHANNEL_ACCESS_TOKEN')) { Logger.log('LINE_CHANNEL_ACCESS_TOKEN が未設定です。'); return; }
-  if (!lineProp_('LINE_STAFF_TO')) { Logger.log('LINE_STAFF_TO（通知先グループID）が未設定です。'); return; }
-  Logger.log(lineSend_('【テスト送信】解約通知フォームからのLINE通知です。') ? '送信しました。' : '送信に失敗しました。');
+  if (!lineProp_('LINE_CHANNEL_ACCESS_TOKEN')) {
+    Logger.log('LINE_CHANNEL_ACCESS_TOKEN が未設定です。\n' +
+      '「プロジェクトの設定 → スクリプト プロパティ」に登録してください。');
+    return;
+  }
+  const to = lineProp_('LINE_STAFF_TO');
+  const ok = lineSend_('【テスト送信】解約通知フォームからのLINE通知です。');
+  Logger.log(ok
+    ? (to ? '送信しました（宛先：' + to + '）。' : '送信しました（友だち追加している全員へ一斉送信）。')
+    : '送信に失敗しました。実行ログのエラー内容をご確認ください。\n' +
+      '「友だちが0人」の場合も送信できません。まず公式アカウントを友だち追加してください。');
 }
 
 /** ファイル名に使えない文字を除去 */

@@ -149,16 +149,23 @@ function lineStaffTo_() {
   return ((T_CONFIG.LINE || {}).STAFF_TO || '').trim();
 }
 
-/** LINEへメッセージを送る（宛先が空、またはトークン未設定なら何もしない） */
+/** LINEへメッセージを送る
+ *  宛先(to)を指定すれば そのグループ／個人へ、
+ *  宛先が空なら「公式アカウントを友だち追加している全員」へ一斉送信します。
+ *  → 宛先が空でも通知が届くので、グループIDの設定は必須ではありません。 */
 function lineSend_(to, text) {
   const token = lineToken_();
-  if (!token || !to || !text) return false;
+  if (!token || !text) return false;
+  const msg = { type: 'text', text: String(text).slice(0, 4900) };
+  const url = to ? 'https://api.line.me/v2/bot/message/push'
+                 : 'https://api.line.me/v2/bot/message/broadcast';
+  const payload = to ? { to: to, messages: [msg] } : { messages: [msg] };
   try {
-    const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+    const res = UrlFetchApp.fetch(url, {
       method: 'post',
       contentType: 'application/json',
       headers: { Authorization: 'Bearer ' + token },
-      payload: JSON.stringify({ to: to, messages: [{ type: 'text', text: String(text).slice(0, 4900) }] }),
+      payload: JSON.stringify(payload),
       muteHttpExceptions: true,
     });
     const code = res.getResponseCode();
@@ -175,7 +182,7 @@ function lineSend_(to, text) {
 function lineNotify_(stage, c, staffText, ownerText) {
   const cfg = T_CONFIG.LINE || {};
   if (!lineToken_()) return;
-  // 社内へ（全段階）
+  // 社内へ（全段階）。宛先未設定なら友だち全員へ一斉送信
   lineSend_(lineStaffTo_(), staffText);
   // 貸主グループへ（設定された貸主・段階のみ）
   const owner = (c && c.owner) || '';
@@ -251,14 +258,16 @@ function testLine() {
     return;
   }
   const to = lineStaffTo_();
-  if (!to) {
-    Logger.log('送信先IDが未設定です。\n' +
-      'スクリプト プロパティ LINE_STAFF_TO、または T_CONFIG.LINE.STAFF_TO に設定してください。\n' +
-      '（公式アカウントを通知したいグループに招待すると、自動で登録されます）');
-    return;
-  }
   const ok = lineSend_(to, '【テスト送信】退去精算システムからのLINE通知です。');
-  Logger.log(ok ? '送信しました。LINEをご確認ください。' : '送信に失敗しました。実行ログをご確認ください。');
+  if (ok) {
+    Logger.log(to
+      ? '送信しました（宛先：' + to + '）。LINEをご確認ください。'
+      : '送信しました（友だち追加している全員へ一斉送信）。LINEをご確認ください。\n' +
+        '※特定のグループだけに送る場合は、公式アカウントをそのグループに招待してください。');
+  } else {
+    Logger.log('送信に失敗しました。実行ログのエラー内容をご確認ください。\n' +
+      '「友だちが0人」の場合も送信できません。まず公式アカウントを friends に追加してください。');
+  }
 }
 
 // ---------------- フォルダ・シート ----------------
