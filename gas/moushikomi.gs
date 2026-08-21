@@ -44,33 +44,29 @@ const M_CONFIG = {
 
   // 保証会社（ナップ賃貸保証）の申込書を入れるサブフォルダ名
   GUARANTOR_SUBFOLDER: '保証委託申込書',
+
+  // ---- 申込書のひな形（エクセル様式をGoogleスプレッドシートにしたもの） ----
+  // このフォルダに、下の2つの名前でひな形を置いてください（MOUSHIKOMI_SETUP.md 参照）
+  TEMPLATE_SUBFOLDER: 'テンプレート',
+  TEMPLATE_PARK: '月極駐車場利用申込書',
+  TEMPLATE_NAP: '入居申込書兼賃貸保証委託申込書',
+  // ひな形の中の、使うシート名
+  TEMPLATE_PARK_SHEET_KOJIN: '個人',
+  TEMPLATE_PARK_SHEET_HOUJIN: '法人 ',
+  TEMPLATE_NAP_SHEET: '入居申込書（個人用）',
 };
 
-/** 保証会社（ナップ賃貸保証）の連絡先。申込書の上部に記載されます */
+/**
+ * 保証会社（ナップ賃貸保証）の連絡先。
+ * ※申込書に印字される連絡先・注意事項・選択肢は、すべてひな形（エクセル様式）側に
+ *   入っています。ここはメール本文などで使う参考情報です。
+ */
 const NAP = {
   NAME: 'ナップ賃貸保証株式会社',
   TEL: '0570-055-722',
   FAX: '050-3802-2684',
   MAIL: 'nap-shinsa@nap.co.jp',
-  PRIVACY_URL: 'https://nap-service.com/wp/wp-content/themes/nap/pdf/personal_info_v3_202204.pdf',
 };
-
-/** 住居区分・雇用形態の選択肢（申込書のチェック欄の並び順） */
-const NAP_HOUSING = ['自己所有', '家族所有', '賃貸', '社宅'];
-const NAP_EMPLOY = ['正社員', '契約社員', '派遣社員', '学生', '年金',
-  '個人事業主', '無職(求職中含)', '生活保護', 'パート/アルバイト', 'その他'];
-
-/** 【注意事項】（申込書の末尾に記載） */
-const NAP_NOTES = [
-  '申込みにあたり、与信判断のため、本申込書に記入された個人情報を利用いたします。',
-  '申込者様・同居人様が反社会的勢力等の関係者、もしくはこれに準ずる方の入居は、一切お断りいたします。',
-  '身分証は併せてご提出ください。場合によっては、身分証確認後の審査となる場合がございます。',
-  '申込者様・緊急連絡人様の連絡先、または勤務先へ在籍確認の連絡を差し上げる場合がございます。',
-];
-const NAP_NOTES2 = [
-  '審査の内容・結果等のご質問、お問合せについてはお答えいたしかねますのでご了承ください。',
-  '審査結果によって、保証料料率変更・プラン変更・連帯保証人変更、追加等のご提案、もしくは、お引受けできない場合がございます。',
-];
 
 /**
  * ============================================================
@@ -162,17 +158,25 @@ function doPost(e) {
       idFolderUrl = caseFolder.getUrl();
     }
 
-    // 2) 申込書PDFを作成 → ドライブ保存
-    const pdf = m_buildPdf_(data, receiptNo, now, dateStr + '_' + label + '.pdf');
+    // 2) 月極駐車場利用申込書（エクセル様式のひな形をコピーして転記）
     const appFolder = m_getOrCreateSubfolder_(parent, M_CONFIG.APP_SUBFOLDER);
-    const file = appFolder.createFile(pdf);
+    const file = m_fillTemplate_(
+      M_CONFIG.TEMPLATE_PARK,
+      isCorp ? M_CONFIG.TEMPLATE_PARK_SHEET_HOUJIN : M_CONFIG.TEMPLATE_PARK_SHEET_KOJIN,
+      m_parkValues_(data, now),
+      dateStr + '_' + label,
+      appFolder);
 
-    // 2-2) 保証会社を利用する駐車場は、保証委託申込書PDFも作成
-    //     （マスターの「保証会社」列が TRUE の場合のみ。個人の申込に限ります）
+    // 2-2) 保証会社を利用する駐車場は、保証委託申込書も作成
+    //      （マスターの「保証会社」列が TRUE の場合のみ。個人の申込に限ります）
     let napFile = null;
     if (!isCorp && m_useGuarantor_(data)) {
-      const napPdf = m_buildNapPdf_(data, receiptNo, now, dateStr + '_' + label + '_保証委託申込書.pdf');
-      napFile = m_getOrCreateSubfolder_(parent, M_CONFIG.GUARANTOR_SUBFOLDER).createFile(napPdf);
+      napFile = m_fillTemplate_(
+        M_CONFIG.TEMPLATE_NAP,
+        M_CONFIG.TEMPLATE_NAP_SHEET,
+        m_napValues_(data, now),
+        dateStr + '_' + label + '_保証委託申込書',
+        m_getOrCreateSubfolder_(parent, M_CONFIG.GUARANTOR_SUBFOLDER));
     }
 
     // 3) 受付一覧スプレッドシートに記録
@@ -185,7 +189,7 @@ function doPost(e) {
     }
 
     // 4) 管理者へ通知メール（PDF添付）
-    m_sendNotifyMail_(data, receiptNo, now, file, idFolderUrl, sheetError, napFile);
+    m_sendNotifyMail_(data, receiptNo, now, file, idFolderUrl, sheetError, napFile, idFiles);
 
     // 5) 申込者へ受付完了メール（メールアドレスがある場合のみ）
     if (data.email) {
@@ -388,12 +392,6 @@ function m_safeName_(s) {
   return String(s || '').replace(/[\\\/:*?"<>|]/g, '_').trim() || '未入力';
 }
 
-function m_esc_(s) {
-  return String(s == null ? '' : s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
 /** data URL (image/xxx;base64,....) を Blob に変換 */
 function m_dataUrlToBlob_(dataUrl, filename) {
   if (!dataUrl) return null;
@@ -430,234 +428,6 @@ function m_addr_(zip, addr) {
 }
 
 /* ============================================================
- *  申込書PDF（エクセル様式どおりに転記）
- * ============================================================ */
-
-function m_pdfStyle_() {
-  return '<style>' +
-    // 余白は上を確保しつつ下を詰め、表の各行はゆったり取る
-    'body{font-family:sans-serif;color:#111;font-size:11.5px;margin:18px 20px 8px;}' +
-    'h1{font-size:19px;text-align:center;letter-spacing:5px;margin:2px 0 2px;font-weight:bold;}' +
-    '.meta{text-align:right;font-size:10px;color:#444;line-height:1.6;}' +
-    'table.form{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:10px;}' +
-    'table.form th,table.form td{border:1px solid #333;padding:11px 8px;font-size:11px;' +
-    '  vertical-align:middle;word-break:break-all;line-height:1.6;}' +
-    'table.form th{background:#f1f1f1;font-weight:bold;text-align:center;}' +
-    'table.form th.sec{background:#e2e2e2;font-size:11px;letter-spacing:2px;writing-mode:horizontal-tb;}' +
-    'table.form th.lbl{text-align:left;}' +
-    'table.form td{background:#fff;}' +
-    'td.val{font-size:11.5px;}' +
-    '.agree{margin-top:18px;font-size:11.5px;line-height:2.4;}' +
-    '.agree .box{display:inline-block;border:1px solid #333;width:12px;height:12px;text-align:center;' +
-    '  line-height:12px;font-size:10px;margin-right:6px;}' +
-    '.sign{margin-top:20px;font-size:12px;line-height:2.6;}' +
-    '.sign .row{margin-left:8px;}' +
-    '.sign .name{display:inline-block;min-width:220px;border-bottom:1px solid #333;padding:0 6px 2px;}' +
-    '.broker{margin-top:22px;font-size:11.5px;line-height:2.0;}' +
-    '.foot{margin-top:18px;font-size:9.5px;color:#555;line-height:1.7;border-top:1px solid #ccc;padding-top:8px;}' +
-    '.idpage{page-break-before:always;}' +
-    '.idtitle{font-size:14px;font-weight:bold;margin:6px 0 10px;letter-spacing:2px;}' +
-    '.idcard{margin-bottom:14px;}' +
-    '.idcard .cap{font-size:11px;font-weight:bold;margin-bottom:4px;}' +
-    '.idcard img{width:88%;border:1px solid #999;}' +
-    '</style>';
-}
-
-/** 共通：駐車場ブロック（3行） */
-function m_lotRows_(data) {
-  const depLabel = data.depositLabel || '保証料';
-  return '' +
-    '<tr>' +
-    '<th class="sec" rowspan="3">駐<br>車<br>場</th>' +
-    '<th class="lbl" colspan="2">利用開始日</th>' +
-    '<td class="val" colspan="9">' + m_esc_(m_dateJa_(data.startDate)) + '</td>' +
-    '</tr>' +
-    '<tr>' +
-    '<th class="lbl" colspan="2">駐車場名</th>' +
-    '<td class="val" colspan="5">' + m_esc_(m_lotLabel_(data)) + '</td>' +
-    '<th>区画</th>' +
-    '<td class="val" colspan="3">' + m_esc_(data.spot || '') + '</td>' +
-    '</tr>' +
-    '<tr>' +
-    '<th class="lbl" colspan="2">月額賃料1台</th>' +
-    '<td class="val" colspan="2">' + m_esc_(m_yen_(data.rent)) + '</td>' +
-    '<th colspan="2">' + m_esc_(depLabel) + '</th>' +
-    '<td class="val" colspan="2">' + m_esc_(m_yen_(data.deposit)) + '</td>' +
-    '<th colspan="2">仲介手数料(税込)</th>' +
-    '<td class="val">' + m_esc_(m_yen_(data.brokerFee)) + '</td>' +
-    '</tr>';
-}
-
-/** 共通：緊急連絡先ブロック（3行） */
-function m_emgRows_(data) {
-  return '' +
-    '<tr>' +
-    '<th class="sec" rowspan="3">緊急<br>連絡先</th>' +
-    '<th class="lbl" colspan="2">氏　名</th>' +
-    '<td class="val" colspan="3">' + m_esc_(data.emgName || '') +
-    (data.emgKana ? '<br><span style="font-size:9.5px;color:#555">' + m_esc_(data.emgKana) + '</span>' : '') + '</td>' +
-    '<th>続柄</th>' +
-    '<td class="val">' + m_esc_(data.emgRel || '') + '</td>' +
-    '<th>生年月日</th>' +
-    '<td class="val" colspan="3">' + m_esc_(m_dateJa_(data.emgBirth)) + '</td>' +
-    '</tr>' +
-    '<tr>' +
-    '<th class="lbl" colspan="2">住　所</th>' +
-    '<td class="val" colspan="9">' + m_esc_(m_addr_(data.emgZip, data.emgAddr)) + '</td>' +
-    '</tr>' +
-    '<tr>' +
-    '<th class="lbl" colspan="2">連絡先電話</th>' +
-    '<td class="val" colspan="3">' + m_esc_(m_tel_(data.emgTel)) + '</td>' +
-    '<th colspan="2">勤務先名</th>' +
-    '<td class="val" colspan="4">' + m_esc_(data.emgWork || '') + '</td>' +
-    '</tr>';
-}
-
-/** 共通：利用車両ブロック（2行） */
-function m_carRows_(data) {
-  return '' +
-    '<tr>' +
-    '<th class="sec" rowspan="2">利用<br>車両</th>' +
-    '<th class="lbl" colspan="2">メーカー</th>' +
-    '<td class="val" colspan="3">' + m_esc_(data.carMaker || '') + '</td>' +
-    '<th>車　種</th>' +
-    '<td class="val" colspan="3">' + m_esc_(data.carModel || '') + '</td>' +
-    '<th>色</th>' +
-    '<td class="val">' + m_esc_(data.carColor || '') + '</td>' +
-    '</tr>' +
-    '<tr>' +
-    '<th class="lbl" colspan="2">登録ナンバー</th>' +
-    '<td class="val" colspan="9">' + m_esc_(data.carNumber || '') + '</td>' +
-    '</tr>';
-}
-
-/** 個人：申込人ブロック（7行） */
-function m_kojinRows_(data) {
-  return '' +
-    '<tr>' +
-    '<th class="sec" rowspan="7">申<br>込<br>人</th>' +
-    '<th class="lbl" colspan="2">フリガナ</th>' +
-    '<td class="val" colspan="9">' + m_esc_(data.kana || '') + '</td>' +
-    '</tr>' +
-    '<tr><th class="lbl" colspan="2">氏　名</th>' +
-    '<td class="val" colspan="9" style="font-size:13px;font-weight:bold">' + m_esc_(data.name || '') + '</td></tr>' +
-    '<tr><th class="lbl" colspan="2">生年月日</th>' +
-    '<td class="val" colspan="9">' + m_esc_(m_dateJa_(data.birth)) + '</td></tr>' +
-    '<tr><th class="lbl" colspan="2">住　所</th>' +
-    '<td class="val" colspan="9">' + m_esc_(m_addr_(data.zip, data.address)) + '</td></tr>' +
-    '<tr><th class="lbl" colspan="2">連絡先</th>' +
-    '<th>携帯</th><td class="val" colspan="3">' + m_esc_(m_tel_(data.mobile)) + '</td>' +
-    '<th>メール</th><td class="val" colspan="4">' + m_esc_(data.email || '') + '</td></tr>' +
-    '<tr><th class="lbl" colspan="2" rowspan="2">勤務先</th>' +
-    '<th>名称</th><td class="val" colspan="3">' + m_esc_(data.workName || '') + '</td>' +
-    '<th>電話</th><td class="val" colspan="4">' + m_esc_(m_tel_(data.workTel)) + '</td></tr>' +
-    '<tr><th>所在地</th><td class="val" colspan="8">' + m_esc_(data.workAddr || '') + '</td></tr>';
-}
-
-/** 法人：申込法人ブロック（8行） */
-function m_houjinRows_(data) {
-  return '' +
-    '<tr>' +
-    '<th class="sec" rowspan="8">申<br>込<br>法<br>人</th>' +
-    '<th class="lbl" colspan="2">フリガナ</th>' +
-    '<td class="val" colspan="9">' + m_esc_(data.corpKana || '') + '</td>' +
-    '</tr>' +
-    '<tr><th class="lbl" colspan="2">法人名</th>' +
-    '<td class="val" colspan="9" style="font-size:13px;font-weight:bold">' + m_esc_(data.corpName || '') + '</td></tr>' +
-    '<tr><th class="lbl" colspan="2">所在地</th>' +
-    '<td class="val" colspan="9">' + m_esc_(m_addr_(data.corpZip, data.corpAddr)) + '</td></tr>' +
-    '<tr><th class="lbl" colspan="2">フリガナ</th>' +
-    '<td class="val" colspan="4">' + m_esc_(data.repKana || '') + '</td>' +
-    '<th>フリガナ</th><td class="val" colspan="4">' + m_esc_(data.staffKana || '') + '</td></tr>' +
-    '<tr><th class="lbl" colspan="2">代表者様名</th>' +
-    '<td class="val" colspan="4">' + m_esc_(data.repName || '') + '</td>' +
-    '<th>担当者様名</th><td class="val" colspan="4">' + m_esc_(data.staffName || '') + '</td></tr>' +
-    '<tr><th class="lbl" colspan="2">法人連絡先</th>' +
-    '<th>TEL</th><td class="val" colspan="3">' + m_esc_(m_tel_(data.corpTel)) + '</td>' +
-    '<th>FAX</th><td class="val" colspan="4">' + m_esc_(m_tel_(data.corpFax)) + '</td></tr>' +
-    '<tr><th class="lbl" colspan="2">担当者様連絡先</th>' +
-    '<th>携帯</th><td class="val" colspan="3">' + m_esc_(m_tel_(data.staffMobile)) + '</td>' +
-    '<th>部署TEL</th><td class="val" colspan="4">' + m_esc_(m_tel_(data.staffDeptTel)) + '</td></tr>' +
-    '<tr><th class="lbl" colspan="2">メール</th>' +
-    '<td class="val" colspan="9">' + m_esc_(data.email || '') + '</td></tr>';
-}
-
-/** 免許証ページ（画像がある場合のみ） */
-function m_idPage_(data) {
-  if (!data.licFront && !data.licBack) return '';
-  let html = '<div class="idpage"><div class="idtitle">本人確認書類（運転免許証）</div>';
-  if (data.licFront) {
-    html += '<div class="idcard"><div class="cap">表面</div><img src="' + data.licFront + '"></div>';
-  }
-  if (data.licBack) {
-    html += '<div class="idcard"><div class="cap">裏面</div><img src="' + data.licBack + '"></div>';
-  }
-  html += '<div class="foot">本画像は申込者本人がフォームからアップロードしたものです。' +
-    '本人確認以外の目的には使用しません。</div></div>';
-  return html;
-}
-
-/** 申込書PDFの作成 */
-function m_buildPdf_(data, receiptNo, now, fileName) {
-  const isCorp = data.kind === 'houjin';
-  const title = isCorp ? '月 極 駐 車 場 利 用 申 込 書（法 人）' : '月 極 駐 車 場 利 用 申 込 書（個 人）';
-  const applicantLabel = isCorp ? '申込法人名' : '申込人氏名';
-  const applicant = isCorp ? (data.corpName || '') : (data.name || '');
-  const applyDate = data.applyDate ? m_dateJa_(data.applyDate)
-    : Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy年M月d日');
-
-  // 先頭1列＝区分（駐車場／申込人 等）、残り11列＝項目・値の共通グリッド
-  const cols = '<colgroup><col style="width:7%">' +
-    new Array(12).join('<col style="width:8.45%">') +
-    '</colgroup>';
-
-  const html =
-    '<!DOCTYPE html><html><head><meta charset="UTF-8">' + m_pdfStyle_() + '</head><body>' +
-    '<div class="meta">受付番号：' + m_esc_(receiptNo) + '<br>' +
-    '受付日時：' + Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy年M月d日 HH:mm') + '</div>' +
-    '<h1>' + m_esc_(title) + '</h1>' +
-    '<table class="form">' + cols +
-    m_lotRows_(data) +
-    (isCorp ? m_houjinRows_(data) : m_kojinRows_(data)) +
-    m_emgRows_(data) +
-    m_carRows_(data) +
-    (data.note ?
-      '<tr><th class="sec">備考</th><th class="lbl" colspan="2">ご要望等</th>' +
-      '<td class="val" colspan="9">' + m_esc_(data.note) + '</td></tr>' : '') +
-    '</table>' +
-
-    '<div class="agree">' +
-    '<div><span class="box">' + (data.agreePrivacy ? '✓' : '') + '</span>' +
-    '個人情報の第三者機関への提供について同意' + (isCorp ? '致します。' : 'します。') + '</div>' +
-    '<div><span class="box">' + (data.agreeTruth ? '✓' : '') + '</span>' +
-    '上記記載事項に相違なく申し込みをいたします。</div>' +
-    '</div>' +
-
-    '<div class="sign">' +
-    '<div class="row">' + m_esc_(applyDate) + '</div>' +
-    '<div class="row">' + applicantLabel + '　<span class="name">' + m_esc_(applicant) + '</span></div>' +
-    '</div>' +
-
-    '<div class="broker">' +
-    '媒介業者名：' + m_esc_(M_CONFIG.COMPANY_SHORT) + '<br>' +
-    '免許番号：' + m_esc_(M_CONFIG.LICENSE_NO) +
-    '</div>' +
-
-    '<div class="foot">' +
-    '本書は、申込者がWebフォーム（月極駐車場利用申込フォーム）に入力・送信した内容をもとに自動作成されたものです。<br>' +
-    '申込者は送信時に上記各項目へ同意しており、フォームの送信をもって記名押印に代えるものとして取り扱います。<br>' +
-    m_esc_(M_CONFIG.COMPANY) + '　TEL：' + m_esc_(M_CONFIG.COMPANY_TEL) +
-    '</div>' +
-
-    m_idPage_(data) +
-    '</body></html>';
-
-  return Utilities.newBlob(html, MimeType.HTML, fileName)
-    .getAs(MimeType.PDF)
-    .setName(fileName);
-}
-
-/* ============================================================
  *  受付一覧スプレッドシート
  * ============================================================ */
 
@@ -668,7 +438,7 @@ const LOG_HEADERS = [
   '勤務先/代表者', '勤務先電話/担当者', '勤務先所在地/法人TEL',
   '緊急連絡先氏名', '続柄', '緊急連絡先電話', '緊急連絡先住所',
   'メーカー', '車種', '色', '登録ナンバー',
-  '免許証', '個人情報同意', '記載事項同意', '備考', '申込書PDF', '本人確認書類フォルダ', '保証委託申込書PDF',
+  '免許証', '個人情報同意', '記載事項同意', '備考', '申込書', '本人確認書類フォルダ', '保証委託申込書',
 ];
 
 function m_appendLog_(parent, data, receiptNo, now, pdfUrl, idFolderUrl, napUrl) {
@@ -782,7 +552,7 @@ function m_buildRows_(data) {
 }
 
 /** 管理者への通知メール */
-function m_sendNotifyMail_(data, receiptNo, now, file, idFolderUrl, sheetError, napFile) {
+function m_sendNotifyMail_(data, receiptNo, now, file, idFolderUrl, sheetError, napFile, idFiles) {
   const isCorp = data.kind === 'houjin';
   const applicant = isCorp ? data.corpName : data.name;
   const subject = '【駐車場申込' + (napFile ? '／保証会社' : '') + '】' + m_lotLabel_(data) + ' ' + (data.spot || '') +
@@ -797,14 +567,22 @@ function m_sendNotifyMail_(data, receiptNo, now, file, idFolderUrl, sheetError, 
     '------------------------------------------\n' +
     lines + '\n' +
     '------------------------------------------\n\n' +
-    '▼申込書PDF（ドライブに保存済み）\n' + file.getUrl() + '\n' +
-    (napFile ? '\n▼保証委託申込書PDF（ナップ賃貸保証へ提出）\n' + napFile.getUrl() + '\n' : '') +
+    '▼月極駐車場利用申込書（スプレッドシート・そのまま修正できます）\n' + file.getUrl() + '\n' +
+    (napFile ? '\n▼入居申込書兼賃貸保証委託申込書（ナップ賃貸保証へ提出／スプレッドシート）\n' +
+      napFile.getUrl() + '\n' : '') +
     (idFolderUrl ? '\n▼運転免許証（表・裏）\n' + idFolderUrl + '\n' : '\n※運転免許証の画像は添付されていません。\n') +
     (sheetError ? '\n※受付一覧への記録に失敗しました：' + sheetError + '\n' : '') +
     '\n' + M_CONFIG.COMPANY + '\n';
 
-  const attachments = [file.getAs(MimeType.PDF)];
-  if (napFile) attachments.push(napFile.getAs(MimeType.PDF));
+  // 添付：申込書のPDF（印刷・確認用）と、運転免許証の画像
+  const attachments = [];
+  try {
+    attachments.push(file.getAs(MimeType.PDF).setName(file.getName() + '.pdf'));
+    if (napFile) attachments.push(napFile.getAs(MimeType.PDF).setName(napFile.getName() + '.pdf'));
+  } catch (e) { /* PDF書き出しに失敗しても、本文のリンクから開けます */ }
+  (idFiles || []).forEach(function (f) {
+    try { attachments.push(f.getBlob()); } catch (e) {}
+  });
 
   MailApp.sendEmail({
     to: M_CONFIG.NOTIFY_EMAIL,
@@ -894,214 +672,352 @@ function testSetup() {
 
   const receiptNo = 'TEST' + Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMddHHmmss');
   const parent = DriveApp.getFolderById(M_CONFIG.FOLDER_ID);
-  const fileName = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd') + '_テスト申込書.pdf';
-  const pdf = m_buildPdf_(data, receiptNo, now, fileName);
-  const file = m_getOrCreateSubfolder_(parent, M_CONFIG.APP_SUBFOLDER).createFile(pdf);
-  Logger.log('テストPDF：' + file.getUrl());
+  const dateStr = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd');
 
-  // 保証会社を利用する駐車場なら、保証委託申込書PDFも作成
+  const file = m_fillTemplate_(M_CONFIG.TEMPLATE_PARK, M_CONFIG.TEMPLATE_PARK_SHEET_KOJIN,
+    m_parkValues_(data, now), dateStr + '_テスト申込書',
+    m_getOrCreateSubfolder_(parent, M_CONFIG.APP_SUBFOLDER));
+  Logger.log('テスト申込書（スプレッドシート）：' + file.getUrl());
+
+  // 保証会社を利用する駐車場なら、保証委託申込書も作成
   let napFile = null;
   if (m_useGuarantor_(data)) {
-    const napPdf = m_buildNapPdf_(data, receiptNo, now,
-      Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd') + '_テスト保証委託申込書.pdf');
-    napFile = m_getOrCreateSubfolder_(parent, M_CONFIG.GUARANTOR_SUBFOLDER).createFile(napPdf);
-    Logger.log('テスト保証委託申込書PDF：' + napFile.getUrl());
+    napFile = m_fillTemplate_(M_CONFIG.TEMPLATE_NAP, M_CONFIG.TEMPLATE_NAP_SHEET,
+      m_napValues_(data, now), dateStr + '_テスト保証委託申込書',
+      m_getOrCreateSubfolder_(parent, M_CONFIG.GUARANTOR_SUBFOLDER));
+    Logger.log('テスト保証委託申込書（スプレッドシート）：' + napFile.getUrl());
   } else {
     Logger.log('この駐車場は保証会社を利用しない設定のため、保証委託申込書は作成しませんでした。');
   }
 
   m_appendLog_(parent, data, receiptNo, now, file.getUrl(), '', napFile ? napFile.getUrl() : '');
-  m_sendNotifyMail_(data, receiptNo, now, file, '', '', napFile);
+  m_sendNotifyMail_(data, receiptNo, now, file, '', '', napFile, []);
   Logger.log('テスト通知メールを ' + M_CONFIG.NOTIFY_EMAIL + ' へ送信しました。');
 }
 
+/**
+ * ひな形がきちんと置けているかだけを確かめる関数。
+ * GASエディタで実行すると、見つかったひな形とシート名を実行ログに出します。
+ */
+function checkTemplates() {
+  [[M_CONFIG.TEMPLATE_PARK, [M_CONFIG.TEMPLATE_PARK_SHEET_KOJIN, M_CONFIG.TEMPLATE_PARK_SHEET_HOUJIN]],
+   [M_CONFIG.TEMPLATE_NAP, [M_CONFIG.TEMPLATE_NAP_SHEET]]].forEach(function (pair) {
+    try {
+      const f = m_findTemplate_(pair[0]);
+      const ss = SpreadsheetApp.open(f);
+      const names = ss.getSheets().map(function (sh) { return sh.getName(); });
+      Logger.log('✅ ' + pair[0] + '：見つかりました。シート＝「' + names.join('」「') + '」');
+      pair[1].forEach(function (need) {
+        if (!m_sheetByName_(ss, need)) {
+          Logger.log('　⚠ シート「' + need + '」が見つかりません。M_CONFIG のシート名を実物に合わせてください。');
+        }
+      });
+    } catch (err) {
+      Logger.log('❌ ' + pair[0] + '：' + err.message);
+    }
+  });
+}
+
 /* ============================================================
- *  入居申込書兼賃貸保証委託申込書（個人用）
- *  ナップ賃貸保証の様式に転記したPDF。
- *  マスターの「保証会社」列が TRUE の駐車場のときだけ作成されます。
+ *  申込書の作成（エクセル様式のテンプレートに転記）
+ *
+ *  ドライブの「テンプレート」フォルダに置いた
+ *   ・月極駐車場利用申込書
+ *   ・入居申込書兼賃貸保証委託申込書
+ *  （どちらもGoogleスプレッドシート形式）をコピーし、
+ *  セルに値を入れるだけです。**様式は一切変更しません。**
+ *  でき上がりもスプレッドシートなので、そのまま手直しできます。
+ *
+ *  セットアップは MOUSHIKOMI_SETUP.md を参照してください。
  * ============================================================ */
 
-/** チェックボックス */
-function m_cb_(checked, label) {
-  return '<span class="cb">' + (checked ? '☑' : '□') + '</span>' + m_esc_(label);
-}
-
-/** 選択肢を並べ、選ばれたものにチェックを入れる */
-function m_cbList_(options, selected) {
-  return options.map(function (o) { return m_cb_(o === selected, o); }).join('　');
-}
-
-/** 「男 女」のように、選ばれた方だけ丸で囲む代わりに太字＋下線で示す */
-function m_pick_(options, selected) {
-  return options.map(function (o) {
-    return o === selected ? '<span class="on">' + m_esc_(o) + '</span>' : '<span class="off">' + m_esc_(o) + '</span>';
-  }).join('　');
-}
-
-function m_napStyle_() {
-  return '<style>' +
-    'body{font-family:sans-serif;color:#111;font-size:10px;margin:14px 16px 8px;}' +
-    'h1{font-size:16px;text-align:center;letter-spacing:2px;margin:0 0 2px;font-weight:bold;}' +
-    '.hd{text-align:center;font-size:9.5px;color:#333;margin-bottom:8px;}' +
-    '.hd .kind{border:1px solid #333;padding:1px 8px;margin-left:8px;font-weight:bold;}' +
-    '.meta{text-align:right;font-size:9px;color:#444;margin-bottom:2px;}' +
-    '.band{background:#333;color:#fff;font-size:10px;font-weight:bold;padding:3px 8px;margin:10px 0 0;}' +
-    'table.nap{width:100%;border-collapse:collapse;table-layout:fixed;}' +
-    'table.nap th,table.nap td{border:1px solid #333;padding:5px 6px;font-size:9.5px;' +
-    '  vertical-align:middle;word-break:break-all;line-height:1.5;}' +
-    'table.nap th{background:#f1f1f1;font-weight:bold;text-align:center;}' +
-    'table.nap th.l{text-align:left;}' +
-    'td.v{background:#fff;}' +
-    '.cb{margin-right:2px;}' +
-    '.on{font-weight:bold;border-bottom:2px solid #111;padding:0 3px;}' +
-    '.off{color:#999;padding:0 3px;}' +
-    '.agree{font-size:9px;margin:8px 0 2px;line-height:1.6;}' +
-    '.url{font-size:8px;color:#555;word-break:break-all;}' +
-    '.notes{margin-top:10px;font-size:8.5px;line-height:1.7;}' +
-    '.notes .t{font-weight:bold;font-size:9px;}' +
-    '.foot{margin-top:8px;font-size:8px;color:#555;line-height:1.6;border-top:1px solid #ccc;padding-top:5px;}' +
-    '</style>';
-}
-
-/** 12列グリッド */
-function m_napCols_() {
-  return '<colgroup>' + new Array(13).join('<col style="width:8.33%">') + '</colgroup>';
-}
-
-/** 加盟店様概要 */
-function m_napShop_(data, now) {
-  const applyDate = data.applyDate ? m_dateJa_(data.applyDate)
-    : Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy年M月d日');
-  return '<div class="band">加盟店様概要</div>' +
-    '<table class="nap">' + m_napCols_() +
-    '<tr><th class="l" colspan="2">会社名(商号)</th><td class="v" colspan="6">' + m_esc_(M_CONFIG.COMPANY) + '</td>' +
-    '<th colspan="2">申込日</th><td class="v" colspan="2">' + m_esc_(applyDate) + '</td></tr>' +
-    '<tr><th class="l" colspan="2">所在地</th><td class="v" colspan="6">〒' + m_esc_(M_CONFIG.COMPANY_ZIP) + '　' + m_esc_(M_CONFIG.COMPANY_ADDR) + '</td>' +
-    '<th colspan="2">入居希望日</th><td class="v" colspan="2">' + m_esc_(m_dateJa_(data.startDate)) + '</td></tr>' +
-    '<tr><th class="l" colspan="2">TEL：FAX</th><td class="v" colspan="6">TEL ' + m_esc_(M_CONFIG.COMPANY_TEL) + '　／　FAX ' + m_esc_(M_CONFIG.COMPANY_FAX) + '</td>' +
-    '<th colspan="2">区分</th><td class="v" colspan="2">' + m_cb_(true, '新規') + '　' + m_cb_(false, '入居中') + '</td></tr>' +
-    '<tr><th class="l" colspan="2">ご担当者</th><td class="v" colspan="3">' + m_esc_(M_CONFIG.COMPANY_CONTACT) + '</td>' +
-    '<th colspan="1">送信枚数</th><td class="v" colspan="2">' + (data.licFront || data.licBack ? '2' : '1') + '枚</td>' +
-    '<th colspan="2">引越・申込理由</th><td class="v" colspan="2">' + m_esc_(data.napReason || '') + '</td></tr>' +
-    '</table>';
-}
-
-/** 加盟店様ご記入欄（物件・賃料・保証プラン） */
-function m_napProperty_(data) {
-  const uses = ['居住用', '居住用学生', '事務所', '店舗', '倉庫等', 'SOHO', '駐車場', 'コンテナ', 'トランクルーム'];
-  const bizPlans = ['事業用S', '事業用A', '事業用B', '貸地', '駐車場/ｺﾝﾃﾅ/ﾄﾗﾝｸ'];
-  const rent = m_num_(data.rent);
-  return '<div class="band">加盟店様ご記入欄</div>' +
-    '<table class="nap">' + m_napCols_() +
-    '<tr><th class="l" colspan="2">物件用途</th><td class="v" colspan="10">' +
-      m_cbList_(uses, '駐車場') + '</td></tr>' +
-    '<tr><th class="l" colspan="2">物件名</th>' +
-      '<td class="v" colspan="7">' + m_esc_(m_lotLabel_(data)) + '</td>' +
-      '<th colspan="1">号室</th><td class="v" colspan="2">' + m_esc_(data.spot || '') + '</td></tr>' +
-    '<tr><th class="l" colspan="2">物件所在地</th><td class="v" colspan="10">' +
-      m_esc_(data.lotAddr || '') + '</td></tr>' +
-    '<tr><th class="l" colspan="2">敷金・保証金</th><td class="v" colspan="3">' +
-      m_esc_((data.depositLabel || '保証料') + '　' + m_yen_(data.deposit)) + '</td>' +
-      '<th colspan="1">収納代行</th><td class="v" colspan="2">' + m_cb_(false, '有') + '　' + m_cb_(true, '無') + '</td>' +
-      '<th colspan="2">ナップ付帯商品</th><td class="v" colspan="2">' + m_cb_(false, 'なし') + '</td></tr>' +
-    '<tr><th class="l" colspan="2" rowspan="2">保証プラン</th>' +
-      '<th colspan="1">居住用</th><td class="v" colspan="9">（該当なし）</td></tr>' +
-    '<tr><th colspan="1">事業用</th><td class="v" colspan="9">' +
-      m_cbList_(bizPlans, '駐車場/ｺﾝﾃﾅ/ﾄﾗﾝｸ') + '</td></tr>' +
-    '<tr><th colspan="2">① 家賃</th><td class="v" colspan="2">' + m_yen_(rent) + '</td>' +
-      '<th colspan="2">② 管理費・共益費</th><td class="v" colspan="2">－</td>' +
-      '<th colspan="2">③ 駐車場</th><td class="v" colspan="2">－</td></tr>' +
-    '<tr><th colspan="2">④ 収納代行費用</th><td class="v" colspan="2">－</td>' +
-      '<th colspan="2">⑤ 付帯商品費用</th><td class="v" colspan="2">－</td>' +
-      '<th colspan="2">賃料合計額</th><td class="v" colspan="2"><b>' + m_yen_(rent) + '</b></td></tr>' +
-    '</table>';
-}
-
-/** 人物ブロック（申込者・緊急連絡先・連帯保証人で共通） */
-function m_napPerson_(title, d, opt) {
-  opt = opt || {};
-  const rows = [];
-  rows.push('<tr><th class="l" colspan="2">ﾌﾘｶﾞﾅ</th><td class="v" colspan="4">' + m_esc_(d.kana || '') + '</td>' +
-    '<th colspan="1">性別</th><td class="v" colspan="1">' + m_pick_(['男', '女'], d.sex) + '</td>' +
-    '<th colspan="1">' + (opt.relation ? '続柄' : '国籍') + '</th><td class="v" colspan="1">' +
-    m_esc_((opt.relation ? d.relation : d.nationality) || '') + '</td>' +
-    '<th colspan="1">生年月日</th><td class="v" colspan="1">' + m_esc_(m_dateJa_(d.birth)) + '</td></tr>');
-  rows.push('<tr><th class="l" colspan="2">氏名</th><td class="v" colspan="4" style="font-size:11px;font-weight:bold">' + m_esc_(d.name || '') + '</td>' +
-    '<th colspan="1">配偶者</th><td class="v" colspan="1">' + m_pick_(['有', '無'], d.spouse) + '</td>' +
-    '<th colspan="2">住居区分</th><td class="v" colspan="2">' + m_esc_(d.housing || '') + '</td></tr>');
-  rows.push('<tr><th class="l" colspan="2">現住所</th><td class="v" colspan="10">' + m_esc_(m_addr_(d.zip, d.addr)) + '</td></tr>');
-  rows.push('<tr><th class="l" colspan="2">電話</th>' +
-    '<th colspan="1">携帯</th><td class="v" colspan="4">' + m_esc_(m_tel_(d.mobile)) + '</td>' +
-    '<th colspan="1">自宅</th><td class="v" colspan="4">' + m_esc_(m_tel_(d.homeTel)) + '</td></tr>');
-  if (opt.work) {
-    rows.push('<tr><th class="l" colspan="2" rowspan="3">勤務先情報</th>' +
-      '<th colspan="1">名称</th><td class="v" colspan="4">' + m_esc_(d.workName || '') + '</td>' +
-      '<th colspan="1">業種</th><td class="v" colspan="2">' + m_esc_(d.workType || '') + '</td>' +
-      '<th colspan="1">勤務先TEL</th><td class="v" colspan="1">' + m_esc_(m_tel_(d.workTel)) + '</td></tr>');
-    rows.push('<tr><th colspan="1">住所</th><td class="v" colspan="9">' + m_esc_(d.workAddr || '') + '</td></tr>');
-    rows.push('<tr><th colspan="1">年収</th><td class="v" colspan="3">' +
-      (d.income ? m_esc_(Number(d.income).toLocaleString('ja-JP') + '万円') : '') + '</td>' +
-      '<th colspan="2">勤続年数</th><td class="v" colspan="4">' + m_esc_(d.tenure || '') + '</td></tr>');
-    rows.push('<tr><th class="l" colspan="2">雇用形態</th><td class="v" colspan="10">' +
-      m_cbList_(NAP_EMPLOY, d.employ) + '</td></tr>');
+/** テンプレートを名前で探す（なければ分かりやすいエラーにする） */
+function m_findTemplate_(name) {
+  const parent = DriveApp.getFolderById(M_CONFIG.FOLDER_ID);
+  const tplFolder = m_getOrCreateSubfolder_(parent, M_CONFIG.TEMPLATE_SUBFOLDER);
+  const it = tplFolder.getFilesByName(name);
+  while (it.hasNext()) {
+    const f = it.next();
+    if (f.getMimeType() === MimeType.GOOGLE_SHEETS) return f;
   }
-  return '<div class="band">' + m_esc_(title) + '</div>' +
-    '<table class="nap">' + m_napCols_() + rows.join('') + '</table>';
+  throw new Error('テンプレート「' + name + '」が見つかりません。ドライブの「' +
+    M_CONFIG.TEMPLATE_SUBFOLDER + '」フォルダに、Googleスプレッドシート形式で置いてください' +
+    '（エクセルのままでは使えません。MOUSHIKOMI_SETUP.md の手順をご確認ください）。');
 }
 
-/** 保証委託申込書PDFの作成 */
-function m_buildNapPdf_(data, receiptNo, now, fileName) {
-  const applicant = {
-    kana: data.kana, name: data.name, birth: data.birth, sex: data.sex,
-    spouse: data.spouse, nationality: data.nationality || '日本', housing: data.housing,
-    zip: data.zip, addr: data.address, mobile: data.mobile, homeTel: data.homeTel,
-    workName: data.workName, workType: data.workType, workTel: data.workTel,
-    workAddr: data.workAddr, income: data.income, tenure: m_tenure_(data),
-    employ: data.employ,
-  };
-  const emergency = {
-    kana: data.emgKana, name: data.emgName, birth: data.emgBirth, sex: data.emgSex,
-    spouse: data.emgSpouse, relation: data.emgRel, housing: data.emgHousing,
-    zip: data.emgZip, addr: data.emgAddr, mobile: data.emgTel, homeTel: data.emgHomeTel,
-  };
+/**
+ * テンプレートをコピーして値を流し込む。
+ * values は { 'A1': '値', 'B2': { check: '駐車場' } } の形。
+ * check を指定した場合は、そのセルの「□ラベル」を「☑ラベル」に変えるだけです
+ * （元の選択肢の文字はそのまま残ります）。
+ */
+function m_fillTemplate_(templateName, keepSheet, values, outName, folder) {
+  const copy = m_findTemplate_(templateName).makeCopy(outName, folder);
+  const ss = SpreadsheetApp.open(copy);
 
-  const html =
-    '<!DOCTYPE html><html><head><meta charset="UTF-8">' + m_napStyle_() + '</head><body>' +
-    '<div class="meta">受付番号：' + m_esc_(receiptNo) + '　／　' +
-      Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy年M月d日 HH:mm') + '</div>' +
-    '<h1>入居申込書兼賃貸保証委託申込書　【個人用】</h1>' +
-    '<div class="hd">☏ ' + m_esc_(NAP.TEL) + '　FAX ' + m_esc_(NAP.FAX) + '　✉ ' + m_esc_(NAP.MAIL) + '</div>' +
-    m_napShop_(data, now) +
-    m_napProperty_(data) +
-    '<div class="agree">私及び連帯保証人予定者(申込者）は下記、個人情報及び法人情報の取扱に関する条項の内容を理解し、同意して申し込みを行います。' +
-    '<span class="url">（URL: ' + m_esc_(NAP.PRIVACY_URL) + '）</span></div>' +
-    m_napPerson_('お申込者様ご記入欄', applicant, { work: true }) +
-    m_napPerson_('緊急連絡先', emergency, { relation: true }) +
-    '<div class="band">連帯保証人</div>' +
-    '<table class="nap">' + m_napCols_() +
-    '<tr><td class="v" colspan="12" style="text-align:center;color:#555">' +
-    '保証会社による保証のため、原則不要です。審査結果によりご用意いただく場合は別途ご記入いただきます。' +
-    '</td></tr></table>' +
-    '<div class="notes"><div class="t">【注意事項】</div>' +
-    NAP_NOTES.map(function (t) { return '●' + m_esc_(t); }).join('<br>') + '<br>' +
-    NAP_NOTES2.map(function (t) { return '※' + m_esc_(t); }).join('<br>') +
-    '</div>' +
-    '<div class="foot">' +
-    '本書は、申込者がWebフォーム（月極駐車場利用申込フォーム）に入力・送信した内容をもとに自動作成されたものです。<br>' +
-    '加盟店：' + m_esc_(M_CONFIG.COMPANY) + '　TEL：' + m_esc_(M_CONFIG.COMPANY_TEL) +
-    '</div>' +
-    m_idPage_(data) +
-    '</body></html>';
+  // 目的のシートを先に確保する（シート名の前後の空白は無視して探します）
+  const sheet = m_sheetByName_(ss, keepSheet);
+  if (!sheet) {
+    const names = ss.getSheets().map(function (sh) { return '「' + sh.getName() + '」'; }).join('、');
+    copy.setTrashed(true);
+    throw new Error('ひな形「' + templateName + '」にシート「' + keepSheet + '」がありません。' +
+      '（あるシート：' + names + '）M_CONFIG のシート名を実物に合わせてください。');
+  }
 
-  return Utilities.newBlob(html, MimeType.HTML, fileName)
-    .getAs(MimeType.PDF)
-    .setName(fileName);
+  // 使わないシート（法人用・記入例など）は削除して、1枚の申込書にする
+  ss.getSheets().forEach(function (sh) {
+    if (sh.getSheetId() !== sheet.getSheetId()) ss.deleteSheet(sh);
+  });
+
+  Object.keys(values).forEach(function (addr) {
+    const v = values[addr];
+    if (v === null || v === undefined) return;
+    const range = sheet.getRange(addr);
+    if (typeof v === 'object' && v.check) {
+      range.setValue(m_check_(range.getValue(), v.check));
+    } else {
+      range.setValue(v);
+    }
+  });
+  SpreadsheetApp.flush();
+  return copy;
 }
 
-/** 勤続年数を「○年○ヵ月」に整形 */
+/** シートを名前で探す（前後の空白は無視。ひな形のシート名が「法人 」のように末尾に空白を持つため） */
+function m_sheetByName_(ss, name) {
+  const target = String(name).trim();
+  const sheets = ss.getSheets();
+  for (let i = 0; i < sheets.length; i++) {
+    if (sheets[i].getName().trim() === target) return sheets[i];
+  }
+  return null;
+}
+
+/** 「□ラベル」を「☑ラベル」にする（他の選択肢はそのまま） */
+function m_check_(text, label) {
+  const s = String(text == null ? '' : text);
+  if (s.indexOf('□' + label) >= 0) return s.split('□' + label).join('☑' + label);
+  if (s.indexOf('□ ' + label) >= 0) return s.split('□ ' + label).join('☑ ' + label);
+  return s;
+}
+
+/* ---------------- 値を組み立てるための小道具 ---------------- */
+
+/** 'yyyy-mm-dd' を年・月・日に分解 */
+function m_dParts_(s) {
+  const m = String(s == null ? '' : s).match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  return m ? { y: m[1], m: String(Number(m[2])), d: String(Number(m[3])) } : null;
+}
+
+/** 4桁の年を、1桁ずつ4つのセルに入れる（テンプレートの枠に合わせるため） */
+function m_putYear_(out, cells, year) {
+  const y = String(year || '');
+  cells.forEach(function (c, i) { out[c] = y.charAt(i) || ''; });
+}
+
+/** 月・日を、10の位／1の位の2セルに入れる */
+function m_put2_(out, cells, n) {
+  const s = String(n || '');
+  if (!s) { out[cells[0]] = ''; out[cells[1]] = ''; return; }
+  out[cells[0]] = s.length >= 2 ? s.charAt(0) : '';
+  out[cells[1]] = s.slice(-1);
+}
+
+/** 郵便番号を1文字ずつセルに入れる（上3桁・下4桁） */
+function m_putZip_(out, cells3, cells4, zip) {
+  const d = String(zip || '').replace(/[^0-9]/g, '');
+  cells3.forEach(function (c, i) { out[c] = d.charAt(i) || ''; });
+  cells4.forEach(function (c, i) { out[c] = d.charAt(3 + i) || ''; });
+}
+
+/** 住所を「都道府県（名前だけ）」と「それ以降」に分ける */
+function m_splitAddr_(a) {
+  const s = String(a || '').trim();
+  const m = s.match(/^(.+?)([都道府県])(.*)$/);
+  return m ? { pref: m[1], rest: m[3].trim() } : { pref: '', rest: s };
+}
+
+/** 勤続年数を「○年　　○ヵ月」に */
 function m_tenure_(data) {
   const y = m_num_(data.tenureY);
   const m = m_num_(data.tenureM);
   if (!y && !m) return '';
-  return (y ? y + '年' : '') + (m ? m + 'ヵ月' : '');
+  return (y ? y + '年' : '') + '　　' + (m ? m + 'ヵ月' : '');
+}
+
+/* ============================================================
+ *  ① 月極駐車場利用申込書（個人／法人）へのセル対応
+ *     ※セル番地はテンプレートの様式に合わせています。
+ *       様式を差し替えた場合はここを直してください。
+ * ============================================================ */
+
+function m_parkValues_(data, now) {
+  const isCorp = data.kind === 'houjin';
+  const out = {};
+  const start = m_dParts_(data.startDate);
+  const apply = m_dParts_(data.applyDate) ||
+    m_dParts_(Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd'));
+
+  // ---- 駐車場 ----
+  m_putYear_(out, ['K3', 'L3', 'M3', 'N3'], start ? start.y : '');
+  m_put2_(out, ['Q3', 'R3'], start ? start.m : '');
+  m_put2_(out, ['U3', 'V3'], start ? start.d : '');
+  out.I4 = m_lotLabel_(data);
+  out.AB4 = data.spot || '';
+  const comma = function (n) { return Number(m_num_(n)).toLocaleString('ja-JP'); };
+  out.I5 = comma(data.rent);
+  out.O5 = data.depositLabel || '敷金';      // 「敷金」か「保証料」か
+  out.T5 = comma(data.deposit);
+  out.Z6 = comma(data.brokerFee);
+
+  if (!isCorp) {
+    // ---- 申込人（個人） ----
+    const b = m_dParts_(data.birth);
+    out.I8 = data.kana || '';
+    out.I9 = data.name || '';
+    m_putYear_(out, ['K10', 'L10', 'M10', 'N10'], b ? b.y : '');
+    m_put2_(out, ['Q10', 'R10'], b ? b.m : '');
+    m_put2_(out, ['U10', 'V10'], b ? b.d : '');
+    out.I11 = m_addr_(data.zip, data.address);
+    out.M12 = m_tel_(data.mobile);
+    out.M13 = data.workName || '';
+    out.Y13 = m_tel_(data.workTel);
+    out.M14 = data.workAddr || '';
+  } else {
+    // ---- 申込法人（法人シート） ----
+    out.I8 = data.corpKana || '';
+    out.I9 = data.corpName || '';
+    // S10/S11 は「フリガナ」「担当者様名」のラベル。値は X列に入れる
+    out.I10 = data.repKana || '';
+    out.X10 = data.staffKana || '';
+    out.I11 = data.repName || '';
+    out.X11 = data.staffName || '';
+    out.M12 = m_tel_(data.corpTel);
+    out.Y12 = m_tel_(data.corpFax);
+    out.M13 = m_tel_(data.staffMobile);
+    out.Y13 = m_tel_(data.staffDeptTel);
+  }
+
+  // ---- 緊急連絡先／利用車両／申込日（個人と法人で行がずれる） ----
+  const R = isCorp
+    ? { name: 'I14', by: 'X14', bm: 'AB14', bd: 'AE14', addr: 'I15', tel: 'I16', work: 'X16',
+        maker: 'I18', model: 'S18', color: 'AB18', number: 'I19',
+        ay: ['G23', 'H23', 'I23', 'J23'], am: ['M23', 'N23'], ad: ['Q23', 'R23'], sign: 'Q24' }
+    : { name: 'I15', by: 'X15', bm: 'AB15', bd: 'AE15', addr: 'I16', tel: 'I17', work: 'X17',
+        maker: 'I19', model: 'S19', color: 'AB19', number: 'I20',
+        ay: ['G23', 'H23', 'I23', 'J23'], am: ['M23', 'N23'], ad: ['Q23', 'R23'], sign: 'P24' };
+
+  const eb = m_dParts_(data.emgBirth);
+  out[R.name] = data.emgName || '';
+  out[R.by] = eb ? eb.y : '';
+  out[R.bm] = eb ? eb.m : '';
+  out[R.bd] = eb ? eb.d : '';
+  out[R.addr] = m_addr_(data.emgZip, data.emgAddr);
+  out[R.tel] = m_tel_(data.emgTel);
+  out[R.work] = data.emgWork || '';
+
+  out[R.maker] = data.carMaker || '';
+  out[R.model] = data.carModel || '';
+  out[R.color] = data.carColor || '';
+  out[R.number] = data.carNumber || '';
+
+  m_putYear_(out, R.ay, apply ? apply.y : '');
+  m_put2_(out, R.am, apply ? apply.m : '');
+  m_put2_(out, R.ad, apply ? apply.d : '');
+  out[R.sign] = isCorp ? (data.corpName || '') : (data.name || '');
+
+  return out;
+}
+
+/* ============================================================
+ *  ② 入居申込書兼賃貸保証委託申込書（個人用）へのセル対応
+ *     ナップ賃貸保証の様式。チェック欄は「□」を「☑」に変えるだけで、
+ *     選択肢の文字も罫線もそのまま残ります。
+ * ============================================================ */
+
+function m_napValues_(data, now) {
+  const out = {};
+  const apply = m_dParts_(data.applyDate) ||
+    m_dParts_(Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd'));
+  const start = m_dParts_(data.startDate);
+
+  // ---- 加盟店様概要 ----
+  out.I5 = M_CONFIG.COMPANY;
+  out.I7 = '〒' + M_CONFIG.COMPANY_ZIP + '　' + M_CONFIG.COMPANY_ADDR;
+  out.I9 = 'TEL　' + M_CONFIG.COMPANY_TEL;
+  out.R9 = 'FAX　' + M_CONFIG.COMPANY_FAX;
+  out.I11 = M_CONFIG.COMPANY_CONTACT;
+  out.V11 = ((data.licFront ? 1 : 0) + (data.licBack ? 1 : 0) + 1) + '枚';
+  out.AI9 = { check: '新規' };
+  out.AI11 = data.napReason || '';
+  m_putYear_(out, ['AI5', 'AJ5', 'AK5', 'AL5'], apply ? apply.y : '');
+  out.AO5 = apply ? apply.m : '';
+  out.AR5 = apply ? apply.d : '';
+  m_putYear_(out, ['AI7', 'AJ7', 'AK7', 'AL7'], start ? start.y : '');
+  out.AO7 = start ? start.m : '';
+  out.AR7 = start ? start.d : '';
+
+  // ---- 加盟店様ご記入欄（物件・賃料・保証プラン） ----
+  out.E14 = { check: '駐車場' };                    // 物件用途
+  out.E17 = m_lotLabel_(data);                      // 物件名
+  out.X16 = data.spot || '';                        // 号室（区画）
+  const la = m_splitAddr_(data.lotAddr);
+  m_putZip_(out, ['F19', 'G19', 'H19'], ['J19', 'K19', 'L19', 'M19'], data.lotZip);
+  out.E20 = la.pref;
+  out.M20 = la.rest;
+  out.E22 = (data.depositLabel || '保証料') + '　' + m_yen_(data.deposit);
+  out.P22 = { check: '無' };                        // 収納代行
+  out.N26 = { check: '駐車場/ｺﾝﾃﾅ/ﾄﾗﾝｸ' };          // 保証プラン（事業用）
+  out.AL16 = m_num_(data.rent);                     // ① 家賃（②〜⑥は空欄、合計は数式のまま）
+
+  // ---- お申込者様ご記入欄 ----
+  const b = m_dParts_(data.birth);
+  out.E34 = data.kana || '';
+  out.E35 = data.name || '';
+  out.W34 = data.sex || '';
+  out.Z34 = data.spouse || '';
+  out.AC34 = data.nationality || '';
+  if (data.housing) out.AG34 = { check: data.housing };
+  out.AM34 = b ? (b.y + '年\n' + b.m + '月' + b.d + '日') : '';
+  m_putZip_(out, ['F37', 'G37', 'H37'], ['J37', 'K37', 'L37', 'M37'], data.zip);
+  const ha = m_splitAddr_(data.address);
+  out.E38 = ha.pref;
+  out.L38 = ha.rest;
+  out.AI37 = m_tel_(data.mobile);
+  out.AI39 = m_tel_(data.homeTel);
+
+  out.E41 = data.workName || '';
+  out.AB41 = data.workType || '';
+  out.AI41 = m_tel_(data.workTel);
+  const wa = m_splitAddr_(data.workAddr);
+  out.E44 = wa.pref;
+  out.L44 = wa.rest;
+  out.AF43 = data.income ? (Number(data.income).toLocaleString('ja-JP') + '万円') : '万円';
+  out.AM43 = m_tenure_(data) || '年　　ヵ月';
+
+  // 雇用形態（該当する□のセルだけ☑にする）
+  const EMPLOY_CELL = {
+    '正社員': 'E46', '契約社員': 'L46', '派遣社員': 'S46', '学生': 'Z46', '年金': 'AG46',
+    '個人事業主': 'E47', '無職(求職中含)': 'L47', '生活保護': 'S47',
+    'パート/アルバイト': 'Z47', 'その他': 'AG47',
+  };
+  if (EMPLOY_CELL[data.employ]) out[EMPLOY_CELL[data.employ]] = '☑';
+
+  // ---- 緊急連絡先 ----
+  const eb = m_dParts_(data.emgBirth);
+  out.E54 = data.emgKana || '';
+  out.E55 = data.emgName || '';
+  out.W54 = data.emgSex || '';
+  out.AC54 = data.emgRel || '';
+  if (data.emgHousing) out.AG54 = { check: data.emgHousing };
+  out.AM54 = eb ? (eb.y + '年\n' + eb.m + '月' + eb.d + '日') : '';
+  m_putZip_(out, ['F57', 'G57', 'H57'], ['J57', 'K57', 'L57', 'M57'], data.emgZip);
+  const ea = m_splitAddr_(data.emgAddr);
+  out.E58 = ea.pref;
+  out.L58 = ea.rest;
+  out.AI57 = m_tel_(data.emgTel);
+  out.AI59 = m_tel_(data.emgHomeTel);
+
+  // 連帯保証人欄は、保証会社による保証のため空欄のままにします
+  return out;
 }
