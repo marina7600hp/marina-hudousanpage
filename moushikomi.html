@@ -60,16 +60,17 @@
         .kind-btn { flex: 1; border: 2px solid #cbd5e1; border-radius: 10px; padding: 12px 6px; text-align: center;
                     cursor: pointer; background: #fff; font-weight: 700; font-size: 14px; color: #475569; }
         .kind-btn.active { border-color: #028090; background: #005f73; color: #fff; }
-        /* 免許証アップロード */
-        .drop {
-            border: 2px dashed #94a3b8; border-radius: 12px; background: #f8fafc; padding: 18px 12px;
-            text-align: center; cursor: pointer; display: block;
+        /* 免許証アップロード（カメラ／アルバムの2択） */
+        .pick-row { display: flex; gap: 10px; }
+        .pick {
+            flex: 1; border: 2px dashed #94a3b8; border-radius: 12px; background: #f8fafc;
+            padding: 16px 8px; text-align: center; cursor: pointer; display: block;
         }
-        .drop.filled { border-style: solid; border-color: #028090; background: #f4fbfb; }
-        .drop.err { border-color: #dc2626; background: #fef2f2; }
-        .drop .icon { font-size: 26px; display: block; }
-        .drop .txt { font-size: 13px; font-weight: 700; color: #334155; margin-top: 6px; display: block; }
-        .drop .sub { font-size: 11px; color: #94a3b8; margin-top: 2px; display: block; }
+        .pick .icon { font-size: 24px; display: block; }
+        .pick .txt { font-size: 12.5px; font-weight: 700; color: #334155; margin-top: 6px; display: block; }
+        .pick-row.filled .pick { border-style: solid; border-color: #028090; background: #f4fbfb; }
+        .pick-row.err .pick { border-color: #dc2626; background: #fef2f2; }
+        .pick-state { font-size: 12.5px; font-weight: 700; color: #028090; margin-top: 8px; }
         .preview { margin-top: 10px; }
         .preview img { width: 100%; border-radius: 8px; border: 1px solid #cbd5e1; }
         .money { font-variant-numeric: tabular-nums; }
@@ -202,7 +203,7 @@
                             <p class="err-msg" id="e_address"></p>
                         </div>
                         <div>
-                            <label class="field-label" for="mobile">携帯電話番号<span class="req">必須</span><span class="opt">ハイフンを入れてご入力ください</span></label>
+                            <label class="field-label" for="mobile">携帯電話番号<span class="req">必須</span><span class="opt">数字だけで入力するとハイフンが自動で入ります</span></label>
                             <input class="field-input" type="tel" id="mobile" autocomplete="tel" inputmode="tel" placeholder="例）090-1234-5678">
                             <p class="err-msg" id="e_mobile"></p>
                         </div>
@@ -211,17 +212,19 @@
                     <h3 class="section-title mt-6">勤務先</h3>
                     <div class="space-y-4">
                         <div>
-                            <label class="field-label" for="workName">名　称<span class="opt">任意</span></label>
+                            <label class="field-label" for="workName">名　称<span class="req">必須</span></label>
                             <input class="field-input" type="text" id="workName" placeholder="例）株式会社○○">
+                            <p class="err-msg" id="e_workName"></p>
                         </div>
                         <div>
-                            <label class="field-label" for="workTel">電　話<span class="opt">任意</span></label>
+                            <label class="field-label" for="workTel">電　話<span class="req">必須</span></label>
                             <input class="field-input" type="tel" id="workTel" inputmode="tel" placeholder="例）0823-27-7600">
                             <p class="err-msg" id="e_workTel"></p>
                         </div>
                         <div>
-                            <label class="field-label" for="workAddr">所在地<span class="opt">任意</span></label>
+                            <label class="field-label" for="workAddr">所在地<span class="req">必須</span></label>
                             <input class="field-input" type="text" id="workAddr" placeholder="例）広島県呉市○○町1-1">
+                            <p class="err-msg" id="e_workAddr"></p>
                         </div>
                     </div>
                 </section>
@@ -328,8 +331,9 @@
                                 <p class="err-msg" id="e_emgRel"></p>
                             </div>
                             <div>
-                                <label class="field-label" for="emgBirth">生年月日<span class="opt">任意</span></label>
+                                <label class="field-label" for="emgBirth">生年月日<span class="req">必須</span></label>
                                 <input class="field-input" type="date" id="emgBirth">
+                                <p class="err-msg" id="e_emgBirth"></p>
                             </div>
                         </div>
                         <div>
@@ -370,7 +374,7 @@
                             </div>
                         </div>
                         <div>
-                            <label class="field-label" for="carColor">色<span class="req">必須</span></label>
+                            <label class="field-label" for="carColor">色<span class="opt">任意</span></label>
                             <input class="field-input" type="text" id="carColor" placeholder="例）白">
                             <p class="err-msg" id="e_carColor"></p>
                         </div>
@@ -386,30 +390,33 @@
                 <section class="section-card" id="licCard">
                     <h2 class="section-title">本人確認書類（運転免許証）</h2>
                     <p class="text-xs text-slate-500 mb-4 leading-relaxed">
-                        <strong class="text-slate-700">ご契約者さまご本人</strong>の運転免許証の<strong class="text-slate-700">表面・裏面</strong>を撮影またはアップロードしてください。<br>
+                        <strong class="text-slate-700">ご契約者さまご本人</strong>の運転免許証の<strong class="text-slate-700">表面・裏面</strong>をご提出ください。<br>
+                        その場で撮影するか、すでに撮影済みの写真を<strong class="text-slate-700">アルバム（写真）から選択</strong>できます。<br>
                         文字がはっきり読み取れるように、明るい場所で全体が入るように撮影してください。（jpg / png / heic・1枚あたり10MBまで）
                     </p>
                     <div class="space-y-5">
                         <div>
-                            <label class="field-label" for="licFront">運転免許証（表面）<span class="req">必須</span></label>
-                            <label class="drop" id="dropFront" for="licFront">
-                                <span class="icon">📇</span>
-                                <span class="txt" id="txtFront">タップして撮影・選択</span>
-                                <span class="sub">顔写真のある面</span>
-                            </label>
-                            <input class="hidden" type="file" id="licFront" accept="image/*" capture="environment">
+                            <p class="field-label">運転免許証（表面）<span class="req">必須</span><span class="opt">顔写真のある面</span></p>
+                            <div class="pick-row" id="dropFront">
+                                <label class="pick" for="licFrontCam"><span class="icon">📷</span><span class="txt">カメラで撮影</span></label>
+                                <label class="pick" for="licFront"><span class="icon">🖼</span><span class="txt">アルバムから選択</span></label>
+                            </div>
+                            <input class="hidden" type="file" id="licFront" accept="image/*">
+                            <input class="hidden" type="file" id="licFrontCam" accept="image/*" capture="environment">
+                            <p class="pick-state" id="txtFront"></p>
                             <div class="preview hidden" id="prevFront"><img alt="運転免許証（表面）"></div>
                             <button type="button" class="hidden mt-2 text-xs text-slate-500 underline" id="clearFront" onclick="clearLic('Front')">選び直す</button>
                             <p class="err-msg" id="e_licFront"></p>
                         </div>
                         <div>
-                            <label class="field-label" for="licBack">運転免許証（裏面）<span class="req">必須</span></label>
-                            <label class="drop" id="dropBack" for="licBack">
-                                <span class="icon">📇</span>
-                                <span class="txt" id="txtBack">タップして撮影・選択</span>
-                                <span class="sub">裏面（記載がない場合も撮影してください）</span>
-                            </label>
-                            <input class="hidden" type="file" id="licBack" accept="image/*" capture="environment">
+                            <p class="field-label">運転免許証（裏面）<span class="req">必須</span><span class="opt">記載がない場合も撮影してください</span></p>
+                            <div class="pick-row" id="dropBack">
+                                <label class="pick" for="licBackCam"><span class="icon">📷</span><span class="txt">カメラで撮影</span></label>
+                                <label class="pick" for="licBack"><span class="icon">🖼</span><span class="txt">アルバムから選択</span></label>
+                            </div>
+                            <input class="hidden" type="file" id="licBack" accept="image/*">
+                            <input class="hidden" type="file" id="licBackCam" accept="image/*" capture="environment">
+                            <p class="pick-state" id="txtBack"></p>
                             <div class="preview hidden" id="prevBack"><img alt="運転免許証（裏面）"></div>
                             <button type="button" class="hidden mt-2 text-xs text-slate-500 underline" id="clearBack" onclick="clearLic('Back')">選び直す</button>
                             <p class="err-msg" id="e_licBack"></p>
@@ -522,6 +529,75 @@
         ];
 
         const KANA_OK = /^[ァ-ヶー゛゜　\s・]+$/;
+
+        // 市外局番が3桁の地域
+        const AREA3 = ['011','015','017','018','019','022','023','024','025','026','027','028','029',
+            '042','043','044','045','046','047','048','049','052','053','054','055','058','059',
+            '072','073','075','076','077','078','079','082','083','084','086','087','088','089',
+            '092','093','095','096','097','098','099'];
+        // 上のAREA3と頭3桁が重なる「市外局番4桁」の地域。
+        // 例：082=広島市 に対して 0823=呉市。ここに無いと 0823-27-7600 が 082-327-7600 になってしまう。
+        // 弊社の営業エリア（中国・四国）を網羅しています。他地域を追加する場合はここに足してください。
+        const AREA4 = ['0820','0823','0824','0826','0827','0829',
+            '0833','0834','0835','0836','0837','0838',
+            '0845','0846','0847','0848',
+            '0863','0865','0866','0867','0868','0869',
+            '0875','0877','0879',
+            '0880','0883','0884','0885','0887','0889',
+            '0892','0893','0894','0895','0896','0897','0898'];
+
+        /** 電話番号にハイフンを入れる（全角数字も半角に直す） */
+        function hyphenTel(raw) {
+            const d = String(raw == null ? '' : raw)
+                .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+                .replace(/[^0-9]/g, '').slice(0, 11);
+            if (!d) return '';
+            const cut = (a, b) => [d.slice(0, a), d.slice(a, a + b), d.slice(a + b)]
+                .filter((x) => x !== '').join('-');
+            // 0800 は携帯の 080 と頭が重なるため、携帯より先に判定する
+            if (/^0120/.test(d)) return cut(4, 3);                        // フリーダイヤル
+            if (/^0800/.test(d)) return cut(4, 3);
+            if (/^(0[789]0|050)/.test(d)) return cut(3, 4);              // 携帯・IP電話
+            if (/^0[36]/.test(d)) return cut(2, 4);                       // 東京・大阪
+            if (AREA4.indexOf(d.slice(0, 4)) >= 0) return cut(4, 2);      // 市外局番4桁（AREA3と重なるもの）
+            if (AREA3.indexOf(d.slice(0, 3)) >= 0) return cut(3, 3);      // 市外局番3桁
+            if (/^0/.test(d)) return cut(4, 2);                           // その他の固定電話
+            return d;
+        }
+
+        /**
+         * 入力欄に自動ハイフンを付ける。
+         * ご自身でハイフンを打った場合は自動整形をやめ、入力どおりに残します
+         * （珍しい市外局番で区切り位置が合わないときに手直しできるように）。
+         */
+        function attachTelFormat(id) {
+            const el = $(id);
+            if (!el) return;
+            const isManual = () => el.dataset.telManual === '1';
+            el.addEventListener('input', (e) => {
+                if (!el.value) { delete el.dataset.telManual; return; }
+                const pasted = e && e.inputType === 'insertFromPaste';
+                const typedHyphen = e && (e.data === '-' || e.data === 'ー' || e.data === '－' ||
+                    (pasted && /[-－ー]/.test(el.value)));
+                if (typedHyphen && !isManual()) {
+                    el.dataset.telManual = '1';
+                    // ハイフンを手で打った瞬間だけ、それまでに自動で入ったハイフンを取り除き、
+                    // ご自身が打った区切り位置を活かす（貼り付けはそのまま残す）
+                    if (!pasted && el.selectionStart === el.value.length) {
+                        el.value = el.value.replace(/[-－ー]/g, '') + '-';
+                        try { el.setSelectionRange(el.value.length, el.value.length); } catch (e2) {}
+                    }
+                    return;
+                }
+                if (isManual()) return;
+                const atEnd = el.selectionStart === el.value.length;
+                const formatted = hyphenTel(el.value);
+                if (formatted === el.value) return;
+                el.value = formatted;
+                if (atEnd) { try { el.setSelectionRange(formatted.length, formatted.length); } catch (e2) {} }
+            });
+            el.addEventListener('blur', () => { if (!isManual()) el.value = hyphenTel(el.value); });
+        }
         const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;   // 1枚あたりの元ファイル上限
         const MAX_SIDE = 1600;                        // 送信時に縮小する長辺（px）
 
@@ -660,13 +736,13 @@
             });
         }
 
-        async function onLicChange(side) {
-            const input = $('lic' + side);
+        /** カメラ・アルバムどちらから選ばれても、この処理で受け取る */
+        async function onLicChange(side, input) {
             const file = input.files && input.files[0];
             if (!file) return;
             clearLicErr(side);
             if (file.size > MAX_UPLOAD_BYTES) {
-                setLicErr(side, '画像のサイズが大きすぎます（10MBまで）。カメラの設定を下げるか、別の画像をお選びください。');
+                setLicErr(side, '画像のサイズが大きすぎます（10MBまで）。別の画像をお選びいただくか、カメラの設定を下げてお試しください。');
                 input.value = '';
                 return;
             }
@@ -682,17 +758,20 @@
                 $('clear' + side).classList.remove('hidden');
             } catch (e) {
                 LIC[side] = '';
-                $('txt' + side).textContent = 'タップして撮影・選択';
+                $('txt' + side).textContent = '';
                 setLicErr(side, 'この画像は読み込めませんでした。別の画像（jpg / png）でお試しください。');
             }
+            // もう一方の入力欄は空にしておく（次に選び直したときに確実に change が起きるように）
+            ['lic' + side, 'lic' + side + 'Cam'].forEach((id) => { if ($(id) !== input) $(id).value = ''; });
         }
 
         function clearLic(side) {
             LIC[side] = '';
             $('lic' + side).value = '';
+            $('lic' + side + 'Cam').value = '';
             $('prev' + side).classList.add('hidden');
             $('drop' + side).classList.remove('filled');
-            $('txt' + side).textContent = 'タップして撮影・選択';
+            $('txt' + side).textContent = '';
             $('clear' + side).classList.add('hidden');
         }
 
@@ -735,7 +814,7 @@
             document.querySelectorAll('.err-label').forEach((e) => e.classList.remove('err-label'));
             document.querySelectorAll('.err-card').forEach((e) => e.classList.remove('err-card'));
             document.querySelectorAll('.err-msg.show').forEach((e) => e.classList.remove('show'));
-            document.querySelectorAll('.drop.err').forEach((e) => e.classList.remove('err'));
+            document.querySelectorAll('.pick-row.err').forEach((e) => e.classList.remove('err'));
             $('formError').classList.add('hidden');
         }
 
@@ -792,7 +871,9 @@
                 req('birth', '生年月日');
                 req('address', '住所');
                 req('mobile', '携帯電話番号'); telOk('mobile', '携帯電話番号');
-                telOk('workTel', '勤務先の電話番号');
+                req('workName', '勤務先の名称');
+                req('workTel', '勤務先の電話番号'); telOk('workTel', '勤務先の電話番号');
+                req('workAddr', '勤務先の所在地');
             } else {
                 req('corpKana', 'フリガナ'); kanaOk('corpKana', 'フリガナ');
                 req('corpName', '法人名');
@@ -813,13 +894,13 @@
             // 緊急連絡先
             req('emgName', '緊急連絡先の氏名'); kanaOk('emgKana', 'フリガナ');
             req('emgRel', '続柄');
+            req('emgBirth', '緊急連絡先の生年月日');
             req('emgAddr', '緊急連絡先の住所');
             req('emgTel', '緊急連絡先の電話番号'); telOk('emgTel', '緊急連絡先の電話番号');
 
             // 車両
             req('carMaker', 'メーカー');
             req('carModel', '車種');
-            req('carColor', '色');
             req('carNumber', '登録ナンバー');
 
             // 免許証
@@ -970,19 +1051,27 @@
             LOT_FIXED = applyLotFromParams();
             if (LOT_FIXED) renderFixedLot(); else renderLotSelect();
 
-            // 免許証
-            $('licFront').addEventListener('change', () => onLicChange('Front'));
-            $('licBack').addEventListener('change', () => onLicChange('Back'));
+            // 免許証（カメラ／アルバムの両方）
+            ['Front', 'Back'].forEach((side) => {
+                ['lic' + side, 'lic' + side + 'Cam'].forEach((id) => {
+                    $(id).addEventListener('change', () => onLicChange(side, $(id)));
+                });
+            });
+
+            // 電話番号はハイフンを自動で挿入
+            ['mobile', 'workTel', 'corpTel', 'corpFax', 'staffMobile', 'staffDeptTel', 'emgTel']
+                .forEach(attachTelFormat);
 
             // 入力し直したらエラー表示を消す
             ['kana', 'name', 'address', 'mobile', 'corpKana', 'corpName', 'corpAddr', 'repName', 'repKana',
-             'staffName', 'staffKana', 'corpTel', 'corpFax', 'staffMobile', 'staffDeptTel', 'workTel',
+             'staffName', 'staffKana', 'corpTel', 'corpFax', 'staffMobile', 'staffDeptTel',
+             'workName', 'workTel', 'workAddr',
              'email', 'emgName', 'emgKana', 'emgRel', 'emgAddr', 'emgTel',
-             'carMaker', 'carModel', 'carColor', 'carNumber', 'lotOtherName'].forEach((id) => {
+             'carMaker', 'carModel', 'carNumber', 'lotOtherName'].forEach((id) => {
                 const el = $(id);
                 if (el) el.addEventListener('input', () => { if (el.value.trim()) clearErr(id); });
             });
-            ['birth', 'startDate'].forEach((id) => {
+            ['birth', 'startDate', 'emgBirth'].forEach((id) => {
                 const el = $(id);
                 if (el) el.addEventListener('change', () => { if (el.value) clearErr(id); });
             });
