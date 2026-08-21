@@ -259,23 +259,45 @@ function m_dateJa_(s) {
   return m ? (m[1] + '年' + Number(m[2]) + '月' + Number(m[3]) + '日') : String(s);
 }
 
-/** 電話番号を全角→半角に直し、先頭の0が消えないよう整形 */
+// 市外局番が3桁の地域
+const M_AREA3 = ['011','015','017','018','019','022','023','024','025','026','027','028','029',
+  '042','043','044','045','046','047','048','049','052','053','054','055','058','059',
+  '072','073','075','076','077','078','079','082','083','084','086','087','088','089',
+  '092','093','095','096','097','098','099'];
+// M_AREA3 と頭3桁が重なる「市外局番4桁」の地域（例：082=広島市 に対して 0823=呉市）。
+// 中国・四国を網羅。他地域を追加する場合はここに足してください。
+const M_AREA4 = ['0820','0823','0824','0826','0827','0829',
+  '0833','0834','0835','0836','0837','0838',
+  '0845','0846','0847','0848',
+  '0863','0865','0866','0867','0868','0869',
+  '0875','0877','0879',
+  '0880','0883','0884','0885','0887','0889',
+  '0892','0893','0894','0895','0896','0897','0898'];
+
+/**
+ * 電話番号を全角→半角に直し、ハイフンが無ければ補う。
+ * ※フォームから届く値は入力時にハイフン済みなので、ここは保険（手入力・旧データ用）です。
+ * すでにハイフンが入っている場合はそのまま返します。
+ */
 function m_tel_(v) {
   if (v === '' || v === null || v === undefined) return '';
-  let s = String(v).trim()
+  const s = String(v).trim()
     .replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
     .replace(/[－ー―‐]/g, '-');
-  if (/^\d{10,11}$/.test(s)) {
-    if (/^0[789]0\d{8}$/.test(s)) return s.slice(0, 3) + '-' + s.slice(3, 7) + '-' + s.slice(7);   // 携帯
-    if (/^0120\d{6}$/.test(s)) return '0120-' + s.slice(4, 7) + '-' + s.slice(7);
-    if (/^0800\d{7}$/.test(s)) return '0800-' + s.slice(4, 7) + '-' + s.slice(7);
-    if (s.length === 10) {
-      // 固定電話：市外局番が分かるものだけ整形し、それ以外はそのまま返す
-      if (/^0[36]/.test(s)) return s.slice(0, 2) + '-' + s.slice(2, 6) + '-' + s.slice(6);         // 東京・大阪
-      if (/^082[0-9]/.test(s) && !/^082[019]/.test(s)) return s.slice(0, 4) + '-' + s.slice(4, 6) + '-' + s.slice(6); // 呉(0823)など
-      if (/^082/.test(s)) return s.slice(0, 3) + '-' + s.slice(3, 6) + '-' + s.slice(6);           // 広島市(082)
-    }
+  if (!/^\d{10,11}$/.test(s)) return s;   // ハイフン入り・桁数が想定外のものは触らない
+
+  function cut(a, b) {
+    return [s.slice(0, a), s.slice(a, a + b), s.slice(a + b)]
+      .filter(function (x) { return x !== ''; }).join('-');
   }
+  // 0800 は携帯の 080 と頭が重なるため、携帯より先に判定する
+  if (/^0120/.test(s)) return cut(4, 3);                           // フリーダイヤル
+  if (/^0800/.test(s)) return cut(4, 3);
+  if (/^(0[789]0|050)/.test(s)) return cut(3, 4);                 // 携帯・IP電話
+  if (/^0[36]/.test(s)) return cut(2, 4);                          // 東京・大阪
+  if (M_AREA4.indexOf(s.slice(0, 4)) >= 0) return cut(4, 2);       // 市外局番4桁（3桁と重なるもの）
+  if (M_AREA3.indexOf(s.slice(0, 3)) >= 0) return cut(3, 3);       // 市外局番3桁
+  if (/^0/.test(s)) return cut(4, 2);                              // その他の固定電話
   return s;
 }
 
@@ -318,25 +340,26 @@ function m_addr_(zip, addr) {
 
 function m_pdfStyle_() {
   return '<style>' +
-    'body{font-family:sans-serif;color:#111;font-size:11.5px;margin:20px;}' +
+    // 余白は上を確保しつつ下を詰め、表の各行はゆったり取る
+    'body{font-family:sans-serif;color:#111;font-size:11.5px;margin:18px 20px 8px;}' +
     'h1{font-size:19px;text-align:center;letter-spacing:5px;margin:2px 0 2px;font-weight:bold;}' +
     '.meta{text-align:right;font-size:10px;color:#444;line-height:1.6;}' +
-    'table.form{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:8px;}' +
-    'table.form th,table.form td{border:1px solid #333;padding:5px 6px;font-size:11px;' +
-    '  vertical-align:middle;word-break:break-all;line-height:1.5;}' +
+    'table.form{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:10px;}' +
+    'table.form th,table.form td{border:1px solid #333;padding:11px 8px;font-size:11px;' +
+    '  vertical-align:middle;word-break:break-all;line-height:1.6;}' +
     'table.form th{background:#f1f1f1;font-weight:bold;text-align:center;}' +
     'table.form th.sec{background:#e2e2e2;font-size:11px;letter-spacing:2px;writing-mode:horizontal-tb;}' +
     'table.form th.lbl{text-align:left;}' +
     'table.form td{background:#fff;}' +
     'td.val{font-size:11.5px;}' +
-    '.agree{margin-top:12px;font-size:11.5px;line-height:2.0;}' +
+    '.agree{margin-top:18px;font-size:11.5px;line-height:2.4;}' +
     '.agree .box{display:inline-block;border:1px solid #333;width:12px;height:12px;text-align:center;' +
     '  line-height:12px;font-size:10px;margin-right:6px;}' +
-    '.sign{margin-top:14px;font-size:12px;line-height:2.2;}' +
+    '.sign{margin-top:20px;font-size:12px;line-height:2.6;}' +
     '.sign .row{margin-left:8px;}' +
     '.sign .name{display:inline-block;min-width:220px;border-bottom:1px solid #333;padding:0 6px 2px;}' +
-    '.broker{margin-top:16px;font-size:11.5px;line-height:1.9;}' +
-    '.foot{margin-top:14px;font-size:9.5px;color:#555;line-height:1.7;border-top:1px solid #ccc;padding-top:8px;}' +
+    '.broker{margin-top:22px;font-size:11.5px;line-height:2.0;}' +
+    '.foot{margin-top:18px;font-size:9.5px;color:#555;line-height:1.7;border-top:1px solid #ccc;padding-top:8px;}' +
     '.idpage{page-break-before:always;}' +
     '.idtitle{font-size:14px;font-weight:bold;margin:6px 0 10px;letter-spacing:2px;}' +
     '.idcard{margin-bottom:14px;}' +
