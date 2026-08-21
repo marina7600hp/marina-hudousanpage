@@ -39,6 +39,7 @@
         .badge { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; }
         .badge.live { background:#dcfce7; color:#166534; }
         .badge.local { background:#fef3c7; color:#92400e; }
+        .badge.gr { background:#ede9fe; color:#5b21b6; margin-left:6px; font-size:10px; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-16">
@@ -59,7 +60,8 @@
                 <p class="field-label mb-0">① 駐車場を選択</p>
                 <span id="masterStatus" class="badge local">読込中…</span>
             </div>
-            <p class="text-xs text-slate-500 mb-3">賃料・保証料は「月極駐車場マスター」スプレッドシートの最新の内容です。</p>
+            <p class="text-xs text-slate-500 mb-3">賃料・保証料は「月極駐車場マスター」スプレッドシートの最新の内容です。<br>
+                <span class="badge gr" style="margin-left:0">保証会社</span> が付いた駐車場は、保証委託申込書も自動で作成されます。</p>
             <div class="space-y-2" id="lotGrid"></div>
 
             <!-- その他の駐車場 -->
@@ -99,6 +101,7 @@
                 <div class="flex justify-between mt-2"><span class="text-slate-500">月額賃料（1台・税込）</span><span class="font-bold" id="sumRent">—</span></div>
                 <div class="flex justify-between mt-1"><span class="text-slate-500" id="sumDepLabel">保証料</span><span class="font-bold" id="sumDep">—</span></div>
                 <div class="flex justify-between mt-1"><span class="text-slate-500">仲介手数料（税込）</span><span class="font-bold" id="sumFee">—</span></div>
+                <div class="flex justify-between mt-1"><span class="text-slate-500">賃貸保証会社</span><span class="font-bold" id="sumGr">—</span></div>
             </div>
         </div>
 
@@ -171,15 +174,15 @@
 
         // 予備の駐車場マスター（GASに接続できないときだけ使用）
         const FALLBACK_LOTS = [
-            { id: 'omori5',        name: '大森第5ビル駐車場',           plan: '',          rent: 16000, depositLabel: '保証料', deposit: 16550, brokerFee: 0 },
-            { id: 'omori5-2f',     name: '大森第5ビル駐車場2F',         plan: '',          rent:  8800, depositLabel: '保証料', deposit: 16550, brokerFee: 0 },
-            { id: 'kure-nishi',    name: '呉駅前西中央駐車場',           plan: '',          rent: 18000, depositLabel: '敷金',   deposit: 18000, brokerFee: 0 },
-            { id: 'sanjo4',        name: '三条4丁目大森駐車場',          plan: '',          rent: 15000, depositLabel: '保証料', deposit: 15550, brokerFee: 0 },
-            { id: 'matsugaoka',    name: '松ヶ丘中谷ガレージ',           plan: '',          rent:  5000, depositLabel: '保証料', deposit:  5550, brokerFee: 0 },
-            { id: 'eihome',        name: 'エイホームビル駐車場',         plan: '',          rent: 18000, depositLabel: '保証料', deposit: 18550, brokerFee: 0 },
-            { id: 'eihome-bike-a', name: 'エイホームビルバイクガレージ', plan: '125cc以下', rent:  2000, depositLabel: '保証料', deposit:  2550, brokerFee: 0 },
-            { id: 'eihome-bike-b', name: 'エイホームビルバイクガレージ', plan: '125cc超え', rent:  2500, depositLabel: '保証料', deposit:  3050, brokerFee: 0 },
-            { id: 'eihome-bike-c', name: 'エイホームビルバイクガレージ', plan: '400cc超え', rent:  3500, depositLabel: '保証料', deposit:  4050, brokerFee: 0 },
+            { id: 'omori5',        name: '大森第5ビル駐車場',           plan: '',          rent: 16000, depositLabel: '保証料', deposit: 16550, brokerFee: 0, useGuarantor: true },
+            { id: 'omori5-2f',     name: '大森第5ビル駐車場2F',         plan: '',          rent:  8800, depositLabel: '保証料', deposit: 16550, brokerFee: 0, useGuarantor: true },
+            { id: 'kure-nishi',    name: '呉駅前西中央駐車場',           plan: '',          rent: 18000, depositLabel: '敷金',   deposit: 18000, brokerFee: 0, useGuarantor: false },
+            { id: 'sanjo4',        name: '三条4丁目大森駐車場',          plan: '',          rent: 15000, depositLabel: '保証料', deposit: 15550, brokerFee: 0, useGuarantor: true },
+            { id: 'matsugaoka',    name: '松ヶ丘中谷ガレージ',           plan: '',          rent:  5000, depositLabel: '保証料', deposit:  5550, brokerFee: 0, useGuarantor: true },
+            { id: 'eihome',        name: 'エイホームビル駐車場',         plan: '',          rent: 18000, depositLabel: '保証料', deposit: 18550, brokerFee: 0, useGuarantor: false },
+            { id: 'eihome-bike-a', name: 'エイホームビルバイクガレージ', plan: '125cc以下', rent:  2000, depositLabel: '保証料', deposit:  2550, brokerFee: 0, useGuarantor: false },
+            { id: 'eihome-bike-b', name: 'エイホームビルバイクガレージ', plan: '125cc超え', rent:  2500, depositLabel: '保証料', deposit:  3050, brokerFee: 0, useGuarantor: false },
+            { id: 'eihome-bike-c', name: 'エイホームビルバイクガレージ', plan: '400cc超え', rent:  3500, depositLabel: '保証料', deposit:  4050, brokerFee: 0, useGuarantor: false },
         ];
 
         const $ = (id) => document.getElementById(id);
@@ -221,7 +224,7 @@
         function renderLots() {
             $('lotGrid').innerHTML = LOTS.map((l) => `
                 <button type="button" id="lot_${l.id}" class="lot-btn" onclick="selectLot('${l.id}')">
-                    <span class="nm">${esc(lotLabel(l))}</span>
+                    <span class="nm">${esc(lotLabel(l))}${l.useGuarantor ? '<span class="badge gr">保証会社</span>' : ''}</span>
                     <span class="pr">賃料 ${yen(l.rent)}／月（税込）　${esc(l.depositLabel || '保証料')} ${yen(l.deposit)}</span>
                 </button>`).join('');
         }
@@ -310,6 +313,8 @@
             $('sumDepLabel').textContent = lot.depositLabel || '保証料';
             $('sumDep').textContent = yen(lot.deposit);
             $('sumFee').textContent = fee ? yen(fee) + '（税込）' : '—';
+            $('sumGr').textContent = lot.useGuarantor
+                ? '利用する（ナップ賃貸保証／申込書を自動作成）' : '利用しない';
             $('lotSummary').classList.remove('hidden');
 
             const url = buildUrl(lot);
@@ -327,7 +332,11 @@
                 (fee ? '■仲介手数料（税込）：' + yen(fee) + '\n' : '') +
                 '\n▼お申し込みフォーム\n' + url + '\n\n' +
                 '※ご入力の際、契約者さまご本人の運転免許証（表・裏）の画像が必要です。\n' +
-                'その場で撮影するか、撮影済みの写真をアルバムから選んでいただけます。\n\n' +
+                'その場で撮影するか、撮影済みの写真をアルバムから選んでいただけます。\n' +
+                (lot.useGuarantor
+                    ? '※この駐車場は賃貸保証会社のご利用が必要です。フォームでお勤め先・年収など審査に必要な項目もご入力ください。\n'
+                    : '') +
+                '\n' +
                 'ご不明な点は 0823-27-7600 までお問い合わせください。';
         }
 
