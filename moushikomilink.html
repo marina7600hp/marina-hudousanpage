@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <title>駐車場申込フォーム リンク作成（管理者用）</title>
+    <meta name="theme-color" content="#005f73">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        coastal: { 50:'#f4fbfb', 100:'#e5f6f6', 200:'#ceecee', 500:'#028090', 600:'#005f73', 900:'#0a1d25' }
+                    },
+                    fontFamily: { sans: ['Noto Sans JP', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Tailwind CDNが読み込めない場合のフォールバック */
+        .hidden { display: none !important; }
+        .field-label { display:block; font-size:13px; font-weight:700; color:#334155; margin-bottom:4px; }
+        .field-input { width:100%; padding:11px 13px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; background:#fff; }
+        .field-input:focus { outline:2px solid #028090; outline-offset:-1px; }
+        .card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px 16px; }
+        .lot-btn { border:2px solid #cbd5e1; border-radius:10px; padding:10px 10px; text-align:left; cursor:pointer;
+                   background:#fff; font-size:13px; width:100%; display:block; }
+        .lot-btn.active { border-color:#028090; background:#e5f6f6; }
+        .lot-btn .nm { display:block; font-weight:700; color:#0f172a; font-size:13.5px; line-height:1.4; }
+        .lot-btn.active .nm { color:#005f73; }
+        .lot-btn .pr { display:block; font-size:12px; color:#64748b; margin-top:2px; font-variant-numeric:tabular-nums; }
+        .type-btn { flex:1; border:2px solid #cbd5e1; border-radius:10px; padding:10px 6px; text-align:center;
+                    cursor:pointer; background:#fff; font-weight:700; font-size:14px; color:#475569; }
+        .type-btn.active { border-color:#028090; background:#005f73; color:#fff; }
+        .badge { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; }
+        .badge.live { background:#dcfce7; color:#166534; }
+        .badge.local { background:#fef3c7; color:#92400e; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-16">
+
+    <header class="bg-coastal-900 text-white">
+        <div class="max-w-xl mx-auto px-4 py-4">
+            <p class="text-[10px] tracking-[0.25em] text-coastal-200">ADMIN</p>
+            <h1 class="text-base font-bold tracking-wider">駐車場申込フォーム リンク作成</h1>
+            <p class="text-xs mt-1 text-slate-300">駐車場を選んで、申込者さまへ送るフォームURLを作成します</p>
+        </div>
+    </header>
+
+    <main class="max-w-xl mx-auto px-4 py-6 space-y-5">
+
+        <!-- ① 駐車場 -->
+        <div class="card">
+            <div class="flex items-center justify-between mb-1">
+                <p class="field-label mb-0">① 駐車場を選択</p>
+                <span id="masterStatus" class="badge local">読込中…</span>
+            </div>
+            <p class="text-xs text-slate-500 mb-3">賃料・保証料は「月極駐車場マスター」スプレッドシートの最新の内容です。</p>
+            <div class="space-y-2" id="lotGrid"></div>
+
+            <!-- その他の駐車場 -->
+            <button type="button" id="lotOther" class="lot-btn mt-2" onclick="selectLot('__other__')">
+                <span class="nm">＋ その他の駐車場（自由入力）</span>
+                <span class="pr">マスターにない駐車場をその場で入力します</span>
+            </button>
+            <div id="otherWrap" class="hidden mt-3 space-y-3 border-t border-slate-200 pt-3">
+                <div>
+                    <label class="field-label" for="oName">駐車場名</label>
+                    <input class="field-input" type="text" id="oName" placeholder="例）○○町第2駐車場" oninput="update()">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="field-label" for="oRent">月額賃料（税込）</label>
+                        <input class="field-input" type="number" id="oRent" inputmode="numeric" min="0" step="100" placeholder="例）12000" oninput="update()">
+                    </div>
+                    <div>
+                        <label class="field-label" for="oDeposit">保証料・敷金</label>
+                        <input class="field-input" type="number" id="oDeposit" inputmode="numeric" min="0" step="50" placeholder="例）12550" oninput="update()">
+                    </div>
+                </div>
+                <div>
+                    <label class="field-label" for="oDepLabel">保証金の区分</label>
+                    <select class="field-input" id="oDepLabel" onchange="update()">
+                        <option>保証料</option>
+                        <option>敷金</option>
+                    </select>
+                </div>
+                <p class="text-xs text-slate-500 leading-relaxed">
+                    ※ 今後も使う駐車場は、<strong>マスターに追加</strong>しておくと次回から選ぶだけで済みます。
+                </p>
+            </div>
+
+            <div id="lotSummary" class="hidden mt-4 bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
+                <p class="font-bold text-coastal-600" id="sumName">—</p>
+                <div class="flex justify-between mt-2"><span class="text-slate-500">月額賃料（1台・税込）</span><span class="font-bold" id="sumRent">—</span></div>
+                <div class="flex justify-between mt-1"><span class="text-slate-500" id="sumDepLabel">保証料</span><span class="font-bold" id="sumDep">—</span></div>
+                <div class="flex justify-between mt-1"><span class="text-slate-500">仲介手数料（税込）</span><span class="font-bold" id="sumFee">—</span></div>
+            </div>
+        </div>
+
+        <!-- ② 条件 -->
+        <div class="card">
+            <p class="field-label mb-1">② 申込条件（任意）</p>
+            <p class="text-xs text-slate-500 mb-3">入力しておくと、フォームにあらかじめ反映されます。</p>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label" for="spot">区画番号</label>
+                    <input class="field-input" type="text" id="spot" placeholder="例）A-1" oninput="update()">
+                </div>
+                <div>
+                    <label class="field-label" for="fee">仲介手数料（税込）</label>
+                    <input class="field-input" type="number" id="fee" inputmode="numeric" min="0" step="100" placeholder="例）16000" oninput="update()">
+                </div>
+            </div>
+            <div class="mt-4">
+                <label class="field-label mb-2">申込区分</label>
+                <div class="flex gap-3">
+                    <button type="button" id="kindAny" class="type-btn active" onclick="setKind('')">申込者が選ぶ</button>
+                    <button type="button" id="kindK" class="type-btn" onclick="setKind('k')">👤 個人で固定</button>
+                    <button type="button" id="kindH" class="type-btn" onclick="setKind('h')">🏢 法人で固定</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ③ 生成結果 -->
+        <div class="card border-2 border-coastal-500">
+            <p class="field-label mb-2">③ 送信用リンク</p>
+            <textarea class="field-input text-xs" id="urlOut" rows="3" readonly onclick="this.select()"></textarea>
+            <button type="button" onclick="copyText('urlOut', this)" class="w-full mt-2 bg-coastal-600 hover:bg-coastal-500 text-white font-bold py-3 rounded-xl">📋 URLをコピー</button>
+
+            <p class="field-label mt-5 mb-2">ご案内文（SMS・メール用／編集できます）</p>
+            <textarea class="field-input text-sm" id="smsOut" rows="10"></textarea>
+            <button type="button" onclick="copyText('smsOut', this)" class="w-full mt-2 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl">📋 ご案内文をコピー</button>
+        </div>
+
+        <!-- ④ マスター編集 -->
+        <div class="card">
+            <p class="field-label mb-1">④ 賃料の変更（マスター編集）</p>
+            <p class="text-xs text-slate-500 mb-3 leading-relaxed">
+                賃料・保証料の改定や駐車場の追加・削除は、Googleドライブの<strong>「月極駐車場マスター」スプレッドシート</strong>を直接編集してください。<br>
+                編集内容は<strong>すぐにフォームへ反映</strong>されます（発行済みのURLも最新の賃料で表示されます）。
+            </p>
+            <a id="masterLink" href="#" target="_blank" rel="noopener"
+               class="hidden w-full text-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl block">
+                📊 月極駐車場マスターを開く
+            </a>
+            <p id="masterHint" class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 leading-relaxed">
+                マスターに接続できていません。このページ内の <code>GAS_URL</code> を設定すると、最新の賃料の読み込みとマスターへのリンク表示ができるようになります。
+            </p>
+        </div>
+
+        <p class="text-xs text-slate-400 leading-relaxed">
+            ※ このページはリンクを作るだけで、送信は行いません。コピーした文面をSMS・メールに貼り付けて申込者さまへ送ってください。<br>
+            ※ 申込内容は marina.oomori1@gmail.com へメール通知され、申込書PDFと運転免許証の画像がGoogleドライブに保存されます。
+        </p>
+    </main>
+
+    <script>
+        // ================================================================
+        // ★ 送信先（Google Apps Script のウェブアプリURL）
+        //    moushikomi.html と同じURLを貼り付けてください。
+        // ================================================================
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEE82ZLWw1gAwj3XpRkz9-kyG2SOVBxyliRiFGQ12IGSuCac2_VtxGXHsgu3heEJQ3/exec';
+
+        // 申込フォームのURL（同じフォルダに置く前提。変える場合はここを編集）
+        const FORM_PATH = 'moushikomi.html';
+
+        // 予備の駐車場マスター（GASに接続できないときだけ使用）
+        const FALLBACK_LOTS = [
+            { id: 'omori5',        name: '大森第5ビル駐車場',           plan: '',          rent: 16000, depositLabel: '保証料', deposit: 16550, brokerFee: 0 },
+            { id: 'omori5-2f',     name: '大森第5ビル駐車場2F',         plan: '',          rent:  8800, depositLabel: '保証料', deposit: 16550, brokerFee: 0 },
+            { id: 'kure-nishi',    name: '呉駅前西中央駐車場',           plan: '',          rent: 18000, depositLabel: '敷金',   deposit: 18000, brokerFee: 0 },
+            { id: 'sanjo4',        name: '三条4丁目大森駐車場',          plan: '',          rent: 15000, depositLabel: '保証料', deposit: 15550, brokerFee: 0 },
+            { id: 'matsugaoka',    name: '松ヶ丘中谷ガレージ',           plan: '',          rent:  5000, depositLabel: '保証料', deposit:  5550, brokerFee: 0 },
+            { id: 'eihome',        name: 'エイホームビル駐車場',         plan: '',          rent: 18000, depositLabel: '保証料', deposit: 18550, brokerFee: 0 },
+            { id: 'eihome-bike-a', name: 'エイホームビルバイクガレージ', plan: '125cc以下', rent:  2000, depositLabel: '保証料', deposit:  2550, brokerFee: 0 },
+            { id: 'eihome-bike-b', name: 'エイホームビルバイクガレージ', plan: '125cc超え', rent:  2500, depositLabel: '保証料', deposit:  3050, brokerFee: 0 },
+            { id: 'eihome-bike-c', name: 'エイホームビルバイクガレージ', plan: '400cc超え', rent:  3500, depositLabel: '保証料', deposit:  4050, brokerFee: 0 },
+        ];
+
+        const $ = (id) => document.getElementById(id);
+        const yen = (n) => (Number(n) || 0).toLocaleString('ja-JP') + '円';
+        const num = (v) => { const n = Number(String(v == null ? '' : v).replace(/[^0-9.-]/g, '')); return isNaN(n) ? 0 : n; };
+        const lotLabel = (l) => l ? (l.name + (l.plan ? '（' + l.plan + '）' : '')) : '';
+
+        let LOTS = FALLBACK_LOTS;
+        let selectedId = '';
+        let KIND = '';
+
+        // ---------------- マスター読み込み ----------------
+        async function loadMaster() {
+            if (!GAS_URL) { setStatus(false); return; }
+            try {
+                const res = await fetch(GAS_URL + (GAS_URL.includes('?') ? '&' : '?') + 'action=master');
+                const json = await res.json();
+                if (json && json.ok && Array.isArray(json.items) && json.items.length) {
+                    LOTS = json.items;
+                    if (json.masterUrl) {
+                        $('masterLink').href = json.masterUrl;
+                        $('masterLink').classList.remove('hidden');
+                        $('masterHint').classList.add('hidden');
+                    }
+                    setStatus(true);
+                    return;
+                }
+            } catch (e) { /* 通信できない場合は予備を使用 */ }
+            setStatus(false);
+        }
+
+        function setStatus(live) {
+            const el = $('masterStatus');
+            el.textContent = live ? 'マスター最新' : 'オフライン（予備の金額）';
+            el.className = 'badge ' + (live ? 'live' : 'local');
+        }
+
+        // ---------------- 描画 ----------------
+        function renderLots() {
+            $('lotGrid').innerHTML = LOTS.map((l) => `
+                <button type="button" id="lot_${l.id}" class="lot-btn" onclick="selectLot('${l.id}')">
+                    <span class="nm">${esc(lotLabel(l))}</span>
+                    <span class="pr">賃料 ${yen(l.rent)}／月（税込）　${esc(l.depositLabel || '保証料')} ${yen(l.deposit)}</span>
+                </button>`).join('');
+        }
+
+        function esc(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function selectLot(id) {
+            selectedId = id;
+            LOTS.forEach((l) => { const b = $('lot_' + l.id); if (b) b.classList.remove('active'); });
+            $('lotOther').classList.remove('active');
+            if (id === '__other__') {
+                $('lotOther').classList.add('active');
+                $('otherWrap').classList.remove('hidden');
+            } else {
+                const b = $('lot_' + id);
+                if (b) b.classList.add('active');
+                $('otherWrap').classList.add('hidden');
+            }
+            update();
+        }
+
+        function setKind(k) {
+            KIND = k;
+            $('kindAny').classList.toggle('active', k === '');
+            $('kindK').classList.toggle('active', k === 'k');
+            $('kindH').classList.toggle('active', k === 'h');
+            update();
+        }
+
+        /** いま選ばれている駐車場の内容 */
+        function currentLot() {
+            if (!selectedId) return null;
+            if (selectedId === '__other__') {
+                return {
+                    id: 'other',
+                    name: $('oName').value.trim(),
+                    plan: '',
+                    rent: num($('oRent').value),
+                    depositLabel: $('oDepLabel').value,
+                    deposit: num($('oDeposit').value),
+                    brokerFee: 0,
+                };
+            }
+            return LOTS.filter((l) => l.id === selectedId)[0] || null;
+        }
+
+        // ---------------- URL・文面の生成 ----------------
+        function formBase() {
+            return location.href.replace(/[^/]*$/, '') + FORM_PATH;
+        }
+
+        function buildUrl(lot) {
+            const q = [];
+            q.push('p=' + encodeURIComponent(lot.id));
+            if (lot.id === 'other') {
+                // マスターにない駐車場は、内容をURLに持たせる
+                q.push('n=' + encodeURIComponent(lot.name));
+                q.push('r=' + lot.rent);
+                q.push('d=' + lot.deposit);
+                q.push('dl=' + encodeURIComponent(lot.depositLabel));
+            }
+            const spot = $('spot').value.trim();
+            if (spot) q.push('s=' + encodeURIComponent(spot));
+            const fee = num($('fee').value);
+            if (fee) q.push('f=' + fee);
+            if (KIND) q.push('k=' + KIND);
+            return formBase() + '?' + q.join('&');
+        }
+
+        function update() {
+            const lot = currentLot();
+            if (!lot || !lot.name) {
+                $('lotSummary').classList.add('hidden');
+                $('urlOut').value = '';
+                $('smsOut').value = '';
+                return;
+            }
+            const fee = num($('fee').value);
+
+            $('sumName').textContent = lotLabel(lot);
+            $('sumRent').textContent = yen(lot.rent) + '（税込）';
+            $('sumDepLabel').textContent = lot.depositLabel || '保証料';
+            $('sumDep').textContent = yen(lot.deposit);
+            $('sumFee').textContent = fee ? yen(fee) + '（税込）' : '—';
+            $('lotSummary').classList.remove('hidden');
+
+            const url = buildUrl(lot);
+            $('urlOut').value = url;
+
+            const spot = $('spot').value.trim();
+            $('smsOut').value =
+                '【月極駐車場のお申し込みについて】\n' +
+                '有限会社仁方大森マリーナーです。\n' +
+                'お申し込みは下記のフォームからお願いいたします。\n\n' +
+                '■駐車場：' + lotLabel(lot) + '\n' +
+                (spot ? '■区画：' + spot + '\n' : '') +
+                '■月額賃料（1台・税込）：' + yen(lot.rent) + '\n' +
+                '■' + (lot.depositLabel || '保証料') + '：' + yen(lot.deposit) + '\n' +
+                (fee ? '■仲介手数料（税込）：' + yen(fee) + '\n' : '') +
+                '\n▼お申し込みフォーム\n' + url + '\n\n' +
+                '※ご入力の際、契約者さまご本人の運転免許証（表・裏）の画像が必要です。\n' +
+                'お手元にご用意のうえ、撮影してアップロードしてください。\n\n' +
+                'ご不明な点は 0823-27-7600 までお問い合わせください。';
+        }
+
+        // ---------------- コピー ----------------
+        async function copyText(id, btn) {
+            const el = $(id);
+            if (!el.value) { alert('先に駐車場を選択してください。'); return; }
+            const label = btn.textContent;
+            try {
+                await navigator.clipboard.writeText(el.value);
+            } catch (e) {
+                el.removeAttribute('readonly');
+                el.select();
+                document.execCommand('copy');
+                el.setAttribute('readonly', 'readonly');
+            }
+            btn.textContent = '✅ コピーしました';
+            setTimeout(() => { btn.textContent = label; }, 1600);
+        }
+
+        // ---------------- 初期化 ----------------
+        document.addEventListener('DOMContentLoaded', async () => {
+            renderLots();
+            await loadMaster();
+            renderLots();       // マスター読み込み後に描き直す
+            if (selectedId) selectLot(selectedId);
+            update();
+        });
+    </script>
+</body>
+</html>
