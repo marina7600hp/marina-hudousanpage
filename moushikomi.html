@@ -386,6 +386,142 @@
                     </div>
                 </section>
 
+                <!-- ========== 保証会社の審査に必要な情報（対象の駐車場のみ表示） ========== -->
+                <section class="section-card hidden" id="napCard">
+                    <h2 class="section-title">保証会社の審査に必要な情報</h2>
+                    <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+                        この駐車場は<strong class="text-slate-700">賃貸保証会社（ナップ賃貸保証株式会社）</strong>のご利用が必要です。<br>
+                        審査に必要な項目のため、恐れ入りますがご入力をお願いいたします。
+                    </p>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="field-label" for="sex">性　別<span class="req">必須</span></label>
+                                <select class="field-input" id="sex">
+                                    <option value="">— 選択 —</option>
+                                    <option>男</option>
+                                    <option>女</option>
+                                </select>
+                                <p class="err-msg" id="e_sex"></p>
+                            </div>
+                            <div>
+                                <label class="field-label" for="spouse">配偶者<span class="req">必須</span></label>
+                                <select class="field-input" id="spouse">
+                                    <option value="">— 選択 —</option>
+                                    <option>有</option>
+                                    <option>無</option>
+                                </select>
+                                <p class="err-msg" id="e_spouse"></p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="field-label" for="nationality">国　籍<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="nationality" value="日本">
+                                <p class="err-msg" id="e_nationality"></p>
+                            </div>
+                            <div>
+                                <label class="field-label" for="housing">住居区分<span class="req">必須</span></label>
+                                <select class="field-input" id="housing">
+                                    <option value="">— 選択 —</option>
+                                    <option>自己所有</option>
+                                    <option>家族所有</option>
+                                    <option>賃貸</option>
+                                    <option>社宅</option>
+                                </select>
+                                <p class="err-msg" id="e_housing"></p>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="field-label" for="homeTel">自宅電話<span class="opt">任意・お持ちの場合</span></label>
+                            <input class="field-input" type="tel" id="homeTel" inputmode="tel" placeholder="0823-27-7600">
+                            <p class="err-msg" id="e_homeTel"></p>
+                        </div>
+                    </div>
+
+                    <h3 class="section-title mt-6">勤務先（審査用）</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="field-label" for="workType">業　種<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="workType" placeholder="例）製造業・建設業・小売業・医療">
+                            <p class="err-msg" id="e_workType"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="employ">雇用形態<span class="req">必須</span></label>
+                            <select class="field-input" id="employ">
+                                <option value="">— 選択 —</option>
+                                <option>正社員</option>
+                                <option>契約社員</option>
+                                <option>派遣社員</option>
+                                <option>パート/アルバイト</option>
+                                <option>個人事業主</option>
+                                <option>学生</option>
+                                <option>年金</option>
+                                <option>無職(求職中含)</option>
+                                <option>生活保護</option>
+                                <option>その他</option>
+                            </select>
+                            <p class="err-msg" id="e_employ"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="income">年　収<span class="req">必須</span><span class="opt">万円・おおよそで結構です</span></label>
+                            <div class="flex items-center gap-2">
+                                <input class="field-input" type="number" id="income" inputmode="numeric" min="0" step="10" placeholder="例）450">
+                                <span class="text-sm text-slate-500 whitespace-nowrap">万円</span>
+                            </div>
+                            <p class="err-msg" id="e_income"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="tenureY">勤続年数<span class="req">必須</span></label>
+                            <div class="flex items-center gap-2">
+                                <input class="field-input" type="number" id="tenureY" inputmode="numeric" min="0" max="70" step="1" placeholder="0">
+                                <span class="text-sm text-slate-500 whitespace-nowrap">年</span>
+                                <input class="field-input" type="number" id="tenureM" inputmode="numeric" min="0" max="11" step="1" placeholder="0">
+                                <span class="text-sm text-slate-500 whitespace-nowrap">ヵ月</span>
+                            </div>
+                            <p class="err-msg" id="e_tenureY"></p>
+                        </div>
+                    </div>
+
+                    <h3 class="section-title mt-6">緊急連絡先（審査用）</h3>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="field-label" for="emgSex">性　別<span class="req">必須</span></label>
+                                <select class="field-input" id="emgSex">
+                                    <option value="">— 選択 —</option>
+                                    <option>男</option>
+                                    <option>女</option>
+                                </select>
+                                <p class="err-msg" id="e_emgSex"></p>
+                            </div>
+                            <div>
+                                <label class="field-label" for="emgHousing">住居区分<span class="req">必須</span></label>
+                                <select class="field-input" id="emgHousing">
+                                    <option value="">— 選択 —</option>
+                                    <option>自己所有</option>
+                                    <option>家族所有</option>
+                                    <option>賃貸</option>
+                                    <option>社宅</option>
+                                </select>
+                                <p class="err-msg" id="e_emgHousing"></p>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="field-label" for="emgHomeTel">自宅電話<span class="opt">任意</span></label>
+                            <input class="field-input" type="tel" id="emgHomeTel" inputmode="tel" placeholder="0823-27-7600">
+                            <p class="err-msg" id="e_emgHomeTel"></p>
+                        </div>
+                    </div>
+
+                    <h3 class="section-title mt-6">お申込みの理由</h3>
+                    <div>
+                        <label class="field-label" for="napReason">引越・申込理由<span class="req">必須</span></label>
+                        <input class="field-input" type="text" id="napReason" placeholder="例）転勤のため・自宅の駐車場が手狭なため">
+                        <p class="err-msg" id="e_napReason"></p>
+                    </div>
+                </section>
+
                 <!-- ========== 本人確認書類 ========== -->
                 <section class="section-card" id="licCard">
                     <h2 class="section-title">本人確認書類（運転免許証）</h2>
@@ -517,15 +653,15 @@
         //    最新の賃料を読み込みます。ここは通信できなかったときの予備です。
         // ================================================================
         const FALLBACK_LOTS = [
-            { id: 'omori5',        name: '大森第5ビル駐車場',           plan: '',          rent: 16000, depositLabel: '保証料', deposit: 16550, brokerFee: 0 },
-            { id: 'omori5-2f',     name: '大森第5ビル駐車場2F',         plan: '',          rent:  8800, depositLabel: '保証料', deposit: 16550, brokerFee: 0 },
-            { id: 'kure-nishi',    name: '呉駅前西中央駐車場',           plan: '',          rent: 18000, depositLabel: '敷金',   deposit: 18000, brokerFee: 0 },
-            { id: 'sanjo4',        name: '三条4丁目大森駐車場',          plan: '',          rent: 15000, depositLabel: '保証料', deposit: 15550, brokerFee: 0 },
-            { id: 'matsugaoka',    name: '松ヶ丘中谷ガレージ',           plan: '',          rent:  5000, depositLabel: '保証料', deposit:  5550, brokerFee: 0 },
-            { id: 'eihome',        name: 'エイホームビル駐車場',         plan: '',          rent: 18000, depositLabel: '保証料', deposit: 18550, brokerFee: 0 },
-            { id: 'eihome-bike-a', name: 'エイホームビルバイクガレージ', plan: '125cc以下', rent:  2000, depositLabel: '保証料', deposit:  2550, brokerFee: 0 },
-            { id: 'eihome-bike-b', name: 'エイホームビルバイクガレージ', plan: '125cc超え', rent:  2500, depositLabel: '保証料', deposit:  3050, brokerFee: 0 },
-            { id: 'eihome-bike-c', name: 'エイホームビルバイクガレージ', plan: '400cc超え', rent:  3500, depositLabel: '保証料', deposit:  4050, brokerFee: 0 },
+            { id: 'omori5',        name: '大森第5ビル駐車場',           plan: '',          rent: 16000, depositLabel: '保証料', deposit: 16550, brokerFee: 0, useGuarantor: true },
+            { id: 'omori5-2f',     name: '大森第5ビル駐車場2F',         plan: '',          rent:  8800, depositLabel: '保証料', deposit: 16550, brokerFee: 0, useGuarantor: true },
+            { id: 'kure-nishi',    name: '呉駅前西中央駐車場',           plan: '',          rent: 18000, depositLabel: '敷金',   deposit: 18000, brokerFee: 0, useGuarantor: false },
+            { id: 'sanjo4',        name: '三条4丁目大森駐車場',          plan: '',          rent: 15000, depositLabel: '保証料', deposit: 15550, brokerFee: 0, useGuarantor: true },
+            { id: 'matsugaoka',    name: '松ヶ丘中谷ガレージ',           plan: '',          rent:  5000, depositLabel: '保証料', deposit:  5550, brokerFee: 0, useGuarantor: true },
+            { id: 'eihome',        name: 'エイホームビル駐車場',         plan: '',          rent: 18000, depositLabel: '保証料', deposit: 18550, brokerFee: 0, useGuarantor: false },
+            { id: 'eihome-bike-a', name: 'エイホームビルバイクガレージ', plan: '125cc以下', rent:  2000, depositLabel: '保証料', deposit:  2550, brokerFee: 0, useGuarantor: false },
+            { id: 'eihome-bike-b', name: 'エイホームビルバイクガレージ', plan: '125cc超え', rent:  2500, depositLabel: '保証料', deposit:  3050, brokerFee: 0, useGuarantor: false },
+            { id: 'eihome-bike-c', name: 'エイホームビルバイクガレージ', plan: '400cc超え', rent:  3500, depositLabel: '保証料', deposit:  4050, brokerFee: 0, useGuarantor: false },
         ];
 
         const KANA_OK = /^[ァ-ヶー゛゜　\s・]+$/;
@@ -657,6 +793,7 @@
         }
 
         function renderFixedLot() {
+            syncGuarantor();
             $('lotFixedName').textContent = lotLabel(LOT);
             $('lotFixedRent').textContent = yen(LOT.rent) + '（税込）';
             $('lotFixedDepLabel').textContent = LOT.depositLabel || '保証料';
@@ -681,12 +818,14 @@
             $('lotOtherWrap').classList.toggle('hidden', !isOther);
             clearErr('lotSelect');
             if (isOther) {
-                LOT = { id: 'other', name: '', plan: '', rent: 0, depositLabel: '保証料', deposit: 0, brokerFee: 0 };
+                LOT = { id: 'other', name: '', plan: '', rent: 0, depositLabel: '保証料', deposit: 0, brokerFee: 0, useGuarantor: false };
                 $('lotChooseSummary').classList.add('hidden');
+                syncGuarantor();
                 return;
             }
             const found = LOTS.filter((l) => l.id === v)[0];
             LOT = found ? Object.assign({}, found) : null;
+            syncGuarantor();
             if (LOT) {
                 $('lotChooseRent').textContent = yen(LOT.rent) + '（税込）';
                 $('lotChooseDepLabel').textContent = LOT.depositLabel || '保証料';
@@ -704,7 +843,18 @@
             $('kindHoujin').classList.toggle('active', kind === 'houjin');
             $('kojinCard').classList.toggle('hidden', kind !== 'kojin');
             $('houjinCard').classList.toggle('hidden', kind !== 'houjin');
+            syncGuarantor();
             clearAllErrs();
+        }
+
+        // ---------------- 保証会社の審査欄の表示切替 ----------------
+        /** この申込が保証会社（ナップ賃貸保証）の対象かどうか */
+        function needGuarantor() {
+            return KIND === 'kojin' && !!(LOT && LOT.useGuarantor);
+        }
+        /** 対象なら審査用の入力欄を出す（法人・対象外の駐車場では非表示のまま） */
+        function syncGuarantor() {
+            $('napCard').classList.toggle('hidden', !needGuarantor());
         }
 
         // ---------------- 免許証のアップロード ----------------
@@ -898,6 +1048,27 @@
             req('emgAddr', '緊急連絡先の住所');
             req('emgTel', '緊急連絡先の電話番号'); telOk('emgTel', '緊急連絡先の電話番号');
 
+            // 保証会社の審査項目（対象の駐車場・個人のみ）
+            if (needGuarantor()) {
+                req('sex', '性別');
+                req('spouse', '配偶者の有無');
+                req('nationality', '国籍');
+                req('housing', '住居区分');
+                telOk('homeTel', '自宅電話');
+                req('workType', '勤務先の業種');
+                req('employ', '雇用形態');
+                req('income', '年収');
+                req('emgSex', '緊急連絡先の性別');
+                req('emgHousing', '緊急連絡先の住居区分');
+                telOk('emgHomeTel', '緊急連絡先の自宅電話');
+                req('napReason', '引越・申込理由');
+                // 勤続年数は「年」「ヵ月」どちらかに入力があればOK
+                if (!$('tenureY').value.trim() && !$('tenureM').value.trim()) {
+                    setErr('tenureY', '勤続年数をご入力ください（0年◯ヵ月でも結構です）');
+                    errs.push('tenureY');
+                }
+            }
+
             // 車両
             req('carMaker', 'メーカー');
             req('carModel', '車種');
@@ -956,6 +1127,8 @@
                 carMaker: v('carMaker'), carModel: v('carModel'),
                 carColor: v('carColor'), carNumber: v('carNumber'),
                 licFront: LIC.Front, licBack: LIC.Back,
+                lotAddr: LOT ? (LOT.addr || '') : '',
+                useGuarantor: needGuarantor(),
                 note: v('note'),
                 agreePrivacy: $('agreePrivacy').checked,
                 agreeTruth: $('agreeTruth').checked,
@@ -966,6 +1139,16 @@
                     zip: v('zip'), address: v('address'), mobile: v('mobile'),
                     workName: v('workName'), workTel: v('workTel'), workAddr: v('workAddr'),
                 });
+                if (needGuarantor()) {
+                    Object.assign(data, {
+                        sex: v('sex'), spouse: v('spouse'), nationality: v('nationality'),
+                        housing: v('housing'), homeTel: v('homeTel'),
+                        workType: v('workType'), employ: v('employ'), income: v('income'),
+                        tenureY: v('tenureY'), tenureM: v('tenureM'),
+                        emgSex: v('emgSex'), emgHousing: v('emgHousing'), emgHomeTel: v('emgHomeTel'),
+                        napReason: v('napReason'),
+                    });
+                }
             } else {
                 Object.assign(data, {
                     corpKana: v('corpKana'), corpName: v('corpName'),
@@ -1007,6 +1190,19 @@
                     ['代表者様名', d.repName], ['担当者様名', d.staffName],
                     ['法人TEL / FAX', [d.corpTel, d.corpFax].filter(Boolean).join(' / ')],
                     ['担当者携帯', d.staffMobile], ['所属部署TEL', d.staffDeptTel]);
+            }
+            if (needGuarantor()) {
+                rows.push(['― 保証会社の審査用 ―', 'ナップ賃貸保証'],
+                    ['性別 / 配偶者', [d.sex, d.spouse ? '配偶者' + d.spouse : ''].filter(Boolean).join(' / ')],
+                    ['国籍 / 住居区分', [d.nationality, d.housing].filter(Boolean).join(' / ')],
+                    ['自宅電話', d.homeTel],
+                    ['勤務先 業種', d.workType],
+                    ['雇用形態', d.employ],
+                    ['年収', d.income ? Number(d.income).toLocaleString('ja-JP') + '万円' : ''],
+                    ['勤続年数', [d.tenureY ? d.tenureY + '年' : '', d.tenureM ? d.tenureM + 'ヵ月' : ''].filter(Boolean).join('')],
+                    ['緊急連絡先 性別 / 住居区分', [d.emgSex, d.emgHousing].filter(Boolean).join(' / ')],
+                    ['緊急連絡先 自宅電話', d.emgHomeTel],
+                    ['引越・申込理由', d.napReason]);
             }
             rows.push(['メール', d.email],
                 ['緊急連絡先', [d.emgName, d.emgRel ? `（${d.emgRel}）` : '', d.emgTel].filter(Boolean).join(' ')],
@@ -1059,17 +1255,23 @@
             });
 
             // 電話番号はハイフンを自動で挿入
-            ['mobile', 'workTel', 'corpTel', 'corpFax', 'staffMobile', 'staffDeptTel', 'emgTel']
-                .forEach(attachTelFormat);
+            ['mobile', 'workTel', 'corpTel', 'corpFax', 'staffMobile', 'staffDeptTel', 'emgTel',
+             'homeTel', 'emgHomeTel'].forEach(attachTelFormat);
 
             // 入力し直したらエラー表示を消す
             ['kana', 'name', 'address', 'mobile', 'corpKana', 'corpName', 'corpAddr', 'repName', 'repKana',
              'staffName', 'staffKana', 'corpTel', 'corpFax', 'staffMobile', 'staffDeptTel',
              'workName', 'workTel', 'workAddr',
              'email', 'emgName', 'emgKana', 'emgRel', 'emgAddr', 'emgTel',
-             'carMaker', 'carModel', 'carNumber', 'lotOtherName'].forEach((id) => {
+             'carMaker', 'carModel', 'carNumber', 'lotOtherName',
+             'nationality', 'workType', 'income', 'tenureY', 'tenureM', 'napReason',
+             'homeTel', 'emgHomeTel'].forEach((id) => {
                 const el = $(id);
                 if (el) el.addEventListener('input', () => { if (el.value.trim()) clearErr(id); });
+            });
+            ['sex', 'spouse', 'housing', 'employ', 'emgSex', 'emgHousing'].forEach((id) => {
+                const el = $(id);
+                if (el) el.addEventListener('change', () => { if (el.value) clearErr(id); });
             });
             ['birth', 'startDate', 'emgBirth'].forEach((id) => {
                 const el = $(id);
