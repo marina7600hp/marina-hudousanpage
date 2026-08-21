@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <title>月極駐車場 利用申込フォーム | 有限会社仁方大森マリーナー</title>
+    <meta name="theme-color" content="#005f73">
+    <meta name="format-detection" content="telephone=no">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        coastal: {
+                            50: '#f4fbfb',
+                            100: '#e5f6f6',
+                            200: '#ceecee',
+                            500: '#028090',
+                            600: '#005f73',
+                            900: '#0a1d25',
+                        }
+                    },
+                    fontFamily: { sans: ['Noto Sans JP', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Tailwind CDNが読み込めない場合のフォールバック（表示切替が壊れないように） */
+        .hidden { display: none !important; }
+        .field-label { display: block; font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 4px; }
+        .field-label .req { color: #dc2626; font-size: 11px; margin-left: 4px; }
+        .field-label .opt { color: #94a3b8; font-size: 11px; margin-left: 4px; font-weight: 500; }
+        .field-input {
+            width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 8px;
+            font-size: 16px; background: #fff; color: #0f172a;
+        }
+        .field-input:focus { outline: 2px solid #028090; outline-offset: -1px; border-color: #028090; }
+        .section-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 16px; }
+        .section-title {
+            font-size: 15px; font-weight: 700; color: #005f73; margin-bottom: 14px;
+            padding-left: 10px; border-left: 4px solid #028090;
+        }
+        .confirm-row { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 13.5px; }
+        .confirm-row dt { flex: 0 0 118px; color: #64748b; }
+        .confirm-row dd { flex: 1; color: #0f172a; font-weight: 500; white-space: pre-wrap; word-break: break-all; }
+        /* 入力エラーの強調表示 */
+        .field-input.err { border-color: #dc2626 !important; background: #fef2f2; outline-color: #dc2626; }
+        .err-msg { display: none; color: #dc2626; font-size: 12px; font-weight: 700; margin-top: 4px; line-height: 1.5; }
+        .err-msg.show { display: block; }
+        .field-label.err-label { color: #dc2626; }
+        .section-card.err-card { border-color: #fca5a5; }
+        /* 個人／法人の切替 */
+        .kind-btn { flex: 1; border: 2px solid #cbd5e1; border-radius: 10px; padding: 12px 6px; text-align: center;
+                    cursor: pointer; background: #fff; font-weight: 700; font-size: 14px; color: #475569; }
+        .kind-btn.active { border-color: #028090; background: #005f73; color: #fff; }
+        /* 免許証アップロード */
+        .drop {
+            border: 2px dashed #94a3b8; border-radius: 12px; background: #f8fafc; padding: 18px 12px;
+            text-align: center; cursor: pointer; display: block;
+        }
+        .drop.filled { border-style: solid; border-color: #028090; background: #f4fbfb; }
+        .drop.err { border-color: #dc2626; background: #fef2f2; }
+        .drop .icon { font-size: 26px; display: block; }
+        .drop .txt { font-size: 13px; font-weight: 700; color: #334155; margin-top: 6px; display: block; }
+        .drop .sub { font-size: 11px; color: #94a3b8; margin-top: 2px; display: block; }
+        .preview { margin-top: 10px; }
+        .preview img { width: 100%; border-radius: 8px; border: 1px solid #cbd5e1; }
+        .money { font-variant-numeric: tabular-nums; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen">
+
+    <!-- ヘッダー -->
+    <header class="bg-coastal-600 text-white">
+        <div class="max-w-xl mx-auto px-4 py-4">
+            <p class="text-[10px] tracking-[0.25em] text-coastal-200">NIGATA MARINA</p>
+            <h1 class="text-base font-bold tracking-wider">有限会社仁方大森マリーナー</h1>
+            <p class="text-sm mt-1 text-coastal-100">月極駐車場 利用申込フォーム</p>
+        </div>
+    </header>
+
+    <main class="max-w-xl mx-auto px-4 py-6 pb-16">
+
+        <!-- ==================== 入力フォーム ==================== -->
+        <div id="formWrap">
+
+            <div class="bg-coastal-50 border border-coastal-200 rounded-xl p-4 mb-5 text-sm text-slate-700 leading-relaxed">
+                <p class="font-bold text-coastal-600 mb-1">月極駐車場利用申込書</p>
+                <p>下記フォームにご入力のうえ送信してください。送信いただいた内容で申込書を作成し、審査のうえ弊社よりご連絡いたします。<strong>運転免許証（表・裏）の画像をご用意ください。</strong></p>
+            </div>
+
+            <form id="applyForm" novalidate class="space-y-5">
+
+                <!-- ========== お申込みの駐車場 ========== -->
+                <section class="section-card">
+                    <h2 class="section-title">お申込みの駐車場</h2>
+
+                    <!-- 駐車場が指定されている場合（URLで指定） -->
+                    <div id="lotFixed" class="hidden">
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                            <p class="text-lg font-bold text-coastal-600" id="lotFixedName">—</p>
+                            <dl class="mt-3 space-y-1 text-sm">
+                                <div class="flex justify-between"><dt class="text-slate-500">月額賃料（1台・税込）</dt>
+                                    <dd class="font-bold money" id="lotFixedRent">—</dd></div>
+                                <div class="flex justify-between"><dt class="text-slate-500" id="lotFixedDepLabel">保証料</dt>
+                                    <dd class="font-bold money" id="lotFixedDep">—</dd></div>
+                                <div class="flex justify-between" id="lotFixedFeeRow"><dt class="text-slate-500">仲介手数料（税込）</dt>
+                                    <dd class="font-bold money" id="lotFixedFee">—</dd></div>
+                            </dl>
+                        </div>
+                    </div>
+
+                    <!-- 駐車場が指定されていない場合（ご自身で選択） -->
+                    <div id="lotChoose" class="hidden space-y-4">
+                        <div>
+                            <label class="field-label" for="lotSelect">駐車場<span class="req">必須</span></label>
+                            <select class="field-input" id="lotSelect">
+                                <option value="">— 選択してください —</option>
+                            </select>
+                            <p class="err-msg" id="e_lotSelect"></p>
+                        </div>
+                        <div id="lotOtherWrap" class="hidden space-y-4">
+                            <div>
+                                <label class="field-label" for="lotOtherName">駐車場名<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="lotOtherName" placeholder="例）○○町駐車場">
+                                <p class="err-msg" id="e_lotOtherName"></p>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="field-label" for="lotOtherRent">月額賃料（税込）<span class="opt">お分かりになる場合</span></label>
+                                    <input class="field-input" type="number" id="lotOtherRent" inputmode="numeric" min="0" step="100" placeholder="例）15000">
+                                </div>
+                                <div>
+                                    <label class="field-label" for="lotOtherDep">保証料・敷金<span class="opt">お分かりになる場合</span></label>
+                                    <input class="field-input" type="number" id="lotOtherDep" inputmode="numeric" min="0" step="50" placeholder="例）15550">
+                                </div>
+                            </div>
+                        </div>
+                        <div id="lotChooseSummary" class="hidden bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
+                            <div class="flex justify-between"><span class="text-slate-500">月額賃料（1台・税込）</span>
+                                <span class="font-bold money" id="lotChooseRent">—</span></div>
+                            <div class="flex justify-between mt-1"><span class="text-slate-500" id="lotChooseDepLabel">保証料</span>
+                                <span class="font-bold money" id="lotChooseDep">—</span></div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4 mt-4">
+                        <div>
+                            <label class="field-label" for="startDate">利用開始日<span class="req">必須</span></label>
+                            <input class="field-input" type="date" id="startDate">
+                            <p class="err-msg" id="e_startDate"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="spot">ご希望の区画番号<span class="opt">任意・ご指定がなければ空欄で結構です</span></label>
+                            <input class="field-input" type="text" id="spot" placeholder="例）A-1">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ========== 個人／法人 ========== -->
+                <section class="section-card" id="kindCard">
+                    <h2 class="section-title">お申込み区分</h2>
+                    <div class="flex gap-3">
+                        <button type="button" id="kindKojin" class="kind-btn active" onclick="setKind('kojin')">👤 個人</button>
+                        <button type="button" id="kindHoujin" class="kind-btn" onclick="setKind('houjin')">🏢 法人</button>
+                    </div>
+                </section>
+
+                <!-- ========== 申込人（個人） ========== -->
+                <section class="section-card" id="kojinCard">
+                    <h2 class="section-title">申込人さま（個人）</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="field-label" for="kana">フリガナ<span class="req">必須</span><span class="opt">カタカナでご入力ください</span></label>
+                            <input class="field-input" type="text" id="kana" placeholder="例）オオモリ タロウ" autocomplete="off">
+                            <p class="err-msg" id="e_kana"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="name">氏　名<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="name" autocomplete="name" placeholder="例）大森 太郎">
+                            <p class="err-msg" id="e_name"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="birth">生年月日<span class="req">必須</span></label>
+                            <input class="field-input" type="date" id="birth">
+                            <p class="err-msg" id="e_birth"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="zip">郵便番号<span class="opt">任意</span></label>
+                            <input class="field-input" type="text" id="zip" inputmode="numeric" autocomplete="postal-code" placeholder="例）737-0821">
+                        </div>
+                        <div>
+                            <label class="field-label" for="address">住　所<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="address" autocomplete="street-address" placeholder="例）広島県呉市三条4丁目7-20">
+                            <p class="err-msg" id="e_address"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="mobile">携帯電話番号<span class="req">必須</span><span class="opt">ハイフンを入れてご入力ください</span></label>
+                            <input class="field-input" type="tel" id="mobile" autocomplete="tel" inputmode="tel" placeholder="例）090-1234-5678">
+                            <p class="err-msg" id="e_mobile"></p>
+                        </div>
+                    </div>
+
+                    <h3 class="section-title mt-6">勤務先</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="field-label" for="workName">名　称<span class="opt">任意</span></label>
+                            <input class="field-input" type="text" id="workName" placeholder="例）株式会社○○">
+                        </div>
+                        <div>
+                            <label class="field-label" for="workTel">電　話<span class="opt">任意</span></label>
+                            <input class="field-input" type="tel" id="workTel" inputmode="tel" placeholder="例）0823-27-7600">
+                            <p class="err-msg" id="e_workTel"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="workAddr">所在地<span class="opt">任意</span></label>
+                            <input class="field-input" type="text" id="workAddr" placeholder="例）広島県呉市○○町1-1">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ========== 申込法人 ========== -->
+                <section class="section-card hidden" id="houjinCard">
+                    <h2 class="section-title">申込法人さま</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="field-label" for="corpKana">フリガナ<span class="req">必須</span><span class="opt">カタカナでご入力ください</span></label>
+                            <input class="field-input" type="text" id="corpKana" placeholder="例）カブシキガイシャ マルマル" autocomplete="off">
+                            <p class="err-msg" id="e_corpKana"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="corpName">法人名<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="corpName" placeholder="例）株式会社○○">
+                            <p class="err-msg" id="e_corpName"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="corpZip">郵便番号<span class="opt">任意</span></label>
+                            <input class="field-input" type="text" id="corpZip" inputmode="numeric" placeholder="例）737-0821">
+                        </div>
+                        <div>
+                            <label class="field-label" for="corpAddr">所在地<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="corpAddr" placeholder="例）広島県呉市三条4丁目7-20">
+                            <p class="err-msg" id="e_corpAddr"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="repKana">フリガナ（代表者様）<span class="opt">任意</span></label>
+                            <input class="field-input" type="text" id="repKana" placeholder="例）オオモリ タロウ" autocomplete="off">
+                            <p class="err-msg" id="e_repKana"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="repName">代表者様名<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="repName" placeholder="例）大森 太郎">
+                            <p class="err-msg" id="e_repName"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="staffKana">フリガナ（ご担当者様）<span class="opt">任意</span></label>
+                            <input class="field-input" type="text" id="staffKana" placeholder="例）オオモリ ハナコ" autocomplete="off">
+                            <p class="err-msg" id="e_staffKana"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="staffName">担当者様名<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="staffName" placeholder="例）大森 花子">
+                            <p class="err-msg" id="e_staffName"></p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="field-label" for="corpTel">法人TEL<span class="req">必須</span></label>
+                                <input class="field-input" type="tel" id="corpTel" inputmode="tel" placeholder="0823-27-7600">
+                                <p class="err-msg" id="e_corpTel"></p>
+                            </div>
+                            <div>
+                                <label class="field-label" for="corpFax">法人FAX<span class="opt">任意</span></label>
+                                <input class="field-input" type="tel" id="corpFax" inputmode="tel" placeholder="0823-27-7818">
+                                <p class="err-msg" id="e_corpFax"></p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="field-label" for="staffMobile">担当者様 携帯<span class="req">必須</span></label>
+                                <input class="field-input" type="tel" id="staffMobile" inputmode="tel" placeholder="090-1234-5678">
+                                <p class="err-msg" id="e_staffMobile"></p>
+                            </div>
+                            <div>
+                                <label class="field-label" for="staffDeptTel">所属部署TEL<span class="opt">任意</span></label>
+                                <input class="field-input" type="tel" id="staffDeptTel" inputmode="tel" placeholder="0823-27-7600">
+                                <p class="err-msg" id="e_staffDeptTel"></p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ========== メールアドレス ========== -->
+                <section class="section-card">
+                    <h2 class="section-title">ご連絡先メールアドレス</h2>
+                    <div>
+                        <label class="field-label" for="email">メールアドレス<span class="opt">任意・受付控えをお送りします</span></label>
+                        <input class="field-input" type="email" id="email" autocomplete="email" inputmode="email" placeholder="例）parking@example.com">
+                        <p class="err-msg" id="e_email"></p>
+                    </div>
+                </section>
+
+                <!-- ========== 緊急連絡先 ========== -->
+                <section class="section-card">
+                    <h2 class="section-title">緊急連絡先</h2>
+                    <p class="text-xs text-slate-500 mb-4 leading-relaxed">申込人さまと連絡が取れない場合のご連絡先です。ご家族・ご親族など、別居の方をご記入ください。</p>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="field-label" for="emgName">氏　名<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="emgName" placeholder="例）大森 花子">
+                            <p class="err-msg" id="e_emgName"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="emgKana">フリガナ<span class="opt">任意</span></label>
+                            <input class="field-input" type="text" id="emgKana" placeholder="例）オオモリ ハナコ" autocomplete="off">
+                            <p class="err-msg" id="e_emgKana"></p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="field-label" for="emgRel">続　柄<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="emgRel" placeholder="例）父・配偶者">
+                                <p class="err-msg" id="e_emgRel"></p>
+                            </div>
+                            <div>
+                                <label class="field-label" for="emgBirth">生年月日<span class="opt">任意</span></label>
+                                <input class="field-input" type="date" id="emgBirth">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="field-label" for="emgZip">郵便番号<span class="opt">任意</span></label>
+                            <input class="field-input" type="text" id="emgZip" inputmode="numeric" placeholder="例）737-0821">
+                        </div>
+                        <div>
+                            <label class="field-label" for="emgAddr">住　所<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="emgAddr" placeholder="例）広島県呉市○○町1-1">
+                            <p class="err-msg" id="e_emgAddr"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="emgTel">連絡先電話<span class="req">必須</span></label>
+                            <input class="field-input" type="tel" id="emgTel" inputmode="tel" placeholder="例）090-1234-5678">
+                            <p class="err-msg" id="e_emgTel"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="emgWork">勤務先名<span class="opt">任意</span></label>
+                            <input class="field-input" type="text" id="emgWork" placeholder="例）株式会社○○">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ========== 利用車両 ========== -->
+                <section class="section-card">
+                    <h2 class="section-title">利用車両</h2>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="field-label" for="carMaker">メーカー<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="carMaker" placeholder="例）トヨタ">
+                                <p class="err-msg" id="e_carMaker"></p>
+                            </div>
+                            <div>
+                                <label class="field-label" for="carModel">車　種<span class="req">必須</span></label>
+                                <input class="field-input" type="text" id="carModel" placeholder="例）アクア">
+                                <p class="err-msg" id="e_carModel"></p>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="field-label" for="carColor">色<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="carColor" placeholder="例）白">
+                            <p class="err-msg" id="e_carColor"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="carNumber">登録ナンバー<span class="req">必須</span></label>
+                            <input class="field-input" type="text" id="carNumber" placeholder="例）広島 300 あ 12-34">
+                            <p class="err-msg" id="e_carNumber"></p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ========== 本人確認書類 ========== -->
+                <section class="section-card" id="licCard">
+                    <h2 class="section-title">本人確認書類（運転免許証）</h2>
+                    <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+                        <strong class="text-slate-700">ご契約者さまご本人</strong>の運転免許証の<strong class="text-slate-700">表面・裏面</strong>を撮影またはアップロードしてください。<br>
+                        文字がはっきり読み取れるように、明るい場所で全体が入るように撮影してください。（jpg / png / heic・1枚あたり10MBまで）
+                    </p>
+                    <div class="space-y-5">
+                        <div>
+                            <label class="field-label" for="licFront">運転免許証（表面）<span class="req">必須</span></label>
+                            <label class="drop" id="dropFront" for="licFront">
+                                <span class="icon">📇</span>
+                                <span class="txt" id="txtFront">タップして撮影・選択</span>
+                                <span class="sub">顔写真のある面</span>
+                            </label>
+                            <input class="hidden" type="file" id="licFront" accept="image/*" capture="environment">
+                            <div class="preview hidden" id="prevFront"><img alt="運転免許証（表面）"></div>
+                            <button type="button" class="hidden mt-2 text-xs text-slate-500 underline" id="clearFront" onclick="clearLic('Front')">選び直す</button>
+                            <p class="err-msg" id="e_licFront"></p>
+                        </div>
+                        <div>
+                            <label class="field-label" for="licBack">運転免許証（裏面）<span class="req">必須</span></label>
+                            <label class="drop" id="dropBack" for="licBack">
+                                <span class="icon">📇</span>
+                                <span class="txt" id="txtBack">タップして撮影・選択</span>
+                                <span class="sub">裏面（記載がない場合も撮影してください）</span>
+                            </label>
+                            <input class="hidden" type="file" id="licBack" accept="image/*" capture="environment">
+                            <div class="preview hidden" id="prevBack"><img alt="運転免許証（裏面）"></div>
+                            <button type="button" class="hidden mt-2 text-xs text-slate-500 underline" id="clearBack" onclick="clearLic('Back')">選び直す</button>
+                            <p class="err-msg" id="e_licBack"></p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ========== 備考 ========== -->
+                <section class="section-card">
+                    <h2 class="section-title">ご要望・備考</h2>
+                    <textarea class="field-input" id="note" rows="3" placeholder="ご要望などがございましたらご記入ください（任意）"></textarea>
+                </section>
+
+                <!-- ========== 同意 ========== -->
+                <section class="section-card" id="agreeCard">
+                    <h2 class="section-title">ご確認事項</h2>
+                    <div class="space-y-3">
+                        <label class="flex items-start gap-3 cursor-pointer">
+                            <input type="checkbox" id="agreePrivacy" class="mt-1 w-5 h-5 accent-[#028090] shrink-0">
+                            <span class="text-sm leading-relaxed">個人情報の第三者機関への提供について同意します。<span class="block text-xs text-slate-500 mt-1">ご入力いただいた情報は、本申込の審査・契約手続き・管理業務のために利用し、貸主および保証会社等へ提供いたします。</span></span>
+                        </label>
+                        <label class="flex items-start gap-3 cursor-pointer">
+                            <input type="checkbox" id="agreeTruth" class="mt-1 w-5 h-5 accent-[#028090] shrink-0">
+                            <span class="text-sm leading-relaxed">上記記載事項に相違なく申し込みをいたします。<span class="block text-xs text-slate-500 mt-1">本フォームの送信をもって、申込書への記名・押印に代えるものとして取り扱います。</span></span>
+                        </label>
+                    </div>
+                    <p class="err-msg" id="e_agree"></p>
+                </section>
+
+                <!-- ハニーポット（スパム対策・利用者には見えません） -->
+                <div style="position:absolute;left:-9999px" aria-hidden="true">
+                    <label for="website">Website</label>
+                    <input type="text" id="website" tabindex="-1" autocomplete="off">
+                </div>
+
+                <p id="formError" class="hidden text-sm font-bold text-red-600 bg-red-50 border border-red-200 rounded-lg p-3"></p>
+
+                <button type="submit" class="w-full bg-coastal-600 hover:bg-coastal-500 text-white font-bold py-4 rounded-xl text-base shadow">
+                    入力内容を確認する
+                </button>
+
+                <p class="text-xs text-slate-400 text-center leading-relaxed">
+                    ご不明な点は 有限会社仁方大森マリーナー（TEL 0823-27-7600）までお問い合わせください。
+                </p>
+            </form>
+        </div>
+
+        <!-- ==================== 受付完了 ==================== -->
+        <div id="doneScreen" class="hidden">
+            <div class="bg-white border border-coastal-200 rounded-xl p-6 text-center">
+                <p class="text-4xl">✅</p>
+                <h2 class="text-lg font-bold text-coastal-600 mt-3">お申し込みを受け付けました</h2>
+                <p class="text-sm text-slate-600 mt-3 leading-relaxed">
+                    お申し込みいただきありがとうございます。<br>
+                    内容を確認のうえ、審査結果と今後のお手続きについて弊社よりご連絡いたします。
+                </p>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg mt-5 py-3">
+                    <p class="text-xs text-slate-500">受付番号</p>
+                    <p class="text-lg font-bold text-slate-800 tracking-wider" id="receiptNo">—</p>
+                </div>
+                <p class="text-xs text-slate-400 mt-5 leading-relaxed">
+                    有限会社仁方大森マリーナー<br>TEL 0823-27-7600<br>免許番号：広島県知事(3)第10326号
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <!-- ==================== 確認モーダル ==================== -->
+    <div id="confirmModal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-white w-full max-w-xl rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col">
+            <div class="px-5 py-4 border-b border-slate-200">
+                <h2 class="text-base font-bold text-coastal-600">入力内容のご確認</h2>
+                <p class="text-xs text-slate-500 mt-1">この内容で申込書を作成します。よろしければ「送信する」を押してください。</p>
+            </div>
+            <div class="px-5 py-3 overflow-y-auto grow">
+                <dl id="confirmList"></dl>
+            </div>
+            <div class="px-5 py-4 border-t border-slate-200 space-y-2">
+                <p id="loading" class="hidden text-center text-sm text-coastal-600 font-bold">送信中です。そのままお待ちください…</p>
+                <button type="button" id="sendBtn" onclick="submitForm()"
+                        class="w-full bg-coastal-600 hover:bg-coastal-500 text-white font-bold py-4 rounded-xl">送信する</button>
+                <button type="button" onclick="closeConfirm()"
+                        class="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl">修正する</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ================================================================
+        // ★ 送信先（Google Apps Script のウェブアプリURL）
+        //    MOUSHIKOMI_SETUP.md の手順3で取得したURLを貼り付けてください。
+        // ================================================================
+        const GAS_URL = '';
+
+        // ================================================================
+        // 駐車場マスター（予備）
+        //  ※通常は上のGAS_URL経由で「月極駐車場マスター」スプレッドシートの
+        //    最新の賃料を読み込みます。ここは通信できなかったときの予備です。
+        // ================================================================
+        const FALLBACK_LOTS = [
+            { id: 'omori5',        name: '大森第5ビル駐車場',           plan: '',          rent: 16000, depositLabel: '保証料', deposit: 16550, brokerFee: 0 },
+            { id: 'omori5-2f',     name: '大森第5ビル駐車場2F',         plan: '',          rent:  8800, depositLabel: '保証料', deposit: 16550, brokerFee: 0 },
+            { id: 'kure-nishi',    name: '呉駅前西中央駐車場',           plan: '',          rent: 18000, depositLabel: '敷金',   deposit: 18000, brokerFee: 0 },
+            { id: 'sanjo4',        name: '三条4丁目大森駐車場',          plan: '',          rent: 15000, depositLabel: '保証料', deposit: 15550, brokerFee: 0 },
+            { id: 'matsugaoka',    name: '松ヶ丘中谷ガレージ',           plan: '',          rent:  5000, depositLabel: '保証料', deposit:  5550, brokerFee: 0 },
+            { id: 'eihome',        name: 'エイホームビル駐車場',         plan: '',          rent: 18000, depositLabel: '保証料', deposit: 18550, brokerFee: 0 },
+            { id: 'eihome-bike-a', name: 'エイホームビルバイクガレージ', plan: '125cc以下', rent:  2000, depositLabel: '保証料', deposit:  2550, brokerFee: 0 },
+            { id: 'eihome-bike-b', name: 'エイホームビルバイクガレージ', plan: '125cc超え', rent:  2500, depositLabel: '保証料', deposit:  3050, brokerFee: 0 },
+            { id: 'eihome-bike-c', name: 'エイホームビルバイクガレージ', plan: '400cc超え', rent:  3500, depositLabel: '保証料', deposit:  4050, brokerFee: 0 },
+        ];
+
+        const KANA_OK = /^[ァ-ヶー゛゜　\s・]+$/;
+        const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;   // 1枚あたりの元ファイル上限
+        const MAX_SIDE = 1600;                        // 送信時に縮小する長辺（px）
+
+        const $ = (id) => document.getElementById(id);
+        const params = new URLSearchParams(location.search);
+
+        let KIND = 'kojin';        // 'kojin' | 'houjin'
+        let LOTS = FALLBACK_LOTS;  // マスター
+        let LOT = null;            // 選択中の駐車場
+        let LOT_FIXED = false;     // URLで駐車場が指定されているか
+        const LIC = { Front: '', Back: '' };  // アップロードされた画像（データURL）
+
+        /** Date → 'yyyy-mm-dd'（端末のローカル日付。toISOString だと時差で前日になるため） */
+        const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const yen = (n) => (Number(n) || 0).toLocaleString('ja-JP') + '円';
+        const num = (v) => { const n = Number(String(v == null ? '' : v).replace(/[^0-9.-]/g, '')); return isNaN(n) ? 0 : n; };
+        const lotLabel = (l) => l ? (l.name + (l.plan ? '（' + l.plan + '）' : '')) : '';
+
+        // ---------------- 駐車場マスターの読み込み ----------------
+        async function loadMaster() {
+            if (!GAS_URL) return;
+            try {
+                const res = await fetch(GAS_URL + (GAS_URL.includes('?') ? '&' : '?') + 'action=master');
+                const json = await res.json();
+                if (json && json.ok && Array.isArray(json.items) && json.items.length) {
+                    LOTS = json.items;
+                }
+            } catch (e) {
+                // 通信できない場合は FALLBACK_LOTS のまま
+            }
+        }
+
+        // ---------------- 駐車場の決定 ----------------
+        function applyLotFromParams() {
+            const id = params.get('p') || '';
+            if (!id) return false;
+
+            // マスターに同じIDがあれば、常にマスターの最新金額を採用する
+            const found = LOTS.filter((l) => l.id === id)[0];
+            if (found) {
+                LOT = Object.assign({}, found);
+            } else {
+                // 「その他の駐車場」など、マスターにないものはURLの内容を使う
+                LOT = {
+                    id: id,
+                    name: params.get('n') || 'その他の駐車場',
+                    plan: params.get('pl') || '',
+                    rent: num(params.get('r')),
+                    depositLabel: params.get('dl') || '保証料',
+                    deposit: num(params.get('d')),
+                    brokerFee: num(params.get('f')),
+                };
+            }
+            // 仲介手数料はリンク作成時の指定を優先
+            if (params.has('f')) LOT.brokerFee = num(params.get('f'));
+            return true;
+        }
+
+        function renderFixedLot() {
+            $('lotFixedName').textContent = lotLabel(LOT);
+            $('lotFixedRent').textContent = yen(LOT.rent) + '（税込）';
+            $('lotFixedDepLabel').textContent = LOT.depositLabel || '保証料';
+            $('lotFixedDep').textContent = yen(LOT.deposit);
+            $('lotFixedFee').textContent = yen(LOT.brokerFee) + '（税込）';
+            $('lotFixedFeeRow').classList.toggle('hidden', !LOT.brokerFee);
+            $('lotFixed').classList.remove('hidden');
+        }
+
+        function renderLotSelect() {
+            const sel = $('lotSelect');
+            sel.innerHTML = '<option value="">— 選択してください —</option>' +
+                LOTS.map((l) => `<option value="${l.id}">${lotLabel(l)}　${yen(l.rent)}／月（税込）</option>`).join('') +
+                '<option value="__other__">その他の駐車場（自由入力）</option>';
+            sel.addEventListener('change', onLotSelect);
+            $('lotChoose').classList.remove('hidden');
+        }
+
+        function onLotSelect() {
+            const v = $('lotSelect').value;
+            const isOther = v === '__other__';
+            $('lotOtherWrap').classList.toggle('hidden', !isOther);
+            clearErr('lotSelect');
+            if (isOther) {
+                LOT = { id: 'other', name: '', plan: '', rent: 0, depositLabel: '保証料', deposit: 0, brokerFee: 0 };
+                $('lotChooseSummary').classList.add('hidden');
+                return;
+            }
+            const found = LOTS.filter((l) => l.id === v)[0];
+            LOT = found ? Object.assign({}, found) : null;
+            if (LOT) {
+                $('lotChooseRent').textContent = yen(LOT.rent) + '（税込）';
+                $('lotChooseDepLabel').textContent = LOT.depositLabel || '保証料';
+                $('lotChooseDep').textContent = yen(LOT.deposit);
+                $('lotChooseSummary').classList.remove('hidden');
+            } else {
+                $('lotChooseSummary').classList.add('hidden');
+            }
+        }
+
+        // ---------------- 個人／法人の切替 ----------------
+        function setKind(kind) {
+            KIND = kind;
+            $('kindKojin').classList.toggle('active', kind === 'kojin');
+            $('kindHoujin').classList.toggle('active', kind === 'houjin');
+            $('kojinCard').classList.toggle('hidden', kind !== 'kojin');
+            $('houjinCard').classList.toggle('hidden', kind !== 'houjin');
+            clearAllErrs();
+        }
+
+        // ---------------- 免許証のアップロード ----------------
+        /** 画像を長辺 MAX_SIDE px 以内のJPEGに縮小してデータURLで返す */
+        function shrinkImage(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onerror = () => reject(new Error('read'));
+                reader.onload = () => {
+                    const img = new Image();
+                    img.onerror = () => reject(new Error('decode'));
+                    img.onload = () => {
+                        try {
+                            const scale = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
+                            const w = Math.max(1, Math.round(img.width * scale));
+                            const h = Math.max(1, Math.round(img.height * scale));
+                            const canvas = document.createElement('canvas');
+                            canvas.width = w; canvas.height = h;
+                            const ctx = canvas.getContext('2d');
+                            ctx.fillStyle = '#fff';
+                            ctx.fillRect(0, 0, w, h);
+                            ctx.drawImage(img, 0, 0, w, h);
+                            resolve(canvas.toDataURL('image/jpeg', 0.82));
+                        } catch (e) { reject(e); }
+                    };
+                    img.src = reader.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function onLicChange(side) {
+            const input = $('lic' + side);
+            const file = input.files && input.files[0];
+            if (!file) return;
+            clearLicErr(side);
+            if (file.size > MAX_UPLOAD_BYTES) {
+                setLicErr(side, '画像のサイズが大きすぎます（10MBまで）。カメラの設定を下げるか、別の画像をお選びください。');
+                input.value = '';
+                return;
+            }
+            $('txt' + side).textContent = '読み込み中…';
+            try {
+                const dataUrl = await shrinkImage(file);
+                LIC[side] = dataUrl;
+                const prev = $('prev' + side);
+                prev.querySelector('img').src = dataUrl;
+                prev.classList.remove('hidden');
+                $('drop' + side).classList.add('filled');
+                $('txt' + side).textContent = '✓ 画像を選択しました';
+                $('clear' + side).classList.remove('hidden');
+            } catch (e) {
+                LIC[side] = '';
+                $('txt' + side).textContent = 'タップして撮影・選択';
+                setLicErr(side, 'この画像は読み込めませんでした。別の画像（jpg / png）でお試しください。');
+            }
+        }
+
+        function clearLic(side) {
+            LIC[side] = '';
+            $('lic' + side).value = '';
+            $('prev' + side).classList.add('hidden');
+            $('drop' + side).classList.remove('filled');
+            $('txt' + side).textContent = 'タップして撮影・選択';
+            $('clear' + side).classList.add('hidden');
+        }
+
+        function setLicErr(side, msg) {
+            $('drop' + side).classList.add('err');
+            const m = $('e_lic' + side);
+            m.textContent = msg; m.classList.add('show');
+            $('licCard').classList.add('err-card');
+        }
+        function clearLicErr(side) {
+            $('drop' + side).classList.remove('err');
+            $('e_lic' + side).classList.remove('show');
+        }
+
+        // ---------------- エラー表示 ----------------
+        function setErr(id, msg) {
+            const el = $(id);
+            if (el) {
+                el.classList.add('err');
+                const lbl = document.querySelector(`label[for="${id}"]`);
+                if (lbl) lbl.classList.add('err-label');
+                const card = el.closest('.section-card');
+                if (card) card.classList.add('err-card');
+            }
+            const m = $('e_' + id);
+            if (m) { m.textContent = msg; m.classList.add('show'); }
+        }
+        function clearErr(id) {
+            const el = $(id);
+            if (el) {
+                el.classList.remove('err');
+                const lbl = document.querySelector(`label[for="${id}"]`);
+                if (lbl) lbl.classList.remove('err-label');
+            }
+            const m = $('e_' + id);
+            if (m) m.classList.remove('show');
+        }
+        function clearAllErrs() {
+            document.querySelectorAll('.field-input.err').forEach((e) => e.classList.remove('err'));
+            document.querySelectorAll('.err-label').forEach((e) => e.classList.remove('err-label'));
+            document.querySelectorAll('.err-card').forEach((e) => e.classList.remove('err-card'));
+            document.querySelectorAll('.err-msg.show').forEach((e) => e.classList.remove('show'));
+            document.querySelectorAll('.drop.err').forEach((e) => e.classList.remove('err'));
+            $('formError').classList.add('hidden');
+        }
+
+        function todayDate() { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); }
+        function isPast(v) {
+            if (!v) return false;
+            const d = new Date(v + 'T00:00:00');
+            return !isNaN(d) && d < todayDate();
+        }
+
+        // ---------------- 検証 ----------------
+        function validateForm() {
+            clearAllErrs();
+            const errs = [];
+            const req = (id, label) => {
+                const el = $(id);
+                if (!el || el.closest('.hidden')) return;
+                if (!el.value.trim()) { setErr(id, label + 'をご入力ください'); errs.push(id); }
+            };
+            const kanaOk = (id, label) => {
+                const el = $(id);
+                if (!el || el.closest('.hidden')) return;
+                const v = el.value.trim();
+                if (v && !KANA_OK.test(v)) { setErr(id, label + 'は全角カタカナでご入力ください'); errs.push(id); }
+            };
+            const telOk = (id, label) => {
+                const el = $(id);
+                if (!el || el.closest('.hidden')) return;
+                const v = el.value.trim();
+                if (v && !/^[0-9０-９\-－ー\s]+$/.test(v)) { setErr(id, label + 'は数字とハイフンでご入力ください'); errs.push(id); }
+            };
+
+            // 駐車場
+            if (!LOT_FIXED) {
+                if (!$('lotSelect').value) { setErr('lotSelect', '駐車場をお選びください'); errs.push('lotSelect'); }
+                else if ($('lotSelect').value === '__other__') {
+                    req('lotOtherName', '駐車場名');
+                    if (LOT) {
+                        LOT.name = $('lotOtherName').value.trim();
+                        LOT.rent = num($('lotOtherRent').value);
+                        LOT.deposit = num($('lotOtherDep').value);
+                    }
+                }
+            }
+            req('startDate', '利用開始日');
+            if ($('startDate').value && isPast($('startDate').value)) {
+                setErr('startDate', '利用開始日に過去の日付は選べません。本日以降の日付をお選びください');
+                errs.push('startDate');
+            }
+
+            if (KIND === 'kojin') {
+                req('kana', 'フリガナ'); kanaOk('kana', 'フリガナ');
+                req('name', '氏名');
+                req('birth', '生年月日');
+                req('address', '住所');
+                req('mobile', '携帯電話番号'); telOk('mobile', '携帯電話番号');
+                telOk('workTel', '勤務先の電話番号');
+            } else {
+                req('corpKana', 'フリガナ'); kanaOk('corpKana', 'フリガナ');
+                req('corpName', '法人名');
+                req('corpAddr', '所在地');
+                req('repName', '代表者様名'); kanaOk('repKana', 'フリガナ（代表者様）');
+                req('staffName', '担当者様名'); kanaOk('staffKana', 'フリガナ（ご担当者様）');
+                req('corpTel', '法人TEL'); telOk('corpTel', '法人TEL'); telOk('corpFax', '法人FAX');
+                req('staffMobile', '担当者様の携帯番号'); telOk('staffMobile', '担当者様の携帯番号');
+                telOk('staffDeptTel', '所属部署TEL');
+            }
+
+            const email = $('email').value.trim();
+            if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                setErr('email', 'メールアドレスの形式をご確認ください');
+                errs.push('email');
+            }
+
+            // 緊急連絡先
+            req('emgName', '緊急連絡先の氏名'); kanaOk('emgKana', 'フリガナ');
+            req('emgRel', '続柄');
+            req('emgAddr', '緊急連絡先の住所');
+            req('emgTel', '緊急連絡先の電話番号'); telOk('emgTel', '緊急連絡先の電話番号');
+
+            // 車両
+            req('carMaker', 'メーカー');
+            req('carModel', '車種');
+            req('carColor', '色');
+            req('carNumber', '登録ナンバー');
+
+            // 免許証
+            if (!LIC.Front) { setLicErr('Front', '運転免許証の表面をアップロードしてください'); errs.push('licFront'); }
+            if (!LIC.Back) { setLicErr('Back', '運転免許証の裏面をアップロードしてください'); errs.push('licBack'); }
+
+            // 同意
+            if (!$('agreePrivacy').checked || !$('agreeTruth').checked) {
+                const m = $('e_agree');
+                m.textContent = 'ご確認事項の両方にチェックをお願いします';
+                m.classList.add('show');
+                $('agreeCard').classList.add('err-card');
+                errs.push('agreeCard');
+            }
+
+            if (errs.length) {
+                $('formError').textContent = `未入力・ご確認が必要な項目が ${errs.length} 件あります。赤くなっている箇所をご確認ください。`;
+                $('formError').classList.remove('hidden');
+                const SCROLL_TO = { licFront: 'dropFront', licBack: 'dropBack' };
+                const first = $(SCROLL_TO[errs[0]] || errs[0]);
+                if (first) {
+                    first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    if (first.tagName === 'INPUT' || first.tagName === 'SELECT' || first.tagName === 'TEXTAREA') {
+                        try { first.focus({ preventScroll: true }); } catch (e) {}
+                    }
+                }
+                return false;
+            }
+            return true;
+        }
+
+        // ---------------- 送信データの組み立て ----------------
+        function v(id) { const el = $(id); return el ? el.value.trim() : ''; }
+
+        function collect() {
+            const data = {
+                kind: KIND,
+                website: v('website'),
+                lotId: LOT ? LOT.id : '',
+                lotName: LOT ? LOT.name : '',
+                lotPlan: LOT ? (LOT.plan || '') : '',
+                rent: LOT ? LOT.rent : 0,
+                depositLabel: LOT ? (LOT.depositLabel || '保証料') : '保証料',
+                deposit: LOT ? LOT.deposit : 0,
+                brokerFee: LOT ? (LOT.brokerFee || 0) : 0,
+                startDate: v('startDate'),
+                spot: v('spot'),
+                applyDate: ymd(new Date()),
+                email: v('email'),
+                emgName: v('emgName'), emgKana: v('emgKana'), emgRel: v('emgRel'),
+                emgBirth: v('emgBirth'), emgZip: v('emgZip'), emgAddr: v('emgAddr'),
+                emgTel: v('emgTel'), emgWork: v('emgWork'),
+                carMaker: v('carMaker'), carModel: v('carModel'),
+                carColor: v('carColor'), carNumber: v('carNumber'),
+                licFront: LIC.Front, licBack: LIC.Back,
+                note: v('note'),
+                agreePrivacy: $('agreePrivacy').checked,
+                agreeTruth: $('agreeTruth').checked,
+            };
+            if (KIND === 'kojin') {
+                Object.assign(data, {
+                    kana: v('kana'), name: v('name'), birth: v('birth'),
+                    zip: v('zip'), address: v('address'), mobile: v('mobile'),
+                    workName: v('workName'), workTel: v('workTel'), workAddr: v('workAddr'),
+                });
+            } else {
+                Object.assign(data, {
+                    corpKana: v('corpKana'), corpName: v('corpName'),
+                    corpZip: v('corpZip'), corpAddr: v('corpAddr'),
+                    repKana: v('repKana'), repName: v('repName'),
+                    staffKana: v('staffKana'), staffName: v('staffName'),
+                    corpTel: v('corpTel'), corpFax: v('corpFax'),
+                    staffMobile: v('staffMobile'), staffDeptTel: v('staffDeptTel'),
+                });
+            }
+            return data;
+        }
+
+        // ---------------- 確認モーダル ----------------
+        function fmtDateJa(s) {
+            const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            return m ? `${m[1]}年${Number(m[2])}月${Number(m[3])}日` : (s || '');
+        }
+        function addr(zip, a) { return a ? (zip ? `〒${zip}　${a}` : a) : ''; }
+
+        function openConfirm() {
+            const d = collect();
+            const rows = [
+                ['お申込み区分', KIND === 'houjin' ? '法人' : '個人'],
+                ['駐車場名', lotLabel(LOT)],
+                ['区画', d.spot || '（ご指定なし）'],
+                ['利用開始日', fmtDateJa(d.startDate)],
+                ['月額賃料1台', yen(d.rent) + '（税込）'],
+                [d.depositLabel, yen(d.deposit)],
+            ];
+            if (d.brokerFee) rows.push(['仲介手数料', yen(d.brokerFee) + '（税込）']);
+            if (KIND === 'kojin') {
+                rows.push(['フリガナ', d.kana], ['氏　名', d.name], ['生年月日', fmtDateJa(d.birth)],
+                    ['住　所', addr(d.zip, d.address)], ['携帯電話', d.mobile],
+                    ['勤務先', [d.workName, d.workTel, d.workAddr].filter(Boolean).join(' / ')]);
+            } else {
+                rows.push(['フリガナ', d.corpKana], ['法人名', d.corpName],
+                    ['所在地', addr(d.corpZip, d.corpAddr)],
+                    ['代表者様名', d.repName], ['担当者様名', d.staffName],
+                    ['法人TEL / FAX', [d.corpTel, d.corpFax].filter(Boolean).join(' / ')],
+                    ['担当者携帯', d.staffMobile], ['所属部署TEL', d.staffDeptTel]);
+            }
+            rows.push(['メール', d.email],
+                ['緊急連絡先', [d.emgName, d.emgRel ? `（${d.emgRel}）` : '', d.emgTel].filter(Boolean).join(' ')],
+                ['緊急連絡先住所', addr(d.emgZip, d.emgAddr)],
+                ['緊急連絡先勤務先', d.emgWork],
+                ['利用車両', [d.carMaker, d.carModel, d.carColor].filter(Boolean).join(' / ')],
+                ['登録ナンバー', d.carNumber],
+                ['運転免許証', [d.licFront ? '表面' : '', d.licBack ? '裏面' : ''].filter(Boolean).join('・') || '未提出'],
+                ['備考', d.note],
+                ['ご確認事項', '個人情報の第三者提供に同意／記載事項に相違なし']);
+
+            $('confirmList').innerHTML = rows
+                .filter(([, val]) => String(val || '').trim() !== '')
+                .map(([k, val]) => `<div class="confirm-row"><dt>${k}</dt><dd>${String(val)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</dd></div>`).join('');
+            $('confirmModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeConfirm() {
+            $('confirmModal').classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        // ---------------- 初期化 ----------------
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 利用開始日の初期値：翌月1日
+            const t = new Date();
+            const next = new Date(t.getFullYear(), t.getMonth() + 1, 1);
+            $('startDate').min = ymd(t);
+            $('startDate').value = ymd(next);
+
+            // 区画の事前入力
+            if (params.get('s')) $('spot').value = params.get('s');
+
+            // 個人／法人の指定（k=h で法人固定）
+            const k = (params.get('k') || '').toLowerCase();
+            if (k === 'h' || k === 'houjin') setKind('houjin');
+            if (k === 'k' || k === 'kojin') setKind('kojin');
+
+            // マスターを読み込んでから駐車場を確定（賃料は常に最新のマスターを参照）
+            await loadMaster();
+            LOT_FIXED = applyLotFromParams();
+            if (LOT_FIXED) renderFixedLot(); else renderLotSelect();
+
+            // 免許証
+            $('licFront').addEventListener('change', () => onLicChange('Front'));
+            $('licBack').addEventListener('change', () => onLicChange('Back'));
+
+            // 入力し直したらエラー表示を消す
+            ['kana', 'name', 'address', 'mobile', 'corpKana', 'corpName', 'corpAddr', 'repName', 'repKana',
+             'staffName', 'staffKana', 'corpTel', 'corpFax', 'staffMobile', 'staffDeptTel', 'workTel',
+             'email', 'emgName', 'emgKana', 'emgRel', 'emgAddr', 'emgTel',
+             'carMaker', 'carModel', 'carColor', 'carNumber', 'lotOtherName'].forEach((id) => {
+                const el = $(id);
+                if (el) el.addEventListener('input', () => { if (el.value.trim()) clearErr(id); });
+            });
+            ['birth', 'startDate'].forEach((id) => {
+                const el = $(id);
+                if (el) el.addEventListener('change', () => { if (el.value) clearErr(id); });
+            });
+            ['agreePrivacy', 'agreeTruth'].forEach((id) => {
+                $(id).addEventListener('change', () => {
+                    if ($('agreePrivacy').checked && $('agreeTruth').checked) {
+                        $('e_agree').classList.remove('show');
+                        $('agreeCard').classList.remove('err-card');
+                    }
+                });
+            });
+
+            $('applyForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                if (!validateForm()) return;
+                openConfirm();
+            });
+        });
+
+        // ---------------- 送信 ----------------
+        async function submitForm() {
+            if (!GAS_URL) {
+                alert('送信先が未設定です。お手数ですが 0823-27-7600 までお電話にてご連絡ください。\n（管理者向け：moushikomi.html 内の GAS_URL を設定してください）');
+                return;
+            }
+            $('sendBtn').disabled = true;
+            $('loading').classList.remove('hidden');
+            try {
+                const res = await fetch(GAS_URL, {
+                    method: 'POST',
+                    // Content-Type を text/plain にすることで CORS プリフライトを回避
+                    body: JSON.stringify(collect()),
+                });
+                const json = await res.json();
+                if (!json.ok) throw new Error(json.error || 'server error');
+                closeConfirm();
+                $('formWrap').classList.add('hidden');
+                $('receiptNo').textContent = json.receiptNo || '-';
+                $('doneScreen').classList.remove('hidden');
+                window.scrollTo(0, 0);
+            } catch (err) {
+                closeConfirm();
+                $('formError').textContent = '送信に失敗しました。通信環境をご確認のうえ再度お試しいただくか、0823-27-7600 までお電話ください。';
+                $('formError').classList.remove('hidden');
+                $('formError').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } finally {
+                $('sendBtn').disabled = false;
+                $('loading').classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
