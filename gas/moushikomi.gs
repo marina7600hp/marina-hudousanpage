@@ -112,7 +112,12 @@ function doGet(e) {
       return json_({ ok: false, error: String(err) });
     }
   }
-  return ContentService.createTextOutput('月極駐車場申込フォーム受付システムは稼働中です。');
+  if (action === 'selftest') {
+    return ContentService.createTextOutput(m_selfTest_()).setMimeType(ContentService.MimeType.TEXT);
+  }
+  return ContentService.createTextOutput(
+    '月極駐車場申込フォーム受付システムは稼働中です。\n' +
+    '設定の点検は、このURLの末尾に ?action=selftest を付けて開いてください。');
 }
 
 /** POST：申込の受付 */
@@ -158,38 +163,53 @@ function doPost(e) {
       idFolderUrl = caseFolder.getUrl();
     }
 
-    // 2) 月極駐車場利用申込書（エクセル様式のひな形をコピーして転記）
-    const appFolder = m_getOrCreateSubfolder_(parent, M_CONFIG.APP_SUBFOLDER);
-    const file = m_fillTemplate_(
-      M_CONFIG.TEMPLATE_PARK,
-      isCorp ? M_CONFIG.TEMPLATE_PARK_SHEET_HOUJIN : M_CONFIG.TEMPLATE_PARK_SHEET_KOJIN,
-      m_parkValues_(data, now),
-      dateStr + '_' + label,
-      appFolder);
+    // 2) 申込書を作成（エクセル様式のひな形をコピーして転記）
+    //    ここで失敗しても、申込内容そのものは必ず記録・通知します
+    //    （申込者に入力し直しをお願いしなくて済むように）
+    const problems = [];
+    let file = null;
+    try {
+      file = m_fillTemplate_(
+        M_CONFIG.TEMPLATE_PARK,
+        isCorp ? M_CONFIG.TEMPLATE_PARK_SHEET_HOUJIN : M_CONFIG.TEMPLATE_PARK_SHEET_KOJIN,
+        m_parkValues_(data, now),
+        dateStr + '_' + label,
+        m_getOrCreateSubfolder_(parent, M_CONFIG.APP_SUBFOLDER));
+    } catch (err) {
+      problems.push('月極駐車場利用申込書の作成に失敗：' + (err && err.message ? err.message : String(err)));
+    }
 
     // 2-2) 保証会社を利用する駐車場は、保証委託申込書も作成
     //      （マスターの「保証会社」列が TRUE の場合のみ。個人の申込に限ります）
     let napFile = null;
     if (!isCorp && m_useGuarantor_(data)) {
-      napFile = m_fillTemplate_(
-        M_CONFIG.TEMPLATE_NAP,
-        M_CONFIG.TEMPLATE_NAP_SHEET,
-        m_napValues_(data, now),
-        dateStr + '_' + label + '_保証委託申込書',
-        m_getOrCreateSubfolder_(parent, M_CONFIG.GUARANTOR_SUBFOLDER));
+      try {
+        napFile = m_fillTemplate_(
+          M_CONFIG.TEMPLATE_NAP,
+          M_CONFIG.TEMPLATE_NAP_SHEET,
+          m_napValues_(data, now),
+          dateStr + '_' + label + '_保証委託申込書',
+          m_getOrCreateSubfolder_(parent, M_CONFIG.GUARANTOR_SUBFOLDER));
+      } catch (err) {
+        problems.push('保証委託申込書の作成に失敗：' + (err && err.message ? err.message : String(err)));
+      }
     }
 
     // 3) 受付一覧スプレッドシートに記録
-    let sheetError = '';
+    let sheetError = problems.join(' / ');
     try {
-      m_appendLog_(parent, data, receiptNo, now, file.getUrl(), idFolderUrl,
+      m_appendLog_(parent, data, receiptNo, now, file ? file.getUrl() : '', idFolderUrl,
         napFile ? napFile.getUrl() : '');
     } catch (err) {
-      sheetError = String(err); // シート記録に失敗しても受付自体は成立させる
+      sheetError = (sheetError ? sheetError + ' / ' : '') + '受付一覧への記録に失敗：' + String(err);
     }
 
-    // 4) 管理者へ通知メール（PDF添付）
-    m_sendNotifyMail_(data, receiptNo, now, file, idFolderUrl, sheetError, napFile, idFiles);
+    // 4) 管理者へ通知メール（申込内容は本文に全部入るので、書類が作れなくても内容は届きます）
+    try {
+      m_sendNotifyMail_(data, receiptNo, now, file, idFolderUrl, sheetError, napFile, idFiles);
+    } catch (err) {
+      // メール送信に失敗しても、受付一覧には残っています
+    }
 
     // 5) 申込者へ受付完了メール（メールアドレスがある場合のみ）
     if (data.email) {
@@ -200,9 +220,10 @@ function doPost(e) {
       }
     }
 
-    return json_({ ok: true, receiptNo: receiptNo });
+    // 申込は受け付けできています。書類作成につまずいた場合は warning で知らせます
+    return json_({ ok: true, receiptNo: receiptNo, warning: problems.join(' / ') });
   } catch (err) {
-    return json_({ ok: false, error: String(err) });
+    return json_({ ok: false, error: (err && err.message ? err.message : String(err)) });
   }
 }
 
@@ -555,7 +576,8 @@ function m_buildRows_(data) {
 function m_sendNotifyMail_(data, receiptNo, now, file, idFolderUrl, sheetError, napFile, idFiles) {
   const isCorp = data.kind === 'houjin';
   const applicant = isCorp ? data.corpName : data.name;
-  const subject = '【駐車場申込' + (napFile ? '／保証会社' : '') + '】' + m_lotLabel_(data) + ' ' + (data.spot || '') +
+  const subject = '【駐車場申込' + (napFile ? '／保証会社' : '') + (sheetError ? '／要確認' : '') + '】' +
+    m_lotLabel_(data) + ' ' + (data.spot || '') +
     '（' + applicant + (isCorp ? ' 御中' : ' 様') + '）';
 
   const lines = m_buildRows_(data).map(function (r) { return '■' + r[0] + '：' + r[1]; }).join('\n');
@@ -567,19 +589,24 @@ function m_sendNotifyMail_(data, receiptNo, now, file, idFolderUrl, sheetError, 
     '------------------------------------------\n' +
     lines + '\n' +
     '------------------------------------------\n\n' +
-    '▼月極駐車場利用申込書（スプレッドシート・そのまま修正できます）\n' + file.getUrl() + '\n' +
+    (file
+      ? '▼月極駐車場利用申込書（スプレッドシート・そのまま修正できます）\n' + file.getUrl() + '\n'
+      : '※月極駐車場利用申込書は自動作成できませんでした（下記の理由をご確認ください）。\n' +
+        '　お手数ですが、上記の内容をもとに手入力でご作成ください。\n') +
     (napFile ? '\n▼入居申込書兼賃貸保証委託申込書（ナップ賃貸保証へ提出／スプレッドシート）\n' +
       napFile.getUrl() + '\n' : '') +
     (idFolderUrl ? '\n▼運転免許証（表・裏）\n' + idFolderUrl + '\n' : '\n※運転免許証の画像は添付されていません。\n') +
-    (sheetError ? '\n※受付一覧への記録に失敗しました：' + sheetError + '\n' : '') +
+    (sheetError ? '\n⚠ うまくいかなかった処理があります：\n　' + sheetError + '\n' +
+      '　ウェブアプリのURLに ?action=selftest を付けて開くと、原因を確認できます。\n' : '') +
     '\n' + M_CONFIG.COMPANY + '\n';
 
   // 添付：申込書のPDF（印刷・確認用）と、運転免許証の画像
   const attachments = [];
-  try {
-    attachments.push(file.getAs(MimeType.PDF).setName(file.getName() + '.pdf'));
-    if (napFile) attachments.push(napFile.getAs(MimeType.PDF).setName(napFile.getName() + '.pdf'));
-  } catch (e) { /* PDF書き出しに失敗しても、本文のリンクから開けます */ }
+  [file, napFile].forEach(function (f) {
+    if (!f) return;
+    try { attachments.push(f.getAs(MimeType.PDF).setName(f.getName() + '.pdf')); }
+    catch (e) { /* PDF書き出しに失敗しても、本文のリンクから開けます */ }
+  });
   (idFiles || []).forEach(function (f) {
     try { attachments.push(f.getBlob()); } catch (e) {}
   });
@@ -1020,4 +1047,89 @@ function m_napValues_(data, now) {
 
   // 連帯保証人欄は、保証会社による保証のため空欄のままにします
   return out;
+}
+
+/* ============================================================
+ *  設定の点検（ブラウザで ?action=selftest を開くだけで確認できます）
+ * ============================================================ */
+
+/** 保存先・ひな形・マスターがそろっているかを順に確かめて、文章で返す */
+function m_selfTest_() {
+  const L = [];
+  L.push('月極駐車場申込フォーム 設定点検');
+  L.push('実行日時：' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'));
+  L.push('====================================');
+
+  // 1) 保存先フォルダ
+  let parent = null;
+  try {
+    parent = DriveApp.getFolderById(M_CONFIG.FOLDER_ID);
+    L.push('✅ 保存先フォルダ：' + parent.getName());
+  } catch (err) {
+    L.push('❌ 保存先フォルダを開けません（M_CONFIG.FOLDER_ID を確認してください）');
+    L.push('   ' + String(err));
+    return L.join('\n');
+  }
+
+  // 2) ひな形（ここでつまずくケースがいちばん多いので、詳しく出します）
+  const tpl = [
+    [M_CONFIG.TEMPLATE_PARK, [M_CONFIG.TEMPLATE_PARK_SHEET_KOJIN, M_CONFIG.TEMPLATE_PARK_SHEET_HOUJIN]],
+    [M_CONFIG.TEMPLATE_NAP, [M_CONFIG.TEMPLATE_NAP_SHEET]],
+  ];
+  const tplFolder = m_getOrCreateSubfolder_(parent, M_CONFIG.TEMPLATE_SUBFOLDER);
+  L.push('');
+  L.push('■ ひな形フォルダ「' + M_CONFIG.TEMPLATE_SUBFOLDER + '」の中身');
+  const it = tplFolder.getFiles();
+  let any = false;
+  while (it.hasNext()) {
+    const f = it.next();
+    const isSheet = f.getMimeType() === MimeType.GOOGLE_SHEETS;
+    L.push('   ・' + f.getName() + (isSheet ? '（スプレッドシート）' : '（' + f.getMimeType() + '）'));
+    any = true;
+  }
+  if (!any) L.push('   （空です）');
+
+  L.push('');
+  tpl.forEach(function (pair) {
+    try {
+      const f = m_findTemplate_(pair[0]);
+      const ss = SpreadsheetApp.open(f);
+      const names = ss.getSheets().map(function (sh) { return sh.getName(); });
+      L.push('✅ ' + pair[0] + '：OK　シート＝「' + names.join('」「') + '」');
+      pair[1].forEach(function (need) {
+        if (!m_sheetByName_(ss, need)) {
+          L.push('   ⚠ シート「' + need + '」が見つかりません');
+        }
+      });
+    } catch (err) {
+      L.push('❌ ' + pair[0] + '：' + (err && err.message ? err.message : String(err)));
+    }
+  });
+
+  // 3) マスター
+  L.push('');
+  try {
+    const items = getMaster_();
+    L.push('✅ 月極駐車場マスター：' + items.length + '件');
+    items.forEach(function (i) {
+      L.push('   ・' + i.name + (i.plan ? '（' + i.plan + '）' : '') +
+        '　賃料' + i.rent + '　' + i.depositLabel + i.deposit +
+        (i.useGuarantor ? '　[保証会社あり]' : '') +
+        (i.addr ? '' : '　※所在地が未入力'));
+    });
+  } catch (err) {
+    L.push('❌ 月極駐車場マスター：' + String(err));
+  }
+
+  // 4) メール送信の残り回数
+  L.push('');
+  try {
+    L.push('✅ 本日あと送信できるメール数：' + MailApp.getRemainingDailyQuota() + '通');
+  } catch (err) {
+    L.push('⚠ メール送信数を取得できません：' + String(err));
+  }
+
+  L.push('');
+  L.push('❌ や ⚠ が出ている項目を直すと、フォームからの送信が通るようになります。');
+  return L.join('\n');
 }
