@@ -758,18 +758,37 @@ function checkTemplates() {
  *  セットアップは MOUSHIKOMI_SETUP.md を参照してください。
  * ============================================================ */
 
-/** テンプレートを名前で探す（なければ分かりやすいエラーにする） */
+/**
+ * ひな形を名前で探す。
+ * ・ファイル名の末尾の「.xlsx」は無視するので、変換後の名前を直す必要はありません
+ * ・エクセルのまま置かれている場合は、何をすればよいかを具体的に伝えます
+ */
 function m_findTemplate_(name) {
   const parent = DriveApp.getFolderById(M_CONFIG.FOLDER_ID);
   const tplFolder = m_getOrCreateSubfolder_(parent, M_CONFIG.TEMPLATE_SUBFOLDER);
-  const it = tplFolder.getFilesByName(name);
+  const want = m_baseName_(name);
+  let excel = null;   // 同じ名前のエクセルが見つかった場合の控え
+
+  const it = tplFolder.getFiles();
   while (it.hasNext()) {
     const f = it.next();
+    if (m_baseName_(f.getName()) !== want) continue;
     if (f.getMimeType() === MimeType.GOOGLE_SHEETS) return f;
+    excel = f;
   }
-  throw new Error('テンプレート「' + name + '」が見つかりません。ドライブの「' +
-    M_CONFIG.TEMPLATE_SUBFOLDER + '」フォルダに、Googleスプレッドシート形式で置いてください' +
-    '（エクセルのままでは使えません。MOUSHIKOMI_SETUP.md の手順をご確認ください）。');
+
+  if (excel) {
+    throw new Error('ひな形「' + want + '」はエクセル形式のままです。ドライブでこのファイルを開き、' +
+      'メニューの「ファイル」→「Google スプレッドシートとして保存」を実行してください' +
+      '（変換後のファイル名は「' + want + '.xlsx」のままで構いません）。');
+  }
+  throw new Error('ひな形「' + want + '」が、ドライブの「' + M_CONFIG.TEMPLATE_SUBFOLDER +
+    '」フォルダにありません。MOUSHIKOMI_SETUP.md の「2.5」の手順でご用意ください。');
+}
+
+/** ファイル名から末尾の拡張子を取り除く（前後の空白も落とす） */
+function m_baseName_(name) {
+  return String(name == null ? '' : name).trim().replace(/\.(xlsx|xlsm|xls)$/i, '').trim();
 }
 
 /**
@@ -1084,10 +1103,15 @@ function m_selfTest_() {
   while (it.hasNext()) {
     const f = it.next();
     const isSheet = f.getMimeType() === MimeType.GOOGLE_SHEETS;
-    L.push('   ・' + f.getName() + (isSheet ? '（スプレッドシート）' : '（' + f.getMimeType() + '）'));
+    L.push('   ・' + f.getName() +
+      (isSheet ? '　→ スプレッドシート（このまま使えます）'
+               : '　→ エクセルのままです。開いて「ファイル」→「Google スプレッドシートとして保存」を実行してください'));
     any = true;
   }
-  if (!any) L.push('   （空です）');
+  if (!any) {
+    L.push('   （空です）');
+    L.push('   ※ ここに2つのひな形を置いてください。MOUSHIKOMI_SETUP.md の「2.5」をご覧ください。');
+  }
 
   L.push('');
   tpl.forEach(function (pair) {
