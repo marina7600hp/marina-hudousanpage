@@ -1075,6 +1075,9 @@ function m_napValues_(data, now) {
 /** 保存先・ひな形・マスターがそろっているかを順に確かめて、文章で返す */
 function m_selfTest_() {
   const L = [];
+  // ❌ を出した回数。最後の案内文の出し分けに使います
+  let ng = 0;
+  const fail = function (line) { ng++; L.push('❌ ' + line); };
   L.push('月極駐車場申込フォーム 設定点検');
   L.push('実行日時：' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'));
   L.push('====================================');
@@ -1085,7 +1088,7 @@ function m_selfTest_() {
     parent = DriveApp.getFolderById(M_CONFIG.FOLDER_ID);
     L.push('✅ 保存先フォルダ：' + parent.getName());
   } catch (err) {
-    L.push('❌ 保存先フォルダを開けません（M_CONFIG.FOLDER_ID を確認してください）');
+    fail('保存先フォルダを開けません（M_CONFIG.FOLDER_ID を確認してください）');
     L.push('   ' + String(err));
     return L.join('\n');
   }
@@ -1126,7 +1129,7 @@ function m_selfTest_() {
         }
       });
     } catch (err) {
-      L.push('❌ ' + pair[0] + '：' + (err && err.message ? err.message : String(err)));
+      fail(pair[0] + '：' + (err && err.message ? err.message : String(err)));
     }
   });
 
@@ -1142,7 +1145,7 @@ function m_selfTest_() {
         (i.addr ? '' : '　※所在地が未入力'));
     });
   } catch (err) {
-    L.push('❌ 月極駐車場マスター：' + String(err));
+    fail('月極駐車場マスター：' + String(err));
   }
 
   // 4) メール送信の残り回数
@@ -1154,6 +1157,13 @@ function m_selfTest_() {
   }
 
   L.push('');
-  L.push('❌ や ⚠ が出ている項目を直すと、フォームからの送信が通るようになります。');
+  L.push('====================================');
+  if (ng) {
+    L.push('❌ が出ている項目を直すと、フォームからの送信が通るようになります。');
+  } else {
+    L.push('✅ 問題は見つかりませんでした。フォームからの送信をお試しください。');
+    L.push('　（「※所在地が未入力」は、保証委託申込書の「物件所在地」欄が空欄になるだけで、');
+    L.push('　　送信そのものには影響しません。マスターの「所在地」列にご入力ください。）');
+  }
   return L.join('\n');
 }
