@@ -613,6 +613,7 @@
                     <p class="text-xs text-slate-500">受付番号</p>
                     <p class="text-lg font-bold text-slate-800 tracking-wider" id="receiptNo">—</p>
                 </div>
+                <p id="doneWarning" class="hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mt-4 text-left leading-relaxed break-all"></p>
                 <p class="text-xs text-slate-400 mt-5 leading-relaxed">
                     有限会社仁方大森マリーナー<br>TEL 0823-27-7600<br>免許番号：広島県知事(3)第10326号
                 </p>
@@ -1308,15 +1309,29 @@
                     body: JSON.stringify(collect()),
                 });
                 const json = await res.json();
-                if (!json.ok) throw new Error(json.error || 'server error');
+                if (!json.ok) {
+                    const e = new Error(json.error || 'server error');
+                    e.fromServer = true;
+                    throw e;
+                }
                 closeConfirm();
                 $('formWrap').classList.add('hidden');
                 $('receiptNo').textContent = json.receiptNo || '-';
+                if (json.warning) {
+                    // 申込は受け付けできているが、書類の自動作成でつまずいた場合の管理者向け表示
+                    $('doneWarning').textContent = '（管理者向けのお知らせ）' + json.warning;
+                    $('doneWarning').classList.remove('hidden');
+                }
                 $('doneScreen').classList.remove('hidden');
                 window.scrollTo(0, 0);
             } catch (err) {
                 closeConfirm();
-                $('formError').textContent = '送信に失敗しました。通信環境をご確認のうえ再度お試しいただくか、0823-27-7600 までお電話ください。';
+                // サーバーからの返答があるときは、その内容も出して原因が分かるようにする
+                $('formError').innerHTML = err.fromServer
+                    ? '送信できませんでした。お手数ですが 0823-27-7600 までお電話ください。'
+                      + '<span class="block mt-2 font-normal text-xs text-red-500 break-all">'
+                      + '（管理者向け）' + String(err.message).replace(/</g, '&lt;') + '</span>'
+                    : '送信に失敗しました。通信環境をご確認のうえ再度お試しいただくか、0823-27-7600 までお電話ください。';
                 $('formError').classList.remove('hidden');
                 $('formError').scrollIntoView({ behavior: 'smooth', block: 'center' });
             } finally {
