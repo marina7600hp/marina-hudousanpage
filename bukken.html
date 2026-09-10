@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <title>物件掲載 入稿コンソール | 有限会社仁方大森マリーナー</title>
+    <meta name="theme-color" content="#005f73">
+    <meta name="format-detection" content="telephone=no">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // CDNが読み込めなかった場合でも動くように保護（配色はstyle側で担保）
+        if (window.tailwind) tailwind.config = {
+            theme: { extend: {
+                colors: { coastal: { 50:'#f4fbfb',100:'#e5f6f6',200:'#ceecee',500:'#028090',600:'#005f73',900:'#0a1d25' } },
+                fontFamily: { sans: ['Noto Sans JP','sans-serif'] }
+            } }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Shift_JIS変換用（読み込めなかった場合はUTF-8で出力します） -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/encoding-japanese/2.0.0/encoding.min.js"></script>
+    <style>
+        .hidden { display: none !important; }
+        .field-label { display:block; font-size:13px; font-weight:700; color:#334155; margin-bottom:4px; }
+        .field-label .req { color:#dc2626; font-size:11px; margin-left:4px; }
+        .field-label .opt { color:#94a3b8; font-size:11px; margin-left:4px; font-weight:500; }
+        .field-label .unit { color:#64748b; font-size:11px; margin-left:4px; font-weight:500; }
+        .field-input {
+            width:100%; padding:12px 14px; border:1px solid #cbd5e1; border-radius:8px;
+            font-size:16px; background:#fff; color:#0f172a;
+        }
+        .field-input:focus { outline:2px solid #028090; outline-offset:-1px; border-color:#028090; }
+        .field-input[readonly] { background:#f1f5f9; color:#475569; }
+        .field-input.err { border-color:#dc2626 !important; background:#fef2f2; outline-color:#dc2626; }
+        .err-msg { display:none; color:#dc2626; font-size:12px; font-weight:700; margin-top:4px; }
+        .err-msg.show { display:block; }
+        .section-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px 16px; }
+        .section-card.err-card { border-color:#fca5a5; }
+        .section-title {
+            font-size:15px; font-weight:700; color:#005f73; margin-bottom:14px;
+            padding-left:10px; border-left:4px solid #028090;
+        }
+        .chk-item {
+            display:flex; align-items:center; gap:7px; padding:8px 10px; border:1px solid #e2e8f0;
+            border-radius:8px; font-size:13px; cursor:pointer; background:#fff; line-height:1.3;
+        }
+        .chk-item:has(input:checked) { border-color:#028090; background:#f4fbfb; font-weight:700; color:#005f73; }
+        .btn-primary {
+            background:#005f73; color:#fff; border:none; padding:13px 20px; border-radius:9px;
+            font-size:15px; font-weight:700; cursor:pointer;
+        }
+        .btn-primary:hover { background:#028090; }
+        .btn-primary:disabled { background:#cbd5e1; cursor:not-allowed; }
+        .btn-sub {
+            background:#fff; color:#005f73; border:1.5px solid #cbd5e1; padding:10px 16px;
+            border-radius:9px; font-size:13.5px; font-weight:700; cursor:pointer;
+        }
+        .btn-sub:hover { border-color:#028090; background:#f4fbfb; }
+        .copy-row { display:flex; align-items:flex-start; gap:8px; padding:9px 0; border-bottom:1px solid #f1f5f9; }
+        .copy-row dt { flex:0 0 132px; color:#64748b; font-size:12.5px; padding-top:3px; }
+        .copy-row dd { flex:1; color:#0f172a; font-size:13.5px; font-weight:500; white-space:pre-wrap; word-break:break-all; }
+        .copy-btn {
+            flex:0 0 auto; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px;
+            padding:4px 9px; font-size:11px; font-weight:700; color:#475569; cursor:pointer;
+        }
+        .copy-btn:hover { background:#e5f6f6; border-color:#028090; color:#005f73; }
+        .copy-btn.done { background:#dcfce7; border-color:#16a34a; color:#15803d; }
+        .tab-btn {
+            flex:1; padding:11px 8px; font-size:13px; font-weight:700; color:#64748b;
+            background:#fff; border:none; border-bottom:3px solid transparent; cursor:pointer;
+        }
+        .tab-btn.on { color:#005f73; border-bottom-color:#028090; background:#f4fbfb; }
+        #gate { position:fixed; inset:0; z-index:3000; background:#0a1d25; display:flex; align-items:center; justify-content:center; padding:20px; }
+        #gate.hidden { display:none !important; }
+        .gate-card { background:#fff; border-radius:14px; padding:28px 24px; width:100%; max-width:340px; text-align:center; box-shadow:0 12px 40px rgba(0,0,0,.4); }
+        #gatePw { width:100%; padding:12px 14px; border:1px solid #cbd5e1; border-radius:8px; font-size:16px; text-align:center; }
+        #gateBtn { width:100%; margin-top:12px; background:#005f73; color:#fff; border:none; padding:12px; border-radius:8px; font-size:15px; font-weight:700; cursor:pointer; }
+        #gateBtn:hover { background:#028090; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-24">
+
+    <!-- ==================== ログイン（簡易ロック） ==================== -->
+    <div id="gate">
+        <div class="gate-card">
+            <div class="text-lg font-bold text-slate-900">🔒 物件掲載 入稿コンソール</div>
+            <p class="text-xs text-slate-500 mt-1.5 mb-4">パスワードを入力してください</p>
+            <input id="gatePw" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" placeholder="パスワード">
+            <button id="gateBtn" type="button">開く</button>
+            <label class="flex items-center justify-center gap-1.5 text-xs text-slate-500 mt-3 cursor-pointer">
+                <input type="checkbox" id="gateRemember" checked> この端末では次回から省略
+            </label>
+            <p id="gateErr" class="text-red-600 text-xs font-bold mt-2 min-h-[16px]"></p>
+        </div>
+    </div>
+
+    <!-- ==================== ヘッダー ==================== -->
+    <header class="bg-coastal-900 text-white sticky top-0 z-30">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+            <button id="backBtn" onclick="showList()" class="hidden text-coastal-200 text-sm">‹ 一覧へ</button>
+            <div class="flex-1 min-w-0">
+                <p class="text-[10px] tracking-[0.25em] text-coastal-200">PROPERTY LISTING</p>
+                <h1 class="text-base font-bold tracking-wider truncate">物件掲載 入稿コンソール</h1>
+            </div>
+            <button onclick="newBukken()" class="bg-coastal-500 hover:bg-coastal-200 hover:text-coastal-900 text-white text-xs font-bold px-3 py-2 rounded-lg whitespace-nowrap">＋ 新規</button>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 py-5">
+
+        <!-- ==================== 一覧画面 ==================== -->
+        <div id="listView">
+            <div class="section-card mb-4">
+                <p class="text-[13px] text-slate-600 leading-relaxed">
+                    物件を<strong class="text-coastal-600">1回入力</strong>すれば、スーモ・スマイミー・きまるーむの
+                    それぞれの形式で書き出せます。各サイトの入稿仕様書が届いたら
+                    <code class="bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">bukken-portals.js</code>
+                    に対応表を書き込んでください。
+                </p>
+                <p class="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3 leading-relaxed">
+                    データはこのパソコンの中だけに保存されます。パソコンを替えるときや万一に備えて、
+                    ときどき「自社マスター（全項目）」で書き出して保管してください。
+                </p>
+            </div>
+
+            <div class="flex gap-2 mb-3">
+                <input id="searchBox" class="field-input flex-1" type="search" placeholder="物件名・管理番号で絞り込み" oninput="renderList()">
+                <select id="statusFilter" class="field-input w-32" onchange="renderList()">
+                    <option value="">すべて</option>
+                    <option value="募集中">募集中</option>
+                    <option value="申込あり">申込あり</option>
+                    <option value="成約">成約</option>
+                    <option value="掲載停止">掲載停止</option>
+                </select>
+            </div>
+
+            <div id="listBody" class="space-y-2"></div>
+
+            <div class="section-card mt-5">
+                <h2 class="section-title">まとめて書き出す／取り込む</h2>
+                <div class="flex flex-wrap gap-2">
+                    <button class="btn-sub" onclick="showExport(null)">全物件を書き出す</button>
+                    <button class="btn-sub" onclick="document.getElementById('importFile').click()">マスターCSVを取り込む</button>
+                    <input id="importFile" type="file" accept=".csv" class="hidden" onchange="importCsv(this)">
+                </div>
+                <p class="text-[11.5px] text-slate-500 mt-2.5 leading-relaxed">
+                    取り込みは「自社マスター（全項目）」で書き出したCSVに対応しています。
+                    管理番号が同じ物件は上書きされます。
+                </p>
+            </div>
+        </div>
+
+        <!-- ==================== 編集画面 ==================== -->
+        <div id="editView" class="hidden">
+            <div id="formBody" class="space-y-4"></div>
+            <div class="flex gap-2 mt-5">
+                <button class="btn-primary flex-1" onclick="saveBukken()">保存する</button>
+                <button class="btn-sub" onclick="showList()">やめる</button>
+            </div>
+            <p id="saveErr" class="text-red-600 text-xs font-bold mt-3 text-center min-h-[18px]"></p>
+        </div>
+
+        <!-- ==================== 出力画面 ==================== -->
+        <div id="exportView" class="hidden">
+            <div class="section-card mb-4">
+                <h2 class="section-title" id="exportTitle">書き出し</h2>
+                <div class="flex border-b border-slate-200 mb-4 -mx-4 px-4">
+                    <button class="tab-btn on" id="tabCsv" onclick="switchTab('csv')">CSVで書き出す</button>
+                    <button class="tab-btn" id="tabCopy" onclick="switchTab('copy')">手で転記する</button>
+                </div>
+
+                <div id="paneCsv">
+                    <label class="field-label" for="portalSel">書き出し先</label>
+                    <select id="portalSel" class="field-input" onchange="renderPortalInfo()"></select>
+                    <p id="portalNote" class="text-[12px] text-slate-600 mt-2.5 leading-relaxed"></p>
+                    <div id="encWarn" class="hidden text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2.5 leading-relaxed"></div>
+                    <button id="csvBtn" class="btn-primary w-full mt-4" onclick="downloadCsv()">CSVをダウンロード</button>
+                </div>
+
+                <div id="paneCopy" class="hidden">
+                    <p class="text-[12.5px] text-slate-600 leading-relaxed mb-3">
+                        各項目の「コピー」を押して、サイトの管理画面に貼り付けてください。
+                        一括入稿に対応していないサイトでも、入力は1回で済みます。
+                    </p>
+                    <select id="copySel" class="field-input mb-3" onchange="renderCopyView()"></select>
+                    <dl id="copyBody"></dl>
+                </div>
+            </div>
+            <button class="btn-sub w-full" onclick="showList()">‹ 一覧へもどる</button>
+        </div>
+
+    </main>
+
+    <script src="bukken-schema.js"></script>
+    <script src="bukken-portals.js"></script>
+    <script>
+    /* ==================== ログイン ==================== */
+    const GATE_SHA  = '805d153531a69704a677be68ad70fd5b801b6caf5dfe8594d357c065e5a990aa';
+    const GATE_DJB2 = 'c70a71c';
+    const GATE_KEY  = 'bukkenAuthed';
+
+    async function gateCheck(pw) {
+        try {
+            if (window.crypto && crypto.subtle) {
+                const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+                const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+                return hex === GATE_SHA;
+            }
+        } catch (e) {}
+        let h = 5381;
+        for (let i = 0; i < pw.length; i++) { h = ((h * 33) ^ pw.charCodeAt(i)) >>> 0; }
+        return h.toString(16) === GATE_DJB2;
+    }
+    function gateInit() {
+        const gate = document.getElementById('gate');
+        if (localStorage.getItem(GATE_KEY) === '1' || sessionStorage.getItem(GATE_KEY) === '1') {
+            gate.classList.add('hidden'); boot(); return;
+        }
+        const inp = $('gatePw'), err = $('gateErr'), btn = $('gateBtn'), rem = $('gateRemember');
+        async function unlock() {
+            err.textContent = '';
+            if (await gateCheck(inp.value)) {
+                (rem && rem.checked ? localStorage : sessionStorage).setItem(GATE_KEY, '1');
+                gate.classList.add('hidden'); boot();
+            } else { err.textContent = 'パスワードが違います'; inp.value = ''; inp.focus(); }
+        }
+        btn.addEventListener('click', unlock);
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); unlock(); } });
+        setTimeout(() => inp.focus(), 100);
+    }
+
+    /* ==================== 共通 ==================== */
+    const $ = id => document.getElementById(id);
+    const STORE_KEY = 'bukkenList';
+    let LIST = [];          // 物件の配列
+    let CUR  = null;        // 編集中の物件（新規なら null）
+    let EXPORT_TARGET = null; // 書き出し対象（null = 全物件）
+
+    const ALL_FIELDS = [];
+    BUKKEN_SCHEMA.forEach(g => g.fields.forEach(f => ALL_FIELDS.push(f)));
+    const FIELD_BY_KEY = {};
+    ALL_FIELDS.forEach(f => { FIELD_BY_KEY[f.key] = f; });
+
+    function load() {
+        try { LIST = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); }
+        catch (e) { LIST = []; }
+        if (!Array.isArray(LIST)) LIST = [];
+    }
+    function save() {
+        try { localStorage.setItem(STORE_KEY, JSON.stringify(LIST)); return true; }
+        catch (e) {
+            alert('保存できませんでした。ブラウザの保存容量がいっぱいの可能性があります。\n'
+                + '「自社マスター（全項目）」で書き出してから、不要な物件を削除してください。');
+            return false;
+        }
+    }
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    /* ==================== 入力フォームを組み立てる ==================== */
+    function renderForm() {
+        $('formBody').innerHTML = BUKKEN_SCHEMA.map(function (g) {
+            const rows = g.fields.map(function (f) {
+                const req = f.required ? '<span class="req">必須</span>'
+                                       : '<span class="opt">任意</span>';
+                const unit = f.unit ? '<span class="unit">（' + esc(f.unit) + '）</span>' : '';
+                const hint = f.hint ? '<p class="text-[11px] text-slate-500 mt-1">' + esc(f.hint) + '</p>' : '';
+                const lbl  = '<label class="field-label" for="f_' + f.key + '">'
+                           + esc(f.label) + unit + req + '</label>';
+                let ctl = '';
+
+                if (f.type === 'textarea') {
+                    ctl = '<textarea class="field-input" id="f_' + f.key + '" rows="3" placeholder="'
+                        + esc(f.placeholder || '') + '"></textarea>';
+
+                } else if (f.type === 'select') {
+                    ctl = '<select class="field-input" id="f_' + f.key + '">'
+                        + f.options.map(function (o) {
+                            return '<option value="' + esc(o) + '">' + (o === '' ? '（未選択）' : esc(o)) + '</option>';
+                          }).join('')
+                        + '</select>';
+
+                } else if (f.type === 'checkgroup') {
+                    ctl = '<div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5" id="f_' + f.key + '">'
+                        + f.options.map(function (o, i) {
+                            return '<label class="chk-item"><input type="checkbox" value="' + esc(o)
+                                 + '" data-grp="' + f.key + '"><span>' + esc(o) + '</span></label>';
+                          }).join('')
+                        + '</div>';
+
+                } else {
+                    const t = f.type === 'number' ? 'number' : (f.type === 'month' ? 'month'
+                            : (f.type === 'date' ? 'date' : 'text'));
+                    ctl = '<input class="field-input" type="' + t + '" id="f_' + f.key + '"'
+                        + (f.step ? ' step="' + f.step + '"' : '')
+                        + (f.maxlength ? ' maxlength="' + f.maxlength + '"' : '')
+                        + (f.calc ? ' readonly' : '')
+                        + ' placeholder="' + esc(f.placeholder || '') + '">';
+                }
+                return '<div>' + lbl + ctl + hint
+                     + '<p class="err-msg" id="e_' + f.key + '"></p></div>';
+            }).join('');
+
+            const note = g.note
+                ? '<p class="text-[12px] text-slate-500 mb-3.5 leading-relaxed">' + esc(g.note) + '</p>' : '';
+            return '<section class="section-card" id="card_' + encodeURIComponent(g.group) + '">'
+                 + '<h2 class="section-title">' + esc(g.group) + '</h2>' + note
+                 + '<div class="space-y-4">' + rows + '</div></section>';
+        }).join('');
+
+        // 自動計算（敷金・礼金の円）を賃料・月数の変更に連動させる
+        ['chinryo', 'shikikinM', 'reikinM'].forEach(function (k) {
+            const el = $('f_' + k);
+            if (el) el.addEventListener('input', applyCalc);
+        });
+    }
+
+    function applyCalc() {
+        const v = collect(true);
+        ALL_FIELDS.forEach(function (f) {
+            if (!f.calc) return;
+            const el = $('f_' + f.key);
+            if (el) el.value = f.calc(v);
+        });
+    }
+
+    /* ==================== フォーム ⇄ データ ==================== */
+    function collect(skipCalc) {
+        const v = {};
+        ALL_FIELDS.forEach(function (f) {
+            if (skipCalc && f.calc) return;
+            if (f.type === 'checkgroup') {
+                const boxes = document.querySelectorAll('[data-grp="' + f.key + '"]:checked');
+                v[f.key] = Array.prototype.map.call(boxes, function (b) { return b.value; }).join('・');
+            } else {
+                const el = $('f_' + f.key);
+                v[f.key] = el ? el.value.trim() : '';
+            }
+        });
+        if (skipCalc) {  // 計算に使う数値は数値のまま返す
+            v.chinryo   = parseFloat(v.chinryo) || 0;
+            v.shikikinM = parseFloat(v.shikikinM) || 0;
+            v.reikinM   = parseFloat(v.reikinM) || 0;
+        }
+        return v;
+    }
+
+    function fill(obj) {
+        ALL_FIELDS.forEach(function (f) {
+            const val = obj ? (obj[f.key] || '') : (f.def || '');
+            if (f.type === 'checkgroup') {
+                const chosen = String(val).split('・');
+                document.querySelectorAll('[data-grp="' + f.key + '"]').forEach(function (b) {
+                    b.checked = chosen.indexOf(b.value) !== -1;
+                });
+            } else {
+                const el = $('f_' + f.key);
+                if (el) el.value = val;
+            }
+        });
+        applyCalc();
+    }
+
+    /* ==================== 一覧 ==================== */
+    function renderList() {
+        const q = ($('searchBox').value || '').toLowerCase();
+        const st = $('statusFilter').value;
+        const rows = LIST.filter(function (b) {
+            if (st && b.status !== st) return false;
+            if (!q) return true;
+            return ((b.buildingName || '') + (b.bukkenNo || '') + (b.roomNo || '')).toLowerCase().indexOf(q) !== -1;
+        });
+
+        if (!rows.length) {
+            $('listBody').innerHTML =
+                '<div class="section-card text-center text-slate-500 text-sm py-8">'
+              + (LIST.length ? '該当する物件がありません。' : 'まだ物件が登録されていません。右上の「＋ 新規」から登録してください。')
+              + '</div>';
+            return;
+        }
+
+        const badge = { '募集中':'bg-emerald-100 text-emerald-700', '申込あり':'bg-amber-100 text-amber-700',
+                        '成約':'bg-slate-200 text-slate-600', '掲載停止':'bg-red-100 text-red-700' };
+
+        $('listBody').innerHTML = rows.map(function (b) {
+            const i = LIST.indexOf(b);
+            const rent = b.chinryo ? Number(b.chinryo).toLocaleString() + '円' : '―';
+            return '<div class="section-card !p-3.5">'
+                 + '<div class="flex items-start gap-3">'
+                 +   '<div class="flex-1 min-w-0">'
+                 +     '<div class="flex items-center gap-2 flex-wrap">'
+                 +       '<span class="text-[10px] font-bold px-2 py-0.5 rounded ' + (badge[b.status] || 'bg-slate-100 text-slate-600') + '">' + esc(b.status || '―') + '</span>'
+                 +       '<span class="text-[11px] text-slate-400">' + esc(b.bukkenNo || '') + '</span>'
+                 +     '</div>'
+                 +     '<p class="font-bold text-[15px] mt-1 truncate">' + esc(b.buildingName || '（名称未設定）')
+                 +       (b.roomNo ? ' <span class="text-slate-500 font-medium">' + esc(b.roomNo) + '</span>' : '') + '</p>'
+                 +     '<p class="text-[12.5px] text-slate-500 mt-0.5">'
+                 +       esc(b.madori || '') + '　' + esc(b.area ? b.area + '㎡' : '') + '　' + rent + '</p>'
+                 +   '</div>'
+                 + '</div>'
+                 + '<div class="flex gap-1.5 mt-3">'
+                 +   '<button class="btn-sub !py-2 !px-3 !text-[12px]" onclick="editBukken(' + i + ')">編集</button>'
+                 +   '<button class="btn-sub !py-2 !px-3 !text-[12px]" onclick="showExport(' + i + ')">書き出す</button>'
+                 +   '<button class="btn-sub !py-2 !px-3 !text-[12px]" onclick="dupBukken(' + i + ')">複製</button>'
+                 +   '<button class="btn-sub !py-2 !px-3 !text-[12px] !text-red-600 !border-red-200" onclick="delBukken(' + i + ')">削除</button>'
+                 + '</div></div>';
+        }).join('');
+    }
+
+    /* ==================== 画面切替 ==================== */
+    function showList() {
+        $('listView').classList.remove('hidden');
+        $('editView').classList.add('hidden');
+        $('exportView').classList.add('hidden');
+        $('backBtn').classList.add('hidden');
+        renderList();
+        window.scrollTo(0, 0);
+    }
+    function showEdit() {
+        $('listView').classList.add('hidden');
+        $('editView').classList.remove('hidden');
+        $('exportView').classList.add('hidden');
+        $('backBtn').classList.remove('hidden');
+        window.scrollTo(0, 0);
+    }
+
+    function newBukken()  { CUR = null; fill(null); $('saveErr').textContent = ''; clearErr(); showEdit(); }
+    function editBukken(i){ CUR = i; fill(LIST[i]); $('saveErr').textContent = ''; clearErr(); showEdit(); }
+    function dupBukken(i) {
+        const copy = JSON.parse(JSON.stringify(LIST[i]));
+        copy.bukkenNo = (copy.bukkenNo || '') + '-copy';
+        copy.roomNo = '';
+        CUR = null; fill(copy); $('saveErr').textContent = ''; clearErr(); showEdit();
+    }
+    function delBukken(i) {
+        if (!confirm('「' + (LIST[i].buildingName || '（名称未設定）') + '」を削除します。よろしいですか？')) return;
+        LIST.splice(i, 1); save(); renderList();
+    }
+
+    function clearErr() {
+        document.querySelectorAll('.err-msg').forEach(function (p) { p.classList.remove('show'); p.textContent = ''; });
+        document.querySelectorAll('.field-input.err').forEach(function (e) { e.classList.remove('err'); });
+        document.querySelectorAll('.section-card.err-card').forEach(function (e) { e.classList.remove('err-card'); });
+    }
+
+    function saveBukken() {
+        clearErr();
+        const v = collect();
+        let firstBad = null;
+        ALL_FIELDS.forEach(function (f) {
+            if (!f.required) return;
+            if (v[f.key]) return;
+            const el = $('f_' + f.key), p = $('e_' + f.key);
+            if (el) el.classList.add('err');
+            if (p) { p.textContent = esc(f.label) + 'を入力してください'; p.classList.add('show'); }
+            if (!firstBad) firstBad = el;
+        });
+        if (firstBad) {
+            $('saveErr').textContent = '未入力の必須項目があります（赤い欄をご確認ください）';
+            firstBad.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+        v.updatedAt = new Date().toISOString();
+        if (CUR === null) LIST.push(v); else LIST[CUR] = v;
+        if (save()) showList();
+    }
+
+    /* ==================== CSV ==================== */
+    function csvCell(s) {
+        s = String(s == null ? '' : s);
+        return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+
+    function buildCsv(portalKey, items) {
+        const def = BUKKEN_PORTALS[portalKey];
+        let headers, rowOf;
+
+        if (def.columns === 'ALL') {
+            headers = ALL_FIELDS.map(function (f) { return f.label; });
+            rowOf = function (v) { return ALL_FIELDS.map(function (f) { return v[f.key] || ''; }); };
+        } else {
+            headers = def.columns.map(function (c) { return c.header; });
+            rowOf = function (v) {
+                return def.columns.map(function (c) {
+                    if (typeof c.value !== 'undefined') return c.value;
+                    if (typeof c.from === 'function') { try { return c.from(v); } catch (e) { return ''; } }
+                    return v[c.from] || '';
+                });
+            };
+        }
+        const nl = def.newline === 'lf' ? '\n' : '\r\n';
+        const lines = [headers.map(csvCell).join(',')];
+        items.forEach(function (v) { lines.push(rowOf(v).map(csvCell).join(',')); });
+        return lines.join(nl) + nl;
+    }
+
+    function downloadCsv() {
+        const key = $('portalSel').value;
+        const def = BUKKEN_PORTALS[key];
+        const items = EXPORT_TARGET === null ? LIST : [LIST[EXPORT_TARGET]];
+        if (!items.length) { alert('書き出す物件がありません。'); return; }
+
+        const text = buildCsv(key, items);
+        let blob, usedSjis = false;
+        if (def.encoding === 'sjis' && window.Encoding) {
+            const sjis = Encoding.convert(Encoding.stringToCode(text), { to: 'SJIS', from: 'UNICODE' });
+            blob = new Blob([new Uint8Array(sjis)], { type: 'text/csv' });
+            usedSjis = true;
+        } else {
+            blob = new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8' });
+        }
+        if (def.encoding === 'sjis' && !usedSjis) {
+            alert('Shift_JISへの変換部品が読み込めなかったため、UTF-8で書き出します。\n'
+                + 'サイト側で文字化けする場合は、通信環境の良い場所で再度お試しください。');
+        }
+
+        const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const name = 'bukken_' + key + '_' + stamp + '.csv';
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = name; document.body.appendChild(a); a.click();
+        document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+
+    function importCsv(input) {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const rd = new FileReader();
+        rd.onload = function () {
+            try {
+                const rows = parseCsv(String(rd.result));
+                if (rows.length < 2) { alert('データが入っていないようです。'); return; }
+                const head = rows[0];
+                const idx = {};
+                ALL_FIELDS.forEach(function (f) {
+                    const i = head.indexOf(f.label);
+                    if (i !== -1) idx[f.key] = i;
+                });
+                if (!Object.keys(idx).length) {
+                    alert('列名が読み取れませんでした。「自社マスター（全項目）」で書き出したCSVをお使いください。');
+                    return;
+                }
+                let add = 0, upd = 0;
+                for (let r = 1; r < rows.length; r++) {
+                    if (!rows[r].join('')) continue;
+                    const v = {};
+                    ALL_FIELDS.forEach(function (f) { v[f.key] = idx[f.key] !== undefined ? (rows[r][idx[f.key]] || '') : ''; });
+                    const at = LIST.findIndex(function (b) { return b.bukkenNo && b.bukkenNo === v.bukkenNo; });
+                    if (at !== -1) { LIST[at] = v; upd++; } else { LIST.push(v); add++; }
+                }
+                if (save()) { alert('取り込みました。\n新規 ' + add + '件 / 上書き ' + upd + '件'); renderList(); }
+            } catch (e) {
+                alert('読み込めませんでした。CSVの形式をご確認ください。');
+            }
+            input.value = '';
+        };
+        rd.readAsText(file);
+    }
+
+    function parseCsv(text) {
+        const rows = []; let row = [], cell = '', q = false;
+        text = text.replace(/^﻿/, '');
+        for (let i = 0; i < text.length; i++) {
+            const c = text[i];
+            if (q) {
+                if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+                else cell += c;
+            } else if (c === '"') q = true;
+            else if (c === ',') { row.push(cell); cell = ''; }
+            else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+            else if (c !== '\r') cell += c;
+        }
+        if (cell || row.length) { row.push(cell); rows.push(row); }
+        return rows;
+    }
+
+    /* ==================== 書き出し画面 ==================== */
+    function showExport(i) {
+        EXPORT_TARGET = (typeof i === 'number') ? i : null;
+        if (EXPORT_TARGET === null && !LIST.length) { alert('まだ物件が登録されていません。'); return; }
+
+        $('exportTitle').textContent = EXPORT_TARGET === null
+            ? '全' + LIST.length + '件を書き出し'
+            : (LIST[EXPORT_TARGET].buildingName || '（名称未設定）') + ' を書き出し';
+
+        const opts = Object.keys(BUKKEN_PORTALS).map(function (k) {
+            const d = BUKKEN_PORTALS[k];
+            return '<option value="' + k + '">' + esc(d.label) + (d.ready ? '' : '（対応表 未設定）') + '</option>';
+        }).join('');
+        $('portalSel').innerHTML = opts;
+        $('copySel').innerHTML = LIST.map(function (b, n) {
+            return '<option value="' + n + '">' + esc(b.bukkenNo || '') + '　' + esc(b.buildingName || '（名称未設定）') + '</option>';
+        }).join('');
+        if (EXPORT_TARGET !== null) $('copySel').value = String(EXPORT_TARGET);
+
+        switchTab('csv');
+        renderPortalInfo();
+        renderCopyView();
+
+        $('listView').classList.add('hidden');
+        $('editView').classList.add('hidden');
+        $('exportView').classList.remove('hidden');
+        $('backBtn').classList.remove('hidden');
+        window.scrollTo(0, 0);
+    }
+
+    function switchTab(which) {
+        const csv = which === 'csv';
+        $('tabCsv').classList.toggle('on', csv);
+        $('tabCopy').classList.toggle('on', !csv);
+        $('paneCsv').classList.toggle('hidden', !csv);
+        $('paneCopy').classList.toggle('hidden', csv);
+    }
+
+    function renderPortalInfo() {
+        const d = BUKKEN_PORTALS[$('portalSel').value];
+        const ok = d.ready && (d.columns === 'ALL' || d.columns.length > 0);
+        $('portalNote').textContent = d.note || '';
+        $('csvBtn').disabled = !ok;
+        $('csvBtn').textContent = ok ? 'CSVをダウンロード' : '対応表がまだ設定されていません';
+
+        const w = $('encWarn');
+        if (!ok) {
+            w.classList.remove('hidden');
+            w.innerHTML = '<strong>' + esc(d.label) + '</strong> の入稿仕様書がまだ登録されていません。<br>'
+                + '各社から仕様書を受け取ったら <code class="bg-white px-1 rounded">bukken-portals.js</code> の '
+                + '<code class="bg-white px-1 rounded">columns</code> に列名を書き、'
+                + '<code class="bg-white px-1 rounded">ready</code> を <code class="bg-white px-1 rounded">true</code> に変えてください。<br>'
+                + 'それまでは上の「手で転記する」タブをお使いいただけます。';
+        } else if (d.encoding === 'sjis' && !window.Encoding) {
+            w.classList.remove('hidden');
+            w.textContent = 'Shift_JIS変換の部品が読み込めていません。このまま書き出すとUTF-8になります。';
+        } else {
+            w.classList.add('hidden');
+        }
+    }
+
+    function renderCopyView() {
+        const n = parseInt($('copySel').value, 10);
+        const v = LIST[n];
+        if (!v) { $('copyBody').innerHTML = ''; return; }
+        let html = '';
+        BUKKEN_SCHEMA.forEach(function (g) {
+            if (g.group === '管理情報') return;   // 社内用なので転記対象から外す
+            html += '<dt class="text-[12px] font-bold text-coastal-600 mt-4 mb-1 pt-2 border-t border-slate-200">'
+                  + esc(g.group) + '</dt>';
+            g.fields.forEach(function (f) {
+                const val = v[f.key];
+                if (!val) return;
+                html += '<div class="copy-row">'
+                     +   '<dt>' + esc(f.label) + (f.unit ? '（' + esc(f.unit) + '）' : '') + '</dt>'
+                     +   '<dd>' + esc(val) + '</dd>'
+                     +   '<button class="copy-btn" data-copy="' + esc(val) + '">コピー</button>'
+                     + '</div>';
+            });
+        });
+        $('copyBody').innerHTML = html || '<p class="text-slate-500 text-sm py-4">入力された項目がありません。</p>';
+    }
+
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest ? e.target.closest('.copy-btn') : null;
+        if (btn && btn.hasAttribute('data-copy')) doCopy(btn, btn.getAttribute('data-copy'));
+    });
+
+    function doCopy(btn, text) {
+        function done() {
+            btn.textContent = 'コピー済'; btn.classList.add('done');
+            setTimeout(function () { btn.textContent = 'コピー'; btn.classList.remove('done'); }, 1400);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
+        } else { fallbackCopy(text, done); }
+    }
+    function fallbackCopy(text, cb) {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); cb(); } catch (e) { alert('コピーできませんでした。'); }
+        document.body.removeChild(ta);
+    }
+
+    /* ==================== 起動 ==================== */
+    function boot() { load(); renderForm(); showList(); }
+    gateInit();
+    </script>
+</body>
+</html>
