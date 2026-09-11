@@ -20,8 +20,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
-    <!-- Shift_JIS変換用（読み込めなかった場合はUTF-8で出力します） -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/encoding-japanese/2.0.0/encoding.min.js"></script>
     <style>
         .hidden { display: none !important; }
         .field-label { display:block; font-size:13px; font-weight:700; color:#334155; margin-bottom:4px; }
@@ -60,8 +58,13 @@
         }
         .btn-sub:hover { border-color:#028090; background:#f4fbfb; }
         .copy-row { display:flex; align-items:flex-start; gap:8px; padding:9px 0; border-bottom:1px solid #f1f5f9; }
-        .copy-row dt { flex:0 0 132px; color:#64748b; font-size:12.5px; padding-top:3px; }
+        .copy-row dt { flex:0 0 118px; color:#64748b; font-size:12.5px; padding-top:3px; }
         .copy-row dd { flex:1; color:#0f172a; font-size:13.5px; font-weight:500; white-space:pre-wrap; word-break:break-all; }
+        .copy-chk { flex:0 0 auto; padding-top:4px; cursor:pointer; }
+        .copy-chk input { width:17px; height:17px; accent-color:#028090; cursor:pointer; }
+        /* 転記済みの行は薄く表示して、残りが一目で分かるようにします */
+        .copy-row.is-done dt, .copy-row.is-done dd { opacity:.4; text-decoration:line-through; }
+        .copy-row.is-done dd span { text-decoration:line-through; }
         .copy-btn {
             flex:0 0 auto; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px;
             padding:4px 9px; font-size:11px; font-weight:700; color:#475569; cursor:pointer;
@@ -168,25 +171,55 @@
             <div class="section-card mb-4">
                 <h2 class="section-title" id="exportTitle">書き出し</h2>
                 <div class="flex border-b border-slate-200 mb-4 -mx-4 px-4">
-                    <button class="tab-btn on" id="tabCsv" onclick="switchTab('csv')">CSVで書き出す</button>
-                    <button class="tab-btn" id="tabCopy" onclick="switchTab('copy')">手で転記する</button>
+                    <button class="tab-btn on" id="tabCopy" onclick="switchTab('copy')">サイトへ転記する</button>
+                    <button class="tab-btn" id="tabCsv" onclick="switchTab('csv')">自社用に保存する</button>
                 </div>
 
-                <div id="paneCsv">
-                    <label class="field-label" for="portalSel">書き出し先</label>
-                    <select id="portalSel" class="field-input" onchange="renderPortalInfo()"></select>
-                    <p id="portalNote" class="text-[12px] text-slate-600 mt-2.5 leading-relaxed"></p>
-                    <div id="encWarn" class="hidden text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2.5 leading-relaxed"></div>
-                    <button id="csvBtn" class="btn-primary w-full mt-4" onclick="downloadCsv()">CSVをダウンロード</button>
+                <div id="paneCopy">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                            <label class="field-label" for="copySel">転記する物件</label>
+                            <select id="copySel" class="field-input" onchange="renderCopyView()"></select>
+                        </div>
+                        <div>
+                            <label class="field-label" for="copyPortal">転記先のサイト</label>
+                            <select id="copyPortal" class="field-input" onchange="renderCopyView()"></select>
+                        </div>
+                    </div>
+                    <p id="copyNote" class="text-[12px] text-slate-500 mt-2 leading-relaxed"></p>
+
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 mt-3">
+                        <div class="flex items-center gap-2">
+                            <span class="text-[12px] font-bold text-slate-600 whitespace-nowrap">転記の進み具合</span>
+                            <div class="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                                <div id="progBar" class="h-full bg-coastal-500 rounded-full transition-all" style="width:0%"></div>
+                            </div>
+                            <span id="progText" class="text-[12px] font-bold text-coastal-600 whitespace-nowrap">0 / 0</span>
+                        </div>
+                        <div class="flex gap-1.5 mt-2.5">
+                            <button class="btn-sub !py-1.5 !px-2.5 !text-[11.5px]" onclick="copyAll()">全部まとめてコピー</button>
+                            <button class="btn-sub !py-1.5 !px-2.5 !text-[11.5px]" onclick="resetProgress()">チェックを外す</button>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                            貼り付けた項目はチェックを入れておくと、どこまで進んだか分からなくなりません。
+                            チェックはこの端末に記録され、次に開いたときも残ります。
+                        </p>
+                    </div>
+
+                    <div id="copyBody" class="mt-1"></div>
                 </div>
 
-                <div id="paneCopy" class="hidden">
+                <div id="paneCsv" class="hidden">
                     <p class="text-[12.5px] text-slate-600 leading-relaxed mb-3">
-                        各項目の「コピー」を押して、サイトの管理画面に貼り付けてください。
-                        一括入稿に対応していないサイトでも、入力は1回で済みます。
+                        全項目をCSVに書き出します。<strong>バックアップ</strong>や、
+                        スプレッドシートで一覧を確認したいときにお使いください。
+                        「マスターCSVを取り込む」で元に戻せます。
                     </p>
-                    <select id="copySel" class="field-input mb-3" onchange="renderCopyView()"></select>
-                    <dl id="copyBody"></dl>
+                    <div class="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 leading-relaxed">
+                        スーモ・スマイミー・きまるーむは、CSVでの一括入稿に対応していないとの回答でした。
+                        各サイトへの登録は「サイトへ転記する」タブをお使いください。
+                    </div>
+                    <button id="csvBtn" class="btn-primary w-full" onclick="downloadCsv()">自社マスターCSVをダウンロード</button>
                 </div>
             </div>
             <button class="btn-sub w-full" onclick="showList()">‹ 一覧へもどる</button>
@@ -477,55 +510,26 @@
         return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     }
 
-    function buildCsv(portalKey, items) {
-        const def = BUKKEN_PORTALS[portalKey];
-        let headers, rowOf;
-
-        if (def.columns === 'ALL') {
-            headers = ALL_FIELDS.map(function (f) { return f.label; });
-            rowOf = function (v) { return ALL_FIELDS.map(function (f) { return v[f.key] || ''; }); };
-        } else {
-            headers = def.columns.map(function (c) { return c.header; });
-            rowOf = function (v) {
-                return def.columns.map(function (c) {
-                    if (typeof c.value !== 'undefined') return c.value;
-                    if (typeof c.from === 'function') { try { return c.from(v); } catch (e) { return ''; } }
-                    return v[c.from] || '';
-                });
-            };
-        }
-        const nl = def.newline === 'lf' ? '\n' : '\r\n';
+    function buildCsv(items) {
+        const headers = ALL_FIELDS.map(function (f) { return f.label; });
         const lines = [headers.map(csvCell).join(',')];
-        items.forEach(function (v) { lines.push(rowOf(v).map(csvCell).join(',')); });
-        return lines.join(nl) + nl;
+        items.forEach(function (v) {
+            lines.push(ALL_FIELDS.map(function (f) { return csvCell(v[f.key] || ''); }).join(','));
+        });
+        return lines.join('\r\n') + '\r\n';
     }
 
     function downloadCsv() {
-        const key = $('portalSel').value;
-        const def = BUKKEN_PORTALS[key];
         const items = EXPORT_TARGET === null ? LIST : [LIST[EXPORT_TARGET]];
         if (!items.length) { alert('書き出す物件がありません。'); return; }
-
-        const text = buildCsv(key, items);
-        let blob, usedSjis = false;
-        if (def.encoding === 'sjis' && window.Encoding) {
-            const sjis = Encoding.convert(Encoding.stringToCode(text), { to: 'SJIS', from: 'UNICODE' });
-            blob = new Blob([new Uint8Array(sjis)], { type: 'text/csv' });
-            usedSjis = true;
-        } else {
-            blob = new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8' });
-        }
-        if (def.encoding === 'sjis' && !usedSjis) {
-            alert('Shift_JISへの変換部品が読み込めなかったため、UTF-8で書き出します。\n'
-                + 'サイト側で文字化けする場合は、通信環境の良い場所で再度お試しください。');
-        }
-
+        // Excelでそのまま開けるようBOM付きUTF-8で書き出します
+        const blob = new Blob(['\ufeff' + buildCsv(items)], { type: 'text/csv;charset=utf-8' });
         const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        const name = 'bukken_' + key + '_' + stamp + '.csv';
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = name; document.body.appendChild(a); a.click();
-        document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        a.href = url; a.download = 'bukken_master_' + stamp + '.csv';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
     }
 
     function importCsv(input) {
@@ -581,26 +585,27 @@
     }
 
     /* ==================== 書き出し画面 ==================== */
+    const PROG_KEY = 'bukkenProgress';
+
     function showExport(i) {
         EXPORT_TARGET = (typeof i === 'number') ? i : null;
-        if (EXPORT_TARGET === null && !LIST.length) { alert('まだ物件が登録されていません。'); return; }
+        if (!LIST.length) { alert('まだ物件が登録されていません。'); return; }
 
         $('exportTitle').textContent = EXPORT_TARGET === null
-            ? '全' + LIST.length + '件を書き出し'
-            : (LIST[EXPORT_TARGET].buildingName || '（名称未設定）') + ' を書き出し';
+            ? '全' + LIST.length + '件'
+            : (LIST[EXPORT_TARGET].buildingName || '（名称未設定）');
 
-        const opts = Object.keys(BUKKEN_PORTALS).map(function (k) {
-            const d = BUKKEN_PORTALS[k];
-            return '<option value="' + k + '">' + esc(d.label) + (d.ready ? '' : '（対応表 未設定）') + '</option>';
-        }).join('');
-        $('portalSel').innerHTML = opts;
         $('copySel').innerHTML = LIST.map(function (b, n) {
-            return '<option value="' + n + '">' + esc(b.bukkenNo || '') + '　' + esc(b.buildingName || '（名称未設定）') + '</option>';
+            return '<option value="' + n + '">' + esc(b.bukkenNo || '') + '　'
+                 + esc(b.buildingName || '（名称未設定）')
+                 + (b.roomNo ? ' ' + esc(b.roomNo) : '') + '</option>';
+        }).join('');
+        $('copyPortal').innerHTML = Object.keys(BUKKEN_PORTALS).map(function (k) {
+            return '<option value="' + k + '">' + esc(BUKKEN_PORTALS[k].label) + '</option>';
         }).join('');
         if (EXPORT_TARGET !== null) $('copySel').value = String(EXPORT_TARGET);
 
-        switchTab('csv');
-        renderPortalInfo();
+        switchTab('copy');
         renderCopyView();
 
         $('listView').classList.add('hidden');
@@ -611,67 +616,146 @@
     }
 
     function switchTab(which) {
-        const csv = which === 'csv';
-        $('tabCsv').classList.toggle('on', csv);
-        $('tabCopy').classList.toggle('on', !csv);
-        $('paneCsv').classList.toggle('hidden', !csv);
-        $('paneCopy').classList.toggle('hidden', csv);
+        const copy = which === 'copy';
+        $('tabCopy').classList.toggle('on', copy);
+        $('tabCsv').classList.toggle('on', !copy);
+        $('paneCopy').classList.toggle('hidden', !copy);
+        $('paneCsv').classList.toggle('hidden', copy);
     }
 
-    function renderPortalInfo() {
-        const d = BUKKEN_PORTALS[$('portalSel').value];
-        const ok = d.ready && (d.columns === 'ALL' || d.columns.length > 0);
-        $('portalNote').textContent = d.note || '';
-        $('csvBtn').disabled = !ok;
-        $('csvBtn').textContent = ok ? 'CSVをダウンロード' : '対応表がまだ設定されていません';
+    /* サイトごとの転記手順。steps 未設定なら項目定義の並び順を使います */
+    function stepsFor(portalKey) {
+        const d = BUKKEN_PORTALS[portalKey];
+        if (d && d.steps && d.steps.length) return d.steps;
+        const out = [];
+        BUKKEN_SCHEMA.forEach(function (g) {
+            if (g.group === '管理情報') return;   // 社内用なので転記しません
+            out.push({ section: g.group });
+            g.fields.forEach(function (f) { out.push({ label: f.label, from: f.key }); });
+        });
+        return out;
+    }
 
-        const w = $('encWarn');
-        if (!ok) {
-            w.classList.remove('hidden');
-            w.innerHTML = '<strong>' + esc(d.label) + '</strong> の入稿仕様書がまだ登録されていません。<br>'
-                + '各社から仕様書を受け取ったら <code class="bg-white px-1 rounded">bukken-portals.js</code> の '
-                + '<code class="bg-white px-1 rounded">columns</code> に列名を書き、'
-                + '<code class="bg-white px-1 rounded">ready</code> を <code class="bg-white px-1 rounded">true</code> に変えてください。<br>'
-                + 'それまでは上の「手で転記する」タブをお使いいただけます。';
-        } else if (d.encoding === 'sjis' && !window.Encoding) {
-            w.classList.remove('hidden');
-            w.textContent = 'Shift_JIS変換の部品が読み込めていません。このまま書き出すとUTF-8になります。';
-        } else {
-            w.classList.add('hidden');
-        }
+    function stepValue(step, v) {
+        if (typeof step.value !== 'undefined') return String(step.value);
+        if (typeof step.from === 'function') { try { return String(step.from(v) || ''); } catch (e) { return ''; } }
+        return String(v[step.from] || '');
+    }
+
+    function progKey() {
+        const v = LIST[parseInt($('copySel').value, 10)] || {};
+        return (v.bukkenNo || 'x') + '|' + $('copyPortal').value;
+    }
+    function loadProg() {
+        try { return (JSON.parse(localStorage.getItem(PROG_KEY) || '{}'))[progKey()] || {}; }
+        catch (e) { return {}; }
+    }
+    function saveProg(map) {
+        let all = {};
+        try { all = JSON.parse(localStorage.getItem(PROG_KEY) || '{}'); } catch (e) {}
+        all[progKey()] = map;
+        try { localStorage.setItem(PROG_KEY, JSON.stringify(all)); } catch (e) {}
     }
 
     function renderCopyView() {
-        const n = parseInt($('copySel').value, 10);
-        const v = LIST[n];
-        if (!v) { $('copyBody').innerHTML = ''; return; }
-        let html = '';
-        BUKKEN_SCHEMA.forEach(function (g) {
-            if (g.group === '管理情報') return;   // 社内用なので転記対象から外す
-            html += '<dt class="text-[12px] font-bold text-coastal-600 mt-4 mb-1 pt-2 border-t border-slate-200">'
-                  + esc(g.group) + '</dt>';
-            g.fields.forEach(function (f) {
-                const val = v[f.key];
-                if (!val) return;
-                html += '<div class="copy-row">'
-                     +   '<dt>' + esc(f.label) + (f.unit ? '（' + esc(f.unit) + '）' : '') + '</dt>'
-                     +   '<dd>' + esc(val) + '</dd>'
-                     +   '<button class="copy-btn" data-copy="' + esc(val) + '">コピー</button>'
+        const v = LIST[parseInt($('copySel').value, 10)];
+        const pKey = $('copyPortal').value;
+        const def = BUKKEN_PORTALS[pKey];
+        if (!v || !def) { $('copyBody').innerHTML = ''; return; }
+
+        $('copyNote').textContent = def.note || '';
+        const steps = stepsFor(pKey);
+        const done = loadProg();
+        let html = '', n = 0;
+
+        steps.forEach(function (step, si) {
+            if (step.section) {
+                html += '<p class="text-[12px] font-bold text-coastal-600 mt-4 mb-1 pt-2.5 border-t border-slate-200">'
+                      + esc(step.section) + '</p>';
+                return;
+            }
+            const val = stepValue(step, v);
+            if (!val) return;                      // 未入力の項目は出しません
+            n++;
+            const id = 'st' + si;
+            const isDone = !!done[id];
+            const f = FIELD_BY_KEY[step.from];
+            const note = step.note ? '<span class="text-[11px] text-amber-700 ml-1.5">' + esc(step.note) + '</span>' : '';
+
+            // 設備などの複数選択は、1つずつチェックを入れやすいように分けて表示します
+            let body;
+            if (f && f.type === 'checkgroup') {
+                body = '<div class="flex flex-wrap gap-1 mt-0.5">'
+                     + val.split('・').map(function (x) {
+                         return '<span class="bg-coastal-50 border border-coastal-200 text-coastal-600 '
+                              + 'text-[12px] font-bold px-1.5 py-0.5 rounded">' + esc(x) + '</span>';
+                       }).join('')
                      + '</div>';
-            });
+            } else {
+                body = '<span>' + esc(val) + '</span>';
+            }
+
+            html += '<div class="copy-row' + (isDone ? ' is-done' : '') + '" data-id="' + id + '">'
+                 +   '<label class="copy-chk"><input type="checkbox" data-done="' + id + '"'
+                 +     (isDone ? ' checked' : '') + '></label>'
+                 +   '<dt>' + esc(step.label) + note + '</dt>'
+                 +   '<dd>' + body + '</dd>'
+                 +   '<button class="copy-btn" data-copy="' + esc(val) + '">コピー</button>'
+                 + '</div>';
         });
-        $('copyBody').innerHTML = html || '<p class="text-slate-500 text-sm py-4">入力された項目がありません。</p>';
+
+        $('copyBody').innerHTML = html ||
+            '<p class="text-slate-500 text-sm py-4">入力された項目がありません。</p>';
+        updateProgress();
     }
 
+    function updateProgress() {
+        const rows = document.querySelectorAll('#copyBody .copy-row');
+        const hit  = document.querySelectorAll('#copyBody .copy-row.is-done');
+        const pct = rows.length ? Math.round(hit.length / rows.length * 100) : 0;
+        $('progBar').style.width = pct + '%';
+        $('progText').textContent = hit.length + ' / ' + rows.length;
+    }
+
+    document.addEventListener('change', function (e) {
+        const box = e.target;
+        if (!box.hasAttribute || !box.hasAttribute('data-done')) return;
+        const row = box.closest('.copy-row');
+        row.classList.toggle('is-done', box.checked);
+        const map = loadProg();
+        if (box.checked) map[box.getAttribute('data-done')] = 1;
+        else delete map[box.getAttribute('data-done')];
+        saveProg(map);
+        updateProgress();
+    });
+
+    function resetProgress() {
+        saveProg({});
+        renderCopyView();
+    }
+
+    function copyAll() {
+        const rows = document.querySelectorAll('#copyBody .copy-row');
+        if (!rows.length) { alert('コピーする項目がありません。'); return; }
+        const text = Array.prototype.map.call(rows, function (r) {
+            return r.querySelector('dt').textContent.trim() + '：'
+                 + r.querySelector('.copy-btn').getAttribute('data-copy');
+        }).join('\n');
+        doCopy(document.querySelector('#paneCopy button'), text);
+    }
+
+    /* コピーボタンのクリックを拾う（行は描き直されるので委譲で受けます） */
     document.addEventListener('click', function (e) {
-        const btn = e.target.closest ? e.target.closest('.copy-btn') : null;
+        if (!e.target || !e.target.closest) return;
+        const btn = e.target.closest('.copy-btn');
         if (btn && btn.hasAttribute('data-copy')) doCopy(btn, btn.getAttribute('data-copy'));
     });
 
     function doCopy(btn, text) {
+        const original = btn.textContent;   // 元の文字に戻せるよう控えておきます
         function done() {
             btn.textContent = 'コピー済'; btn.classList.add('done');
-            setTimeout(function () { btn.textContent = 'コピー'; btn.classList.remove('done'); }, 1400);
+            setTimeout(function () { btn.textContent = original; btn.classList.remove('done'); }, 1400);
         }
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
