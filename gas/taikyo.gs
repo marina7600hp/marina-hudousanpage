@@ -499,6 +499,10 @@ function esc_(s) {
 function safeName_(s) { return String(s || '').replace(/[\\\/:*?"<>|]/g, '_').trim(); }
 function today_() { return Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy年M月d日'); }
 function caseLabel_(c) { return safeName_(c.bukken) + '_' + safeName_(c.room) + '_' + safeName_(c.name); }
+/** 書類に印字する貸主名（未入力なら自社名）。貸主が別会社の物件はコンソールで入力する */
+function ownerName_(data) { return String((data && data.owner) || '').trim() || T_CONFIG.COMPANY; }
+/** 貸主名は入力があるときだけ保存する（空で保存済みの貸主を消さないため） */
+function ownerPatch_(data) { const o = String((data && data.owner) || '').trim(); return o ? { owner: o } : {}; }
 /** 'yyyy-mm-dd' → 'yyyy年M月d日'（それ以外はそのまま返す） */
 function fmtD_(s) {
   if (!s) return '';
@@ -572,7 +576,7 @@ function saveReport_(data) {
     '<div class="meta">作成日：' + today_() + '</div>' +
     '<h1>原状回復箇所報告書</h1>' +
     '<div class="sub">退去時の室内確認・原状回復に関わる箇所の記録</div>' +
-    '<div class="to">貸主様<br>' + esc_(T_CONFIG.COMPANY) + ' 御中</div>' +
+    '<div class="to">貸主様<br>' + esc_(ownerName_(data)) + ' 御中</div>' +
     '<table>' + infoRows + '</table>' +
     '<p class="note" style="margin-top:8px">退去時の室内確認の結果、原状回復に関わる主な箇所を写真にて記録しました。下記のとおりご確認をお願い申し上げます。</p>' +
     '<div style="margin-top:8px">' + (cards || '（写真なし）') + '</div>' +
@@ -583,8 +587,8 @@ function saveReport_(data) {
 
   upsertCase_(caseId, {
     name: c.name, kana: c.kana, bukken: c.bukken, room: c.room, reportUrl: file.getUrl(),
-    data: { moveoutDate: data.moveoutDate || '', tachiaiDate: data.tachiaiDate || '', staffTachiai: data.staff || '',
-            photoCount: photos.length, photoFolderUrl: caseFolder.getUrl(), tenancy: data.tenancy || '' },
+    data: Object.assign({ moveoutDate: data.moveoutDate || '', tachiaiDate: data.tachiaiDate || '', staffTachiai: data.staff || '',
+            photoCount: photos.length, photoFolderUrl: caseFolder.getUrl(), tenancy: data.tenancy || '' }, ownerPatch_(data)),
   });
   return { ok: true, caseId: caseId, reportUrl: file.getUrl() };
 }
@@ -637,7 +641,7 @@ function saveConsent_(data) {
     '<div class="meta">案件ID：' + esc_(caseId) + '</div>' +
     '<div class="meta">立会い日：' + tachiaiDisp + '</div>' +
     '<h1>退去立会い同意書</h1>' +
-    '<div class="to">貸主様<br>' + esc_(T_CONFIG.COMPANY) + ' 御中</div>' +
+    '<div class="to">貸主様<br>' + esc_(ownerName_(data)) + ' 御中</div>' +
     '<table><tr><th style="width:22%">物件名</th><td>' + esc_(c.bukken) + '</td>' +
     '<th style="width:14%">部屋番号</th><td>' + esc_(c.room) + '</td></tr>' +
     (data.staff ? '<tr><th>立会担当者</th><td colspan="3">' + esc_(data.staff) + '</td></tr>' : '') + '</table>' +
@@ -666,7 +670,7 @@ function saveConsent_(data) {
   upsertCase_(caseId, {
     status: '立会い済', name: c.name, kana: c.kana, bukken: c.bukken, room: c.room,
     consentUrl: consentFile.getUrl(),
-    data: { charges: ch, tachiaiDate: data.tachiaiDate || '', staffTachiai: data.staff || '' },
+    data: Object.assign({ charges: ch, tachiaiDate: data.tachiaiDate || '', staffTachiai: data.staff || '' }, ownerPatch_(data)),
   });
 
   // 通知メール
@@ -746,8 +750,8 @@ function saveEstimate_(data) {
 
   upsertCase_(caseId, {
     status: '見積済', estimateUrl: file.getUrl(),
-    data: { estimateItems: items, estimateNote: data.note || '', estimateStaff: data.staff || '',
-            tenantTotal: tenantTotal, ownerTotal: ownerTotal, estimateTotal: totalA },
+    data: Object.assign({ estimateItems: items, estimateNote: data.note || '', estimateStaff: data.staff || '',
+            tenantTotal: tenantTotal, ownerTotal: ownerTotal, estimateTotal: totalA }, ownerPatch_(data)),
   });
   const label2 = c.bukken + ' ' + c.room + '（' + c.name + '様）';
   lineNotify_('estimate', { owner: caseOwner_(caseId) },
@@ -762,10 +766,12 @@ function saveSettlement_(data) {
   if (!caseId) return { ok: false, error: '案件IDがありません。' };
   const c = { name: data.name, bukken: data.bukken, room: data.room };
   const deposit = Number(data.deposit || 0);       // 預かり敷金
+  const overpaidRent = Number(data.overpaidRent || 0); // 過払家賃（借主へお返しする分）
   const penalty = Number(data.penalty || 0);        // 違約金
   const unpaidRent = Number(data.unpaidRent || 0);  // 未納賃料等
   const restoreCost = Number(data.restoreCost || 0);// 原状回復費（借主負担）
-  const balance = deposit - penalty - unpaidRent - restoreCost; // プラス=返金 / マイナス=不足
+  // お返しする分（敷金＋過払家賃）から、差引く分を控除する。プラス=返金 / マイナス=不足
+  const balance = deposit + overpaidRent - penalty - unpaidRent - restoreCost;
   const refund = balance > 0 ? balance : 0;
   const shortage = balance < 0 ? -balance : 0;
 
@@ -781,6 +787,7 @@ function saveSettlement_(data) {
     '<tr><th>退去後連絡先</th><td>' + esc_(normalizeTel_(data.contact || '')) + '</td><th>書類送付先</th><td>' + nl2br_(data.newAddress || '') + '</td></tr></table>' +
     '<table style="margin-top:10px">' +
     '<tr><th style="width:50%">預かり敷金</th><td class="right">' + fmtYen_(deposit) + '</td></tr>' +
+    '<tr><th>過払家賃</th><td class="right">' + fmtYen_(overpaidRent) + '</td></tr>' +
     '<tr><th>違約金</th><td class="right">' + fmtYen_(penalty) + '</td></tr>' +
     '<tr><th>未納賃料等</th><td class="right">' + fmtYen_(unpaidRent) + '</td></tr>' +
     '<tr><th>原状回復費（借主負担・税込）</th><td class="right">' + fmtYen_(restoreCost) + '</td></tr>' +
@@ -788,7 +795,7 @@ function saveSettlement_(data) {
     '</table>' +
     '<table style="margin-top:10px"><tr><th style="width:22%">敷金返金口座</th><td>' + esc_(bankLine || '（後日ご連絡）') + '</td></tr></table>' +
     (data.note ? '<div class="foot">備考：' + esc_(data.note) + '</div>' : '') +
-    '<div class="foot">貸主：' + esc_(data.owner || T_CONFIG.COMPANY) + '　（お問い合わせ：' + esc_(T_CONFIG.COMPANY) + '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) + '）' +
+    '<div class="foot">貸主：' + esc_(ownerName_(data)) + '　（お問い合わせ：' + esc_(T_CONFIG.COMPANY) + '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) + '）' +
     (data.staff ? '　精算書作成者：' + esc_(data.staff) : '') +
     '<br>' + (shortage > 0 ? '不足金額を上記のとおりご請求いたします。' : '預かり敷金から相殺のうえ、上記返金額を指定口座へお振込みいたします。') +
     '（振込手数料は差引かせていただきます）</div></body></html>';
@@ -810,10 +817,10 @@ function saveSettlement_(data) {
 
   upsertCase_(caseId, {
     status: '精算済', settlementUrl: file.getUrl(),
-    data: { deposit: deposit, penalty: penalty, unpaidRent: unpaidRent, restoreCost: restoreCost,
+    data: Object.assign({ deposit: deposit, overpaidRent: overpaidRent, penalty: penalty, unpaidRent: unpaidRent, restoreCost: restoreCost,
             refund: refund, shortage: shortage, settlementStaff: data.staff || '',
-            tenancy: data.tenancy || '', endDate: data.endDate || '', newAddress: data.newAddress || '', contact: data.contact || '', owner: data.owner || '',
-            paymentDue: data.paymentDue || '', invoiceUrl: invoiceUrl, coverUrl: coverUrl },
+            tenancy: data.tenancy || '', endDate: data.endDate || '', newAddress: data.newAddress || '', contact: data.contact || '',
+            paymentDue: data.paymentDue || '', invoiceUrl: invoiceUrl, coverUrl: coverUrl }, ownerPatch_(data)),
   });
   try {
     MailApp.sendEmail({

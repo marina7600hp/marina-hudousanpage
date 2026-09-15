@@ -124,6 +124,11 @@
                     <div class="flex justify-between text-[11px] text-slate-500 mb-1"><span id="cvStageTxt"></span><span id="cvPct" class="font-bold text-coastal-600"></span></div>
                     <div class="prog-track"><div id="cvProg" class="prog-fill" style="width:0%"></div></div>
                 </div>
+                <div class="mt-3 pt-3 border-t border-slate-100">
+                    <label class="field-label">貸主<span class="text-slate-400 font-normal ml-1">報告書・同意書・清算書に印字されます</span></label>
+                    <input id="cvOwner" class="field-input text-sm" placeholder="有限会社仁方大森マリーナー">
+                    <p class="text-[11px] text-slate-400 mt-1">空欄のままだと「有限会社仁方大森マリーナー」で作成します。エイホームビルなど貸主が別の物件は、ここに貸主名を入力してください（書類を作成した時点で保存されます）。</p>
+                </div>
                 <p class="text-[11px] text-slate-400 mt-3 mb-1">作成した書類（タップで開く）</p>
                 <div id="cvLinks" class="doc-tabs"></div>
             </div>
@@ -242,6 +247,7 @@
                 </div>
                 <div class="grid grid-cols-2 gap-3 mt-3">
                     <div><label class="field-label">預かり敷金</label><input id="stDeposit" type="number" class="field-input" oninput="calcSettlement()" placeholder="0"></div>
+                    <div><label class="field-label">過払家賃<span class="text-slate-400 font-normal ml-1">返金に加算</span></label><input id="stOverpaid" type="number" class="field-input" oninput="calcSettlement()" placeholder="0"></div>
                     <div><label class="field-label">違約金</label><input id="stPenalty" type="number" class="field-input" oninput="calcSettlement()" placeholder="0"></div>
                     <div><label class="field-label">未納賃料等</label><input id="stUnpaid" type="number" class="field-input" oninput="calcSettlement()" placeholder="0"></div>
                     <div><label class="field-label">原状回復費（借主負担・税込）</label><input id="stRestore" type="number" class="field-input" oninput="calcSettlement()" placeholder="0"></div>
@@ -402,6 +408,8 @@
         function hide(el){ $(el).classList.add('hidden'); }
         const yen = (n)=>Number(n||0).toLocaleString('ja-JP')+'円';
         const numv = (id)=>{ const n=parseFloat($(id).value); return Number.isFinite(n)?n:0; };
+        // 貸主名（空欄ならGAS側で「有限会社仁方大森マリーナー」が使われる）
+        const ownerVal = ()=>{ const e=$('cvOwner'); return e ? e.value.trim() : ''; };
 
         // ---------------- API ----------------
         async function apiGet(action){
@@ -534,8 +542,8 @@
             if(d.moveoutDate) dl.push('退去日 '+d.moveoutDate);
             if(d.tachiaiDate) dl.push('立会日 '+d.tachiaiDate);
             if(d.staffTachiai) dl.push('立会担当 '+d.staffTachiai);
-            if(d.owner) dl.unshift('貸主 '+d.owner);
             $('cvDates').textContent = dl.join('　/　');
+            $('cvOwner').value = d.owner||'';
             // ステータス
             $('cvStatus').className = 'badge '+(STATUS_MAP[CUR.status]||'b-kaiyaku');
             $('cvStatus').textContent = CUR.status||'解約受付';
@@ -582,6 +590,7 @@
             $('stNewAddress').value = d.newAddress||'';
             $('stContact').value = normalizeTel(d.contact || d.tel || '');
             $('stDeposit').value = d.deposit||'';
+            $('stOverpaid').value = d.overpaidRent||0;
             $('stPenalty').value = d.penalty||0;
             $('stUnpaid').value = d.unpaidRent||0;
             $('stRestore').value = d.restoreCost!=null?d.restoreCost:(d.tenantTotal||'');
@@ -709,7 +718,7 @@
             if(!PHOTOS.length && !confirm('写真がありません。写真なしで報告書を作成しますか？')) return;
             const payload={ action:'report', caseId:CUR.id, name:CUR.name, kana:CUR.kana, bukken:CUR.bukken, room:CUR.room,
                 moveoutDate:$('tiMoveout').value, tachiaiDate:$('tiTachiai').value, staff:$('tiStaff').value.trim(),
-                tenancy:(CUR.data&&CUR.data.tenancy)||'', photos:PHOTOS };
+                tenancy:(CUR.data&&CUR.data.tenancy)||'', owner:ownerVal(), photos:PHOTOS };
             await run(payload, '原状回復箇所報告書を作成しました');
         }
         // ①-B 退去立会い同意書（費用・署名）
@@ -723,6 +732,7 @@
                 laterItems: collectLaterItems() };
             const payload={ action:'consent', caseId:CUR.id, name:CUR.name, kana:CUR.kana, bukken:CUR.bukken, room:CUR.room,
                 tachiaiDate:$('tiTachiai').value, staff:$('tiStaff').value.trim(),
+                owner:ownerVal(),
                 charges, signature: sigHas?$('sigCanvas').toDataURL('image/png'):'', signerName:$('signerName').value.trim() };
             await run(payload, '立会い同意書を作成しました（署名を保存）');
         }
@@ -800,12 +810,16 @@
             if(!requireBackend()) return;
             const items=collectEst();
             if(!items.length){ toast('品目を入力してください'); return; }
-            await run({ action:'estimate', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room, items, note:$('estNote').value.trim() }, '見積書を作成しました');
+            await run({ action:'estimate', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room, items, note:$('estNote').value.trim(), owner:ownerVal() }, '見積書を作成しました');
         }
 
         // ---------------- 精算 ----------------
+        // お返しする分（敷金＋過払家賃）から差引く分を控除。プラス=返金 / マイナス=不足
+        function settlementBalance(){
+            return numv('stDeposit')+numv('stOverpaid')-numv('stPenalty')-numv('stUnpaid')-numv('stRestore');
+        }
         function calcSettlement(){
-            const bal = numv('stDeposit')-numv('stPenalty')-numv('stUnpaid')-numv('stRestore');
+            const bal = settlementBalance();
             $('stBalance').textContent = bal>=0 ? '返金額：'+yen(bal) : '不足金額（ご請求）：'+yen(-bal);
             $('stBalance').className = 'text-right font-bold mt-2 '+(bal>=0?'text-coastal-600':'text-red-600');
         }
@@ -814,12 +828,12 @@
             const payload={ action:'settlement', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room,
                 tenancy:$('stTenancy').value.trim(), endDate:$('stEndDate').value.trim(),
                 newAddress:$('stNewAddress').value.trim(), contact:$('stContact').value.trim(),
-                deposit:numv('stDeposit'), penalty:numv('stPenalty'), unpaidRent:numv('stUnpaid'), restoreCost:numv('stRestore'),
+                deposit:numv('stDeposit'), overpaidRent:numv('stOverpaid'), penalty:numv('stPenalty'), unpaidRent:numv('stUnpaid'), restoreCost:numv('stRestore'),
                 bank:{ name:$('stBankName').value.trim(), branch:$('stBankBranch').value.trim(), type:$('stBankType').value.trim(),
                        number:$('stBankNumber').value.trim(), holder:$('stBankHolder').value.trim() },
                 note:$('stNote').value.trim(), staff:$('stStaff').value.trim(), paymentDue:$('stPayDue').value,
-                owner:((CUR.data&&CUR.data.owner)||'') };
-            const isShortagePreview = (numv('stDeposit')-numv('stPenalty')-numv('stUnpaid')-numv('stRestore'))<0;
+                owner:ownerVal() };
+            const isShortagePreview = settlementBalance()<0;
             await run(payload, isShortagePreview?'精算書・御請求書・送付状を作成しました':'精算書・送付状を作成しました');
         }
 
