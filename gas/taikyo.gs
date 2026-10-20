@@ -936,12 +936,13 @@ function invoiceHtml_(caseId, c, data, a) {
   rows.push(['', '', '']);
   if (deposit > 0) rows.push(['敷金充当額', '', fmtYen_(-deposit), true]);
   if (overpaidRent > 0) rows.push(['過払家賃充当額', '', fmtYen_(-overpaidRent), true]);
-  while (rows.length < 10) rows.push(['', '', '']);
+  // 品目は見本の様式と同じ14行（足りない分は空行）。行の高さを固定して、用紙上の位置がずれないようにする
+  while (rows.length < 14) rows.push(['', '', '']);
 
   const LINE = 'border:1px solid #555;';
   const NB = 'border:none;padding:0;vertical-align:top;';
-  const TH = LINE + 'background:#d9d9d9;padding:6px;font-weight:normal;text-align:center;font-size:12px;';
-  const TD = LINE + 'padding:7px 6px;text-align:center;font-size:12px;';
+  const TH = LINE + 'background:#d9d9d9;height:7mm;padding:0 6px;font-weight:normal;text-align:center;font-size:12.5px;';
+  const TD = LINE + 'height:7.6mm;padding:0 6px;text-align:center;font-size:12.5px;';
   const itemRows = rows.map(function (r) {
     return '<tr><td style="' + TD + '">' + (esc_(r[0]) || '&nbsp;') + '</td>' +
       '<td style="' + TD + '">' + (esc_(r[1]) || '&nbsp;') + '</td>' +
@@ -956,10 +957,15 @@ function invoiceHtml_(caseId, c, data, a) {
   // 発行者（右上）：登録番号・名称・住所・電話・ロゴ
   const issLines = [];
   if (iss.regNo) issLines.push('登録番号　' + esc_(iss.regNo));
-  issLines.push('<span style="font-size:13px;">' + esc_(iss.name || T_CONFIG.COMPANY) + '</span>');
+  issLines.push('<span style="font-size:14px;">' + esc_(iss.name || T_CONFIG.COMPANY) + '</span>');
   if (iss.addr) issLines.push(esc_(iss.addr));
   (iss.tels || []).forEach(function (t) { issLines.push('TEL：' + esc_(t)); });
-  const logo = iss.showLogo ? '<br><img src="' + invoiceLogo_() + '" width="122" height="18" alt="Eihometrast">' : '';
+  const logo = iss.showLogo
+    ? '<div style="margin-top:1.5mm;"><img src="' + invoiceLogo_() + '" width="134" height="20" alt="Eihometrast"></div>' : '';
+
+  // 宛名：長い会社名でも下線の上で1行に収まるよう、文字を少し小さくする
+  const toText = addressee_(c, data);
+  const toSize = toText.length <= 22 ? 16 : (toText.length <= 26 ? 14 : 12.5);
 
   // お支払い期日（2026-11-30 → 2026/11/30）
   const due = String(data.paymentDue || '').trim();
@@ -968,46 +974,47 @@ function invoiceHtml_(caseId, c, data, a) {
   const bankLines = ['金融機関名：' + esc_(b.bank), '支店名：' + esc_(b.branch), '口座種類：' + esc_(b.type),
     '口座番号：' + esc_(b.number), '口座名：' + esc_(b.holder)].join('<br>');
   const notes = (T_CONFIG.INVOICE_NOTES || []).map(function (s) { return '・' + esc_(s); }).join('<br>');
-  const PAY_TH = LINE + 'padding:3px 6px;font-weight:normal;text-align:center;font-size:12px;width:50%;';
-  const PAY_TD = LINE + 'padding:5px 7px;vertical-align:top;font-size:11.5px;line-height:1.6;height:105px;';
+  const PAY_TH = LINE + 'height:5mm;padding:0 6px;font-weight:normal;text-align:center;font-size:12.5px;width:50%;';
+  const PAY_TD = LINE + 'height:30mm;padding:1.5mm 2.5mm;vertical-align:top;font-size:12px;line-height:1.65;';
 
   return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
-    'body{font-family:sans-serif;color:#111;font-size:12px;margin:22px 26px;}' +
+    // 用紙はA4。余白を指定しないと上端に詰まり、下が大きく空く（見本の様式と同じ配置にする）
+    '@page{size:A4 portrait;margin:13mm 13mm 12mm 13mm;}' +
+    'body{font-family:sans-serif;color:#111;font-size:12.5px;margin:0;}' +
     'table{border-collapse:collapse;}' +
     '</style></head><body>' +
-    '<div style="text-align:center;font-size:24px;letter-spacing:8px;margin:4px 0 8px;">御 請 求 書</div>' +
-    '<div style="text-align:right;font-size:12px;margin-bottom:16px;">' + today_() + '</div>' +
-    '<table style="width:100%;"><tr>' +
+    '<div style="padding-top:6mm;text-align:center;font-size:27px;letter-spacing:10px;line-height:1.2;">御 請 求 書</div>' +
+    '<div style="margin-top:4.3mm;text-align:right;">' + today_() + '</div>' +
+    '<table style="width:100%;margin-top:7.4mm;"><tr>' +
       '<td style="' + NB + 'width:56%;">' +
-        '<table style="width:94%;"><tr><td style="border:none;border-bottom:2px solid #222;padding:2px 4px 4px;font-size:15px;">' +
-          esc_(addressee_(c, data)) + '</td></tr></table>' +
-        '<div style="margin-top:18px;font-size:11.5px;line-height:1.7;">【諸条件】<br>' + esc_(subject) + '</div>' +
-        '<table style="width:80%;margin-top:20px;border:2px solid #222;"><tr>' +
-          '<td style="border:1px solid #222;background:#d9d9d9;padding:6px 8px;font-size:11px;width:32%;">差引ご請求額</td>' +
-          '<td style="border:1px solid #222;padding:6px 8px;font-size:19px;font-weight:bold;text-align:center;">¥' +
+        '<table style="width:92%;"><tr><td style="border:none;border-bottom:2px solid #222;padding:0 4px 1.5mm;font-size:' + toSize + 'px;">' +
+          esc_(toText) + '</td></tr></table>' +
+        '<div style="margin-top:2.5mm;line-height:1.8;">【諸条件】<br>' + esc_(subject) + '</div>' +
+        '<table style="width:82%;margin-top:6.5mm;border:2px solid #222;"><tr>' +
+          '<td style="border:1px solid #222;background:#d9d9d9;height:8.4mm;padding:0 8px;font-size:11.5px;width:32%;">差引ご請求額</td>' +
+          '<td style="border:1px solid #222;height:8.4mm;padding:0 8px;font-size:21px;font-weight:bold;text-align:center;">¥' +
             total.toLocaleString('ja-JP') + '</td>' +
         '</tr></table>' +
       '</td>' +
-      '<td style="' + NB + 'width:44%;text-align:right;font-size:11px;line-height:1.75;">' + issLines.join('<br>') + logo + '</td>' +
+      '<td style="' + NB + 'width:44%;text-align:right;font-size:12px;line-height:1.4;padding-top:1mm;">' + issLines.join('<br>') + logo + '</td>' +
     '</tr></table>' +
-    '<table style="width:100%;margin-top:20px;">' +
+    '<table style="width:100%;margin-top:3.8mm;">' +
       '<tr><th style="' + TH + 'width:40%;">品　目</th><th style="' + TH + 'width:22%;">適　用</th><th style="' + TH + 'width:38%;">金　額</th></tr>' +
       itemRows +
     '</table>' +
     '<table style="width:100%;"><tr><td style="' + NB + 'width:62%;"></td><td style="' + NB + 'width:38%;">' +
       '<table style="width:100%;"><tr>' +
-        '<td style="' + LINE + 'border-top:none;background:#d9d9d9;padding:7px 6px;width:30%;font-size:12px;">合　計</td>' +
-        '<td style="' + LINE + 'border-top:none;padding:7px 6px;text-align:center;font-size:12px;font-weight:bold;">' + fmtYen_(total) + '</td>' +
+        '<td style="' + LINE + 'border-top:none;background:#d9d9d9;height:7.7mm;padding:0 6px;width:30%;">合　計</td>' +
+        '<td style="' + LINE + 'border-top:none;height:7.7mm;padding:0 6px;text-align:center;font-size:13px;font-weight:bold;">' + fmtYen_(total) + '</td>' +
       '</tr></table>' +
     '</td></tr></table>' +
-    (dueDisp
-      ? '<div style="margin:22px 0 3px 56px;font-size:12px;">お支払い期日　' + esc_(dueDisp) + ' まで</div>'
-      : '<div style="height:24px;"></div>') +
+    // 期日が無いときも同じ高さを取り、下の表の位置を変えない
+    '<div style="margin:7mm 0 1mm 14mm;">' + (dueDisp ? 'お支払い期日　' + esc_(dueDisp) + ' まで' : '&nbsp;') + '</div>' +
     '<table style="width:100%;">' +
       '<tr><th style="' + PAY_TH + '">振込先</th><th style="' + PAY_TH + '">備考</th></tr>' +
       '<tr><td style="' + PAY_TD + '">' + bankLines + '</td><td style="' + PAY_TD + '">' + notes + '</td></tr>' +
     '</table>' +
-    '<div style="text-align:right;font-size:9px;color:#999;margin-top:8px;">案件ID：' + esc_(caseId) + '</div>' +
+    '<div style="text-align:right;font-size:9px;color:#999;margin-top:2mm;">案件ID：' + esc_(caseId) + '</div>' +
     '</body></html>';
 }
 
