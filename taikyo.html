@@ -124,11 +124,23 @@
                     <div class="flex justify-between text-[11px] text-slate-500 mb-1"><span id="cvStageTxt"></span><span id="cvPct" class="font-bold text-coastal-600"></span></div>
                     <div class="prog-track"><div id="cvProg" class="prog-fill" style="width:0%"></div></div>
                 </div>
-                <div class="mt-3 pt-3 border-t border-slate-100">
-                    <label class="field-label">貸主<span class="text-slate-400 font-normal ml-1">報告書・同意書・清算書に印字されます</span></label>
-                    <input id="cvOwner" class="field-input text-sm" placeholder="有限会社仁方大森マリーナー">
-                    <p class="text-[11px] text-slate-400 mt-1">空欄のままだと「有限会社仁方大森マリーナー」で作成します。エイホームビルなど貸主が別の物件は、ここに貸主名を入力してください（書類を作成した時点で保存されます）。</p>
+                <div class="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="field-label" for="cvOwner">貸主<span class="text-slate-400 font-normal ml-1">報告書・同意書・清算書に記載</span></label>
+                        <select id="cvOwner" class="field-input text-sm" onchange="onOwnerChange()"></select>
+                        <input id="cvOwnerOther" class="field-input text-sm hidden mt-2" placeholder="貸主名を入力" onchange="saveCaseInfo()">
+                    </div>
+                    <div>
+                        <label class="field-label" for="cvToName">書類の宛名<span class="text-slate-400 font-normal ml-1">見積書・清算書・請求書・送付状</span></label>
+                        <div class="flex gap-2">
+                            <input id="cvToName" class="field-input text-sm flex-1 min-w-0" placeholder="契約者名" onchange="saveCaseInfo()">
+                            <select id="cvToHon" class="field-input text-sm" style="width:5.5rem" onchange="saveCaseInfo()">
+                                <option>様</option><option>御中</option><option>殿</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
+                <p class="text-[11px] text-slate-400 mt-1">貸主・宛名は選ぶとその場で保存されます。法人契約の場合は、宛名を会社名にして「御中」か「殿」を選んでください。</p>
                 <p class="text-[11px] text-slate-400 mt-3 mb-1">作成した書類（タップで開く）</p>
                 <div id="cvLinks" class="doc-tabs"></div>
             </div>
@@ -263,11 +275,12 @@
                 </div>
                 <input id="stNote" class="field-input text-sm mt-2" placeholder="備考（任意）">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
-                    <div><label class="field-label">精算書作成者</label><input id="stStaff" class="field-input text-sm" placeholder="作成者名"></div>
+                    <div><label class="field-label">担当者<span class="text-slate-400 font-normal ml-1">精算書に「担当」として記載</span></label><input id="stStaff" class="field-input text-sm" placeholder="担当者名"></div>
                     <div><label class="field-label">お支払期限<span class="text-slate-400 font-normal ml-1">請求時・請求書に記載</span></label><input id="stPayDue" type="date" class="field-input text-sm"></div>
                 </div>
                 <p class="text-[11px] text-slate-500 mt-2 bg-slate-50 border border-slate-200 rounded p-2">
-                    精算がマイナス（不足）の場合は<b>御請求書</b>（入金先：もみじ銀行 呉中央支店 普通 No.3113449 エイホームトラスト株式会社）を自動作成します。<br>
+                    精算書は「精算書作成者：エイホームトラスト株式会社（担当：上の担当者）」として作成します。<br>
+                    精算がマイナス（不足）の場合は<b>御請求書（適格請求書・登録番号つき）</b>をエイホームトラスト株式会社の名義で自動作成します（入金先：もみじ銀行 呉中央支店 普通 No.3113449）。<br>
                     あわせて<b>送付状（書類送付御案内）</b>も作成し、見積書・清算書・（請求書）の同封案内を出します。
                 </p>
                 <button onclick="submitSettlement()" class="btn btn-primary w-full mt-3">精算書を作成（請求書・送付状も自動作成）</button>
@@ -408,8 +421,65 @@
         function hide(el){ $(el).classList.add('hidden'); }
         const yen = (n)=>Number(n||0).toLocaleString('ja-JP')+'円';
         const numv = (id)=>{ const n=parseFloat($(id).value); return Number.isFinite(n)?n:0; };
-        // 貸主名（空欄ならGAS側で「有限会社仁方大森マリーナー」が使われる）
-        const ownerVal = ()=>{ const e=$('cvOwner'); return e ? e.value.trim() : ''; };
+        // ---------------- 貸主・宛名（案件の上部で選ぶ） ----------------
+        // 貸主の選択肢。解約リンク作成画面（kaiyakulink.html）の貸主リストと同じにしてください
+        const OWNER_OPTIONS = ['エイホームトラスト株式会社', '大森栄作', '白島利江', '有限会社仁方大森マリーナー', '江口和弘', 'EASY　HOUSE合同会社'];
+        const OWNER_OTHER = '__other__';
+        const HONORIFICS = ['様', '御中', '殿'];
+        function renderOwnerOptions(){
+            const s=$('cvOwner'); s.innerHTML='';
+            const add=(v,t)=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; s.appendChild(o); };
+            add('', '— 選択してください —');
+            OWNER_OPTIONS.forEach(o=>add(o,o));
+            add(OWNER_OTHER, 'その他（下に入力）');
+        }
+        /** 保存済みの貸主名を選択欄に反映（リストにない名前は「その他」に入れる） */
+        function setOwnerUI(owner){
+            owner=String(owner||'').trim();
+            const known=OWNER_OPTIONS.includes(owner);
+            $('cvOwner').value = !owner ? '' : (known ? owner : OWNER_OTHER);
+            $('cvOwnerOther').value = (owner && !known) ? owner : '';
+            $('cvOwnerOther').classList.toggle('hidden', !owner || known);
+        }
+        /** 選ばれている貸主名（未選択なら空。GAS側で自社名になる） */
+        function ownerVal(){
+            const v=$('cvOwner').value;
+            return v===OWNER_OTHER ? $('cvOwnerOther').value.trim() : v;
+        }
+        function onOwnerChange(){
+            const other=$('cvOwner').value===OWNER_OTHER;
+            $('cvOwnerOther').classList.toggle('hidden', !other);
+            if(other){ $('cvOwnerOther').focus(); return; } // 「その他」は入力し終えたときに保存
+            saveCaseInfo();
+        }
+        /** 法人名らしい宛名なら敬称の初期値を「殿」に（エイホームトラストの請求書様式に合わせる） */
+        function guessHonorific(name){
+            return /株式会社|有限会社|合同会社|合資会社|合名会社|法人|組合|㈱|㈲|（株）|\(株\)|（有）|\(有\)/.test(name||'') ? '殿' : '様';
+        }
+        /** 書類に使う貸主・宛名・敬称（各書類の送信に含める） */
+        function docInfo(){
+            return { owner:ownerVal(), toName:$('cvToName').value.trim(), toHonorific:$('cvToHon').value };
+        }
+        /** 貸主・宛名・敬称をその場で案件に保存（書類は作らない） */
+        async function saveCaseInfo(){
+            if(!CUR || !GAS_URL) return;
+            const info=docInfo();
+            CUR.data=Object.assign({}, CUR.data||{}, info);
+            try{
+                const j=await apiPost(Object.assign({ action:'caseInfo', caseId:CUR.id }, info));
+                if(!j.ok) throw new Error(j.error||'');
+                toast('貸主・宛名を保存しました');
+            }catch(e){
+                toast(/unknown action/.test(e.message||'')
+                    ? 'GASが古い版です（taikyo.gs を貼り直して再デプロイしてください）'
+                    : '保存できませんでした（書類を作成したときにも保存されます）');
+            }
+        }
+        /** 貸主が未選択のまま、貸主が載る書類を作ろうとしたら確認する */
+        function confirmOwner(){
+            if(ownerVal()) return true;
+            return confirm('貸主が選ばれていません。\nこのまま作成すると、書類の貸主は「有限会社仁方大森マリーナー」になります。\n\nよろしいですか？\n（キャンセルして、画面上部の「貸主」を選ぶこともできます）');
+        }
 
         // ---------------- API ----------------
         async function apiGet(action){
@@ -543,7 +613,9 @@
             if(d.tachiaiDate) dl.push('立会日 '+d.tachiaiDate);
             if(d.staffTachiai) dl.push('立会担当 '+d.staffTachiai);
             $('cvDates').textContent = dl.join('　/　');
-            $('cvOwner').value = d.owner||'';
+            setOwnerUI(d.owner);
+            $('cvToName').value = d.toName || CUR.name || '';
+            $('cvToHon').value = HONORIFICS.includes(d.toHonorific) ? d.toHonorific : guessHonorific($('cvToName').value);
             // ステータス
             $('cvStatus').className = 'badge '+(STATUS_MAP[CUR.status]||'b-kaiyaku');
             $('cvStatus').textContent = CUR.status||'解約受付';
@@ -715,15 +787,18 @@
         // ①-A 原状回復箇所報告書（写真）
         async function submitReport(){
             if(!requireBackend()) return;
+            if(!confirmOwner()) return;
             if(!PHOTOS.length && !confirm('写真がありません。写真なしで報告書を作成しますか？')) return;
             const payload={ action:'report', caseId:CUR.id, name:CUR.name, kana:CUR.kana, bukken:CUR.bukken, room:CUR.room,
                 moveoutDate:$('tiMoveout').value, tachiaiDate:$('tiTachiai').value, staff:$('tiStaff').value.trim(),
-                tenancy:(CUR.data&&CUR.data.tenancy)||'', owner:ownerVal(), photos:PHOTOS };
+                tenancy:(CUR.data&&CUR.data.tenancy)||'', photos:PHOTOS };
+            Object.assign(payload, docInfo());
             await run(payload, '原状回復箇所報告書を作成しました');
         }
         // ①-B 退去立会い同意書（費用・署名）
         async function submitConsent(){
             if(!requireBackend()) return;
+            if(!confirmOwner()) return;
             const charges={ cleaning:numv('chCleaning'), acUnit:numv('chAcUnit'), acCount:numv('chAcCount'),
                 ac2Unit:numv('chAc2Unit'), ac2Count:numv('chAc2Count'),
                 tatamiUnit:numv('chTatamiUnit'), tatamiCount:numv('chTatamiCount'),
@@ -732,8 +807,8 @@
                 laterItems: collectLaterItems() };
             const payload={ action:'consent', caseId:CUR.id, name:CUR.name, kana:CUR.kana, bukken:CUR.bukken, room:CUR.room,
                 tachiaiDate:$('tiTachiai').value, staff:$('tiStaff').value.trim(),
-                owner:ownerVal(),
                 charges, signature: sigHas?$('sigCanvas').toDataURL('image/png'):'', signerName:$('signerName').value.trim() };
+            Object.assign(payload, docInfo());
             await run(payload, '立会い同意書を作成しました（署名を保存）');
         }
 
@@ -810,7 +885,7 @@
             if(!requireBackend()) return;
             const items=collectEst();
             if(!items.length){ toast('品目を入力してください'); return; }
-            await run({ action:'estimate', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room, items, note:$('estNote').value.trim(), owner:ownerVal() }, '見積書を作成しました');
+            await run(Object.assign({ action:'estimate', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room, items, note:$('estNote').value.trim() }, docInfo()), '見積書を作成しました');
         }
 
         // ---------------- 精算 ----------------
@@ -825,14 +900,15 @@
         }
         async function submitSettlement(){
             if(!requireBackend()) return;
+            if(!confirmOwner()) return;
             const payload={ action:'settlement', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room,
                 tenancy:$('stTenancy').value.trim(), endDate:$('stEndDate').value.trim(),
                 newAddress:$('stNewAddress').value.trim(), contact:$('stContact').value.trim(),
                 deposit:numv('stDeposit'), overpaidRent:numv('stOverpaid'), penalty:numv('stPenalty'), unpaidRent:numv('stUnpaid'), restoreCost:numv('stRestore'),
                 bank:{ name:$('stBankName').value.trim(), branch:$('stBankBranch').value.trim(), type:$('stBankType').value.trim(),
                        number:$('stBankNumber').value.trim(), holder:$('stBankHolder').value.trim() },
-                note:$('stNote').value.trim(), staff:$('stStaff').value.trim(), paymentDue:$('stPayDue').value,
-                owner:ownerVal() };
+                note:$('stNote').value.trim(), staff:$('stStaff').value.trim(), paymentDue:$('stPayDue').value };
+            Object.assign(payload, docInfo());
             const isShortagePreview = settlementBalance()<0;
             await run(payload, isShortagePreview?'精算書・御請求書・送付状を作成しました':'精算書・送付状を作成しました');
         }
@@ -957,6 +1033,7 @@
 
         document.addEventListener('DOMContentLoaded', ()=>{
             styleFilter();
+            renderOwnerOptions();
             // ログイン済みならそのまま読み込み。未ログインなら解錠後に読み込む
             if(gateInit()) loadCases();
         });
