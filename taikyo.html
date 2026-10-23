@@ -92,7 +92,7 @@
         <div id="gasOldBanner" class="hidden mb-4 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs leading-relaxed p-3">
             ⚠️ <b>Google側のプログラム（GAS）が古い版です。</b>
             <code>gas/taikyo.gs</code> を Apps Script に貼り直し、「デプロイを管理」→ ✏️ →「新バージョン」で再デプロイしてください。
-            それまでは、過払家賃・物件ごとの貸主・適格請求書などが書類に反映されません。
+            それまでは、最新の修正（貸主・過払家賃・適格請求書など）が書類に正しく反映されないことがあります。
         </div>
 
         <!-- ============ 一覧ビュー ============ -->
@@ -425,7 +425,8 @@
 
         const $ = (id) => document.getElementById(id);
         let CASES = [], IMPORTABLE = [], CUR = null, PHOTOS = [], BUKKEN_OWNERS = [];
-        // GAS が新しい版か（新しい版は一覧に「物件の貸主」を付けて返す）
+        // この画面が必要とする GAS の版（taikyo.gs の TAIKYO_GAS_VERSION）。一覧の応答の version と比べる
+        const REQUIRED_GAS_VERSION = 2;
         let GAS_UP_TO_DATE = true;
         let LIST_FILTER = 'active'; // 'active'=処理中のみ（完了を隠す） / 'all'=すべて
 
@@ -467,6 +468,8 @@
             add(OWNER_OTHER, 'その他（下に入力）');
         }
         function renderOwnerOptions(){ fillOwnerOptions($('cvOwner'), OWNER_EMPTY_LABEL); }
+        /** 貸主名として使える値だけを返す（URLなどは空に。以前の取り込みでPDFのリンクが入った案件があるため） */
+        function cleanOwner(v){ const s=String(v==null?'':v).trim(); return /^https?:\/\//i.test(s) ? '' : s; }
         /** 保存済みの貸主名を選択欄に反映（リストにない名前は「その他」に入れる） */
         function setOwnerUI(owner){
             owner=String(owner||'').trim();
@@ -529,7 +532,7 @@
         /** GAS が古い版のまま書類を作ろうとしたら確認する（新しい項目が書類に反映されないため） */
         function confirmGasVersion(){
             if(GAS_UP_TO_DATE) return true;
-            return confirm('Google側のプログラム（GAS）が古い版です。\nこのまま作成すると、過払家賃・物件ごとの貸主・適格請求書などが書類に反映されません。\n\nそれでも作成しますか？\n（先に taikyo.gs を貼り直して再デプロイするのがおすすめです）');
+            return confirm('Google側のプログラム（GAS）が古い版です。\nこのまま作成すると、最新の修正（貸主・過払家賃・適格請求書など）が書類に正しく反映されないことがあります。\n\nそれでも作成しますか？\n（先に taikyo.gs を貼り直して再デプロイするのがおすすめです）');
         }
         /** 貸主が案件でも物件でも決まっていないまま、貸主が載る書類を作ろうとしたら確認する */
         function confirmOwner(){
@@ -647,7 +650,7 @@
                 const j = await apiGet('list');
                 if(!j.ok) throw new Error(j.error||'error');
                 CASES = j.cases||[]; IMPORTABLE = j.importable||[]; BUKKEN_OWNERS = j.bukkenOwners||[];
-                GAS_UP_TO_DATE = Array.isArray(j.bukkenOwners);
+                GAS_UP_TO_DATE = Number(j.version || 0) >= REQUIRED_GAS_VERSION;
                 $('gasOldBanner').classList.toggle('hidden', GAS_UP_TO_DATE);
                 renderList();
             }catch(e){ hide('loadingList'); toast('読み込みに失敗しました'); }
@@ -760,7 +763,7 @@
             if(d.staffTachiai) dl.push('立会担当 '+d.staffTachiai);
             $('cvDates').textContent = dl.join('　/　');
             setOwnerFollowLabel(CUR.propOwner);
-            setOwnerUI(d.owner);
+            setOwnerUI(cleanOwner(d.owner));
             updateOwnerHint();
             $('cvToName').value = d.toName || CUR.name || '';
             $('cvToHon').value = HONORIFICS.includes(d.toHonorific) ? d.toHonorific : guessHonorific($('cvToName').value);

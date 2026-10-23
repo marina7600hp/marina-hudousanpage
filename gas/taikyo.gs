@@ -109,6 +109,9 @@ const T_CONFIG = {
   TAX_RATE: 0.10,
 };
 
+/** この GAS の版。画面（taikyo.html）がこの数字を見て、貼り直しが必要かを判断します */
+const TAIKYO_GAS_VERSION = 2;
+
 /** 管理画面からのGET（案件一覧の取得） */
 function doGet(e) {
   const action = (e && e.parameter && e.parameter.action) || 'list';
@@ -117,7 +120,7 @@ function doGet(e) {
       // 各案件に「物件ごとの貸主」（propOwner）を付けて返す。案件で貸主を選んでいなければこれが使われる
       const owners = bukkenOwnerList_();
       const cases = listCases_().map(function (c) { c.propOwner = ownerForBukken_(c.bukken, owners); return c; });
-      return json_({ ok: true, cases: cases, importable: importableCases_(), bukkenOwners: owners });
+      return json_({ ok: true, version: TAIKYO_GAS_VERSION, cases: cases, importable: importableCases_(), bukkenOwners: owners });
     }
     if (action === 'ping') {
       return json_({ ok: true, message: '退去精算ワークフローは稼働中です。' });
@@ -417,6 +420,11 @@ function importableCases_() {
   const last = sheet.getLastRow();
   if (last < 2) return [];
   const rows = sheet.getRange(2, 1, last - 1, Math.max(13, sheet.getLastColumn())).getValues();
+  // 貸主の列：見出しに「貸主」があればその列、なければ24列目（解約フォームが貸主を書き込む位置。23列目はPDFリンク）
+  // ※ 見出しは最初の受付のときだけ書かれるので、貸主の列ができる前（2026年8月より前）からある一覧には「貸主」の見出しがない
+  const header = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0]
+    .map(function (h) { return String(h == null ? '' : h).trim(); });
+  const ownerCol = header.indexOf('貸主') >= 0 ? header.indexOf('貸主') : 23;
   const existing = {};
   listCases_().forEach(function (c) { if (c.data && c.data.receiptNo) existing[c.data.receiptNo] = true; });
   // 一度削除／非表示にした受付番号は再表示しない
@@ -435,7 +443,7 @@ function importableCases_() {
       cleaning: Number(r[10]) || 0,
       acNormalUnit: ac.normalUnit, acNormalCount: ac.normalCount,
       acAutoUnit: ac.autoUnit, acAutoCount: ac.autoCount,
-      owner: String(r[22] == null ? '' : r[22]).trim(),  // 貸主（23列目）
+      owner: cleanOwner_(r[ownerCol]),  // 貸主
     });
   });
   return out;
@@ -496,7 +504,7 @@ function saveCaseInfo_(data) {
   if (findRow_(progressSheet_(), caseId) < 0) return { ok: false, error: '案件が見つかりません。' };
   // 明示的な保存なので、貸主を「未選択」に戻したときは空で上書きする
   upsertCase_(caseId, { data: {
-    owner: String(data.owner || '').trim(),
+    owner: cleanOwner_(data.owner),
     toName: String(data.toName || '').trim(),
     toHonorific: String(data.toHonorific || '').trim(),
   } });
@@ -508,7 +516,7 @@ function createCase_(data) {
   const caseId = data.receiptNo || ('T' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMddHHmmss'));
   const info = {
     receiptNo: data.receiptNo || '', tel: data.tel || '', email: data.email || '',
-    endDate: data.endDate || '', owner: data.owner || '',
+    endDate: data.endDate || '', owner: cleanOwner_(data.owner),
   };
   // 解約フォームで選ばれた金額を、立会い同意書の初期値（charges）として引き継ぐ
   const cleaning = Number(data.cleaning || 0);
@@ -543,7 +551,13 @@ function today_() { return Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy�
 function caseLabel_(c) { return safeName_(c.bukken) + '_' + safeName_(c.room) + '_' + safeName_(c.name); }
 /** 書類に印字する貸主名：①案件で選んだ貸主 → ②物件ごとの貸主 → ③自社名 の順に決める */
 function ownerName_(data) {
-  return String((data && data.owner) || '').trim() || ownerForBukken_(data && data.bukken) || T_CONFIG.COMPANY;
+  return cleanOwner_(data && data.owner) || ownerForBukken_(data && data.bukken) || T_CONFIG.COMPANY;
+}
+/** 貸主名として使える値だけを返す。URLなど貸主名でない値は空にする
+ *  （以前の取り込みで、解約通知書PDFのリンクが貸主欄に入った案件があるため） */
+function cleanOwner_(v) {
+  const s = String(v == null ? '' : v).trim();
+  return /^https?:\/\//i.test(s) ? '' : s;
 }
 
 // ---------------- 物件ごとの貸主 ----------------
@@ -619,7 +633,7 @@ function settlementCreator_(data) {
  *  宛名・敬称は送られてきたときだけ保存する（宛名欄のない古い画面からの送信で消さないため） */
 function infoPatch_(data) {
   const p = {};
-  const o = String((data && data.owner) || '').trim();
+  const o = cleanOwner_(data && data.owner);
   if (o) p.owner = o;
   if (data && data.toName !== undefined) p.toName = String(data.toName || '').trim();
   if (data && data.toHonorific !== undefined) p.toHonorific = String(data.toHonorific || '').trim();
@@ -809,7 +823,7 @@ function saveConsent_(data) {
 
   // LINE通知
   const label1 = c.bukken + ' ' + c.room + '（' + c.name + '様）';
-  lineNotify_('tachiai', { owner: data.owner || caseOwner_(caseId) },
+  lineNotify_('tachiai', { owner: cleanOwner_(data.owner) || caseOwner_(caseId) },
     '【退去立会い完了】' + label1 + '\n借主負担（確定分・税込）：' + fmtYen_(fixedTotal) + '\n次は修繕見積書の作成です。',
     '【退去立会い完了】' + label1 + '\n' + (T_CONFIG.LINE.OWNER_INCLUDE_AMOUNT ? '借主負担（確定分・税込）：' + fmtYen_(fixedTotal) + '\n' : '') + '立会いが完了しました。');
 
@@ -961,7 +975,7 @@ function saveSettlement_(data) {
   } catch (e) {}
   const label3 = c.bukken + ' ' + c.room + '（' + c.name + '様）';
   const money3 = shortage > 0 ? '不足金額（ご請求）：' + fmtYen_(shortage) : '返金額：' + fmtYen_(refund);
-  lineNotify_('settlement', { owner: data.owner || caseOwner_(caseId) },
+  lineNotify_('settlement', { owner: cleanOwner_(data.owner) || caseOwner_(caseId) },
     '【退去精算書 作成】' + label3 + '\n' + money3 + (invoiceUrl ? '\n御請求書を作成しました。' : '') + '\n送付状も作成済みです。',
     '【退去精算書 作成】' + label3 + (T_CONFIG.LINE.OWNER_INCLUDE_AMOUNT ? '\n' + money3 : ''));
   return { ok: true, caseId: caseId, settlementUrl: file.getUrl(), refund: refund, shortage: shortage,
@@ -1104,7 +1118,7 @@ function caseOwner_(caseId) {
     const row = findRow_(sheet, caseId);
     if (row < 0) return '';
     const d = JSON.parse(sheet.getRange(row, PS_COL.json).getValue() || '{}');
-    return d.owner || ownerForBukken_(sheet.getRange(row, PS_COL.bukken).getValue());
+    return cleanOwner_(d.owner) || ownerForBukken_(sheet.getRange(row, PS_COL.bukken).getValue());
   } catch (e) { return ''; }
 }
 
