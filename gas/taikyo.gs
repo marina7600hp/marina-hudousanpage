@@ -71,6 +71,8 @@ const T_CONFIG = {
     holder: 'エイホームトラスト株式会社',
   },
   PROGRESS_SHEET_NAME: '退去精算_進捗管理',
+  // 物件ごとの貸主を保存するシート名（進捗管理スプレッドシートの中に自動で作ります）
+  BUKKEN_OWNER_SHEET: '物件の貸主',
   SENDER_NAME: '仁方大森マリーナー 退去精算',
 
   // ---------------- LINE通知（任意・未設定なら何もしません） ----------------
@@ -112,7 +114,10 @@ function doGet(e) {
   const action = (e && e.parameter && e.parameter.action) || 'list';
   try {
     if (action === 'list') {
-      return json_({ ok: true, cases: listCases_(), importable: importableCases_() });
+      // 各案件に「物件ごとの貸主」（propOwner）を付けて返す。案件で貸主を選んでいなければこれが使われる
+      const owners = bukkenOwnerList_();
+      const cases = listCases_().map(function (c) { c.propOwner = ownerForBukken_(c.bukken, owners); return c; });
+      return json_({ ok: true, cases: cases, importable: importableCases_(), bukkenOwners: owners });
     }
     if (action === 'ping') {
       return json_({ ok: true, message: '退去精算ワークフローは稼働中です。' });
@@ -138,6 +143,7 @@ function doPost(e) {
     if (action === 'settlement') return json_(saveSettlement_(data));
     if (action === 'complete') return json_(saveComplete_(data));
     if (action === 'caseInfo') return json_(saveCaseInfo_(data));
+    if (action === 'bukkenOwner') return json_(saveBukkenOwner_(data));
     if (action === 'deleteCase') return json_(deleteCase_(data));
     if (action === 'dismissImport') return json_(dismissImport_(data));
     return json_({ ok: false, error: 'unknown action: ' + action });
@@ -535,8 +541,67 @@ function esc_(s) {
 function safeName_(s) { return String(s || '').replace(/[\\\/:*?"<>|]/g, '_').trim(); }
 function today_() { return Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy年M月d日'); }
 function caseLabel_(c) { return safeName_(c.bukken) + '_' + safeName_(c.room) + '_' + safeName_(c.name); }
-/** 書類に印字する貸主名（未選択なら自社名）。貸主は管理画面の案件上部で選ぶ */
-function ownerName_(data) { return String((data && data.owner) || '').trim() || T_CONFIG.COMPANY; }
+/** 書類に印字する貸主名：①案件で選んだ貸主 → ②物件ごとの貸主 → ③自社名 の順に決める */
+function ownerName_(data) {
+  return String((data && data.owner) || '').trim() || ownerForBukken_(data && data.bukken) || T_CONFIG.COMPANY;
+}
+
+// ---------------- 物件ごとの貸主 ----------------
+/** 物件名の表記ゆれをそろえる（全角/半角・空白・中黒の違いを無視） */
+function normBukken_(s) { return String(s || '').normalize('NFKC').replace(/[\s・･]/g, ''); }
+/** 「物件の貸主」シート（進捗管理スプレッドシートの中。無ければ作る） */
+function bukkenOwnerSheet_() {
+  const ss = progressSheet_().getParent();
+  let sh = ss.getSheetByName(T_CONFIG.BUKKEN_OWNER_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(T_CONFIG.BUKKEN_OWNER_SHEET);
+    sh.appendRow(['物件名', '貸主', '更新日時']);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+/** 物件ごとの貸主の一覧 [{ bukken, owner }]（シートが読めないときは空にして書類作成を止めない） */
+function bukkenOwnerList_() {
+  try {
+    const sh = bukkenOwnerSheet_();
+    const last = sh.getLastRow();
+    if (last < 2) return [];
+    return sh.getRange(2, 1, last - 1, 2).getValues()
+      .map(function (r) { return { bukken: String(r[0] || '').trim(), owner: String(r[1] || '').trim() }; })
+      .filter(function (x) { return x.bukken && x.owner; });
+  } catch (e) { return []; }
+}
+/** 物件名からその物件の貸主を探す。完全一致がなければ、前方一致でいちばん長い物件名
+ *  （「エイホームビル701」のように部屋番号まで入っていても見つかるように） */
+function ownerForBukken_(bukken, list) {
+  const key = normBukken_(bukken);
+  if (!key) return '';
+  let best = null;
+  (list || bukkenOwnerList_()).forEach(function (x) {
+    const k = normBukken_(x.bukken);
+    const hit = k && (key === k || (k.length >= 2 && key.indexOf(k) === 0));
+    if (hit && (!best || k.length > best.len)) best = { len: k.length, owner: x.owner };
+  });
+  return best ? best.owner : '';
+}
+/** 物件ごとの貸主を保存（貸主を空にすると、その物件の設定を消す） */
+function saveBukkenOwner_(data) {
+  const bukken = String(data.bukken || '').trim();
+  const owner = String(data.owner || '').trim();
+  const key = normBukken_(bukken);
+  if (!key) return { ok: false, error: '物件名がありません。' };
+  const sh = bukkenOwnerSheet_();
+  const last = sh.getLastRow();
+  const names = last >= 2 ? sh.getRange(2, 1, last - 1, 1).getValues() : [];
+  for (let i = 0; i < names.length; i++) {
+    if (normBukken_(names[i][0]) !== key) continue;
+    if (owner) sh.getRange(i + 2, 2, 1, 2).setValues([[owner, new Date()]]);
+    else sh.deleteRow(i + 2);
+    return { ok: true };
+  }
+  if (owner) sh.appendRow([bukken, owner, new Date()]);
+  return { ok: true };
+}
 /** 書類の宛名（法人契約なら会社名＋「御中」「殿」など）。未入力なら契約者名＋様 */
 function addressee_(c, data) {
   const name = String((data && data.toName) || '').trim() || String((c && c.name) || '').trim();
@@ -1032,14 +1097,14 @@ function testInvoice() {
   Logger.log('テスト用の御請求書を作成しました：' + file.getUrl());
 }
 
-/** 案件IDから貸主名を取り出す（進捗シートのデータJSONより） */
+/** 案件IDから貸主名を取り出す（案件で選んだ貸主、なければ物件ごとの貸主） */
 function caseOwner_(caseId) {
   try {
     const sheet = progressSheet_();
     const row = findRow_(sheet, caseId);
     if (row < 0) return '';
     const d = JSON.parse(sheet.getRange(row, PS_COL.json).getValue() || '{}');
-    return d.owner || '';
+    return d.owner || ownerForBukken_(sheet.getRange(row, PS_COL.bukken).getValue());
   } catch (e) { return ''; }
 }
 

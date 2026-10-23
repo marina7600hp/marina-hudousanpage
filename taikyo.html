@@ -90,9 +90,12 @@
 
         <!-- ============ 一覧ビュー ============ -->
         <section id="listView">
-            <div class="flex items-center justify-between mb-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <h2 class="font-bold text-slate-700">退去案件一覧</h2>
-                <button onclick="openNewCase()" class="btn btn-primary text-sm">＋ 新規案件</button>
+                <div class="flex gap-2 ml-auto">
+                    <button onclick="openBukkenOwners()" class="btn btn-ghost text-sm whitespace-nowrap">🏢 物件ごとの貸主</button>
+                    <button onclick="openNewCase()" class="btn btn-primary text-sm whitespace-nowrap">＋ 新規案件</button>
+                </div>
             </div>
             <div class="flex items-center gap-2 mb-3">
                 <div class="inline-flex rounded-lg overflow-hidden border border-slate-300 text-xs">
@@ -128,7 +131,8 @@
                     <div>
                         <label class="field-label" for="cvOwner">貸主<span class="text-slate-400 font-normal ml-1">報告書・同意書・清算書に記載</span></label>
                         <select id="cvOwner" class="field-input text-sm" onchange="onOwnerChange()"></select>
-                        <input id="cvOwnerOther" class="field-input text-sm hidden mt-2" placeholder="貸主名を入力" onchange="saveCaseInfo()">
+                        <input id="cvOwnerOther" class="field-input text-sm hidden mt-2" placeholder="貸主名を入力" onchange="updateOwnerHint(); saveCaseInfo()">
+                        <p id="cvOwnerHint" class="hidden text-[11px] text-amber-700 mt-1"></p>
                     </div>
                     <div>
                         <label class="field-label" for="cvToName">書類の宛名<span class="text-slate-400 font-normal ml-1">見積書・清算書・請求書・送付状</span></label>
@@ -140,7 +144,7 @@
                         </div>
                     </div>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-1">貸主・宛名は選ぶとその場で保存されます。法人契約の場合は、宛名を会社名にして「御中」か「殿」を選んでください。</p>
+                <p class="text-[11px] text-slate-400 mt-1">貸主・宛名は選ぶとその場で保存されます。貸主は一覧の「🏢 物件ごとの貸主」で物件ごとに決めておけます。法人契約の場合は、宛名を会社名にして「御中」か「殿」を選んでください。</p>
                 <p class="text-[11px] text-slate-400 mt-3 mb-1">作成した書類（タップで開く）</p>
                 <div id="cvLinks" class="doc-tabs"></div>
             </div>
@@ -342,6 +346,24 @@
         </div>
     </div>
 
+    <!-- 物件ごとの貸主 -->
+    <div id="bukkenModal" class="hidden fixed inset-0 z-40 bg-slate-900/60 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-lg p-5 flex flex-col" style="max-height:90vh">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-coastal-600">🏢 物件ごとの貸主</h3>
+                <button onclick="closeBukkenOwners()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none" aria-label="閉じる">&times;</button>
+            </div>
+            <p class="text-xs text-slate-500 mt-1 mb-3">物件ごとに貸主を選んでおくと、その物件の案件は自動でその貸主になります（報告書・同意書・清算書）。選ぶとすぐ保存されます。案件の画面で別の貸主を選んだ場合は、そちらが優先されます。</p>
+            <div id="bukkenRows" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+            <div class="border-t border-slate-200 mt-3 pt-3">
+                <p class="field-label">物件を追加</p>
+                <input id="bkNewName" class="field-input text-sm" placeholder="物件名（例：エイホームビル）">
+                <div id="bkNewPick" class="mt-2"></div>
+                <button onclick="addBukkenOwner()" class="btn btn-primary w-full mt-2 text-sm">追加</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ローディング -->
     <div id="loading" class="hidden fixed inset-0 z-50 bg-white/80 flex flex-col items-center justify-center">
         <div class="w-10 h-10 border-4 border-coastal-200 border-t-coastal-500 rounded-full animate-spin"></div>
@@ -395,7 +417,7 @@
         }
 
         const $ = (id) => document.getElementById(id);
-        let CASES = [], IMPORTABLE = [], CUR = null, PHOTOS = [];
+        let CASES = [], IMPORTABLE = [], CUR = null, PHOTOS = [], BUKKEN_OWNERS = [];
         let LIST_FILTER = 'active'; // 'active'=処理中のみ（完了を隠す） / 'all'=すべて
 
         // 後日見積となる原状回復箇所の定番項目
@@ -426,13 +448,16 @@
         const OWNER_OPTIONS = ['エイホームトラスト株式会社', '大森栄作', '白島利江', '有限会社仁方大森マリーナー', '江口和弘', 'EASY　HOUSE合同会社'];
         const OWNER_OTHER = '__other__';
         const HONORIFICS = ['様', '御中', '殿'];
-        function renderOwnerOptions(){
-            const s=$('cvOwner'); s.innerHTML='';
+        const OWNER_EMPTY_LABEL = '— 選択してください —';
+        /** 貸主の選択肢（先頭は「未選択」の行）を select に入れる */
+        function fillOwnerOptions(s, emptyLabel){
+            s.innerHTML='';
             const add=(v,t)=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; s.appendChild(o); };
-            add('', '— 選択してください —');
+            add('', emptyLabel);
             OWNER_OPTIONS.forEach(o=>add(o,o));
             add(OWNER_OTHER, 'その他（下に入力）');
         }
+        function renderOwnerOptions(){ fillOwnerOptions($('cvOwner'), OWNER_EMPTY_LABEL); }
         /** 保存済みの貸主名を選択欄に反映（リストにない名前は「その他」に入れる） */
         function setOwnerUI(owner){
             owner=String(owner||'').trim();
@@ -441,7 +466,23 @@
             $('cvOwnerOther').value = (owner && !known) ? owner : '';
             $('cvOwnerOther').classList.toggle('hidden', !owner || known);
         }
-        /** 選ばれている貸主名（未選択なら空。GAS側で自社名になる） */
+        /** 案件で貸主を選んでいないときの行：物件ごとの貸主があれば「物件の設定どおり」と表示（名前は下の行に出す） */
+        function setOwnerFollowLabel(propOwner){
+            $('cvOwner').options[0].textContent = propOwner ? '物件の設定どおり' : OWNER_EMPTY_LABEL;
+        }
+        /** 貸主欄の下の一行：物件の設定どおりなら実際の貸主名を、物件の設定と違う貸主なら注意を出す */
+        function updateOwnerHint(){
+            const prop=(CUR&&CUR.propOwner)||'', own=ownerVal(), h=$('cvOwnerHint');
+            let text='', color='';
+            if(prop && !own && $('cvOwner').value!==OWNER_OTHER){
+                text='→ 貸主は「'+prop+'」（物件ごとの設定）'; color='text-coastal-600';
+            } else if(prop && own && own!==prop){
+                text='※この物件の設定は「'+prop+'」です。この案件だけ別の貸主になります（物件の設定どおりにするなら一番上を選んでください）'; color='text-amber-700';
+            }
+            h.textContent=text;
+            h.className='text-[11px] mt-1 '+color+(text?'':' hidden');
+        }
+        /** 選ばれている貸主名（未選択なら空。GAS側で物件ごとの貸主→自社名の順に決まる） */
         function ownerVal(){
             const v=$('cvOwner').value;
             return v===OWNER_OTHER ? $('cvOwnerOther').value.trim() : v;
@@ -449,6 +490,7 @@
         function onOwnerChange(){
             const other=$('cvOwner').value===OWNER_OTHER;
             $('cvOwnerOther').classList.toggle('hidden', !other);
+            updateOwnerHint();
             if(other){ $('cvOwnerOther').focus(); return; } // 「その他」は入力し終えたときに保存
             saveCaseInfo();
         }
@@ -475,10 +517,98 @@
                     : '保存できませんでした（書類を作成したときにも保存されます）');
             }
         }
-        /** 貸主が未選択のまま、貸主が載る書類を作ろうとしたら確認する */
+        /** 貸主が案件でも物件でも決まっていないまま、貸主が載る書類を作ろうとしたら確認する */
         function confirmOwner(){
-            if(ownerVal()) return true;
-            return confirm('貸主が選ばれていません。\nこのまま作成すると、書類の貸主は「有限会社仁方大森マリーナー」になります。\n\nよろしいですか？\n（キャンセルして、画面上部の「貸主」を選ぶこともできます）');
+            if(ownerVal() || (CUR && CUR.propOwner)) return true;
+            return confirm('貸主が決まっていません。\nこのまま作成すると、書類の貸主は「有限会社仁方大森マリーナー」になります。\n\nよろしいですか？\n（キャンセルして、画面上部の「貸主」で選ぶか、一覧の「🏢 物件ごとの貸主」で物件ごとに設定できます）');
+        }
+
+        // ---------------- 物件ごとの貸主（一覧の「🏢 物件ごとの貸主」） ----------------
+        /** 物件名の表記ゆれをそろえる（GAS の normBukken_ と同じ） */
+        function normBukken(s){ return String(s||'').normalize('NFKC').replace(/[\s・･]/g,''); }
+        /** 設定済みの物件と、案件にある物件をまとめた一覧（表記ゆれや部屋番号つきの物件名は1つにまとめる） */
+        function bukkenGroups(){
+            const groups=new Map();
+            BUKKEN_OWNERS.forEach(x=>{ const k=normBukken(x.bukken); if(k) groups.set(k,{ name:String(x.bukken).trim(), owner:x.owner, count:0 }); });
+            CASES.forEach(c=>{
+                const k=normBukken(c.bukken); if(!k) return;
+                let key=k;
+                if(!groups.has(k)){
+                    // 「エイホームビル701」など、設定済みの物件名で始まるものはその物件として数える
+                    const hit=Array.from(groups.keys()).filter(g=>g.length>=2 && k.indexOf(g)===0).sort((a,b)=>b.length-a.length)[0];
+                    if(hit) key=hit;
+                }
+                if(!groups.has(key)) groups.set(key,{ name:String(c.bukken).trim(), owner:'', count:0 });
+                groups.get(key).count++;
+            });
+            return Array.from(groups.values()).sort((a,b)=>a.name.localeCompare(b.name,'ja'));
+        }
+        /** 貸主の選択欄（「その他」なら入力欄も）を作る。onPick があれば選んだ時点で呼ぶ */
+        function buildOwnerPicker(current, emptyLabel, onPick){
+            const wrap=document.createElement('div');
+            const s=document.createElement('select'); s.className='field-input text-sm';
+            fillOwnerOptions(s, emptyLabel);
+            const other=document.createElement('input'); other.className='field-input text-sm mt-2'; other.placeholder='貸主名を入力';
+            current=String(current||'').trim();
+            const known=OWNER_OPTIONS.includes(current);
+            s.value = !current ? '' : (known ? current : OWNER_OTHER);
+            other.value = (current && !known) ? current : '';
+            other.classList.toggle('hidden', !current || known);
+            const get=()=> s.value===OWNER_OTHER ? other.value.trim() : s.value;
+            s.addEventListener('change', ()=>{
+                const isOther=s.value===OWNER_OTHER;
+                other.classList.toggle('hidden', !isOther);
+                if(isOther){ other.focus(); return; }
+                if(onPick) onPick(get());
+            });
+            other.addEventListener('change', ()=>{ if(onPick) onPick(get()); });
+            wrap.append(s, other);
+            wrap.getOwner=get;
+            return wrap;
+        }
+        let NEW_BUKKEN_PICK=null;
+        function renderBukkenOwners(){
+            const box=$('bukkenRows'); box.innerHTML='';
+            const rows=bukkenGroups();
+            if(!rows.length){ box.innerHTML='<p class="text-sm text-slate-400 text-center py-6">物件がまだありません。下の「物件を追加」から登録できます。</p>'; return; }
+            rows.forEach(r=>{
+                const card=document.createElement('div'); card.className='border border-slate-200 rounded-lg p-2.5';
+                const head=document.createElement('div'); head.className='flex items-baseline justify-between gap-2 mb-1.5';
+                const nm=document.createElement('span'); nm.className='font-bold text-sm text-slate-800 break-all'; nm.textContent=r.name;
+                const cnt=document.createElement('span'); cnt.className='text-[11px] text-slate-400 shrink-0'; cnt.textContent=r.count?('案件 '+r.count+'件'):'';
+                head.append(nm,cnt);
+                card.append(head, buildOwnerPicker(r.owner, '— 未設定（マリーナーになります） —', owner=>saveBukkenOwner(r.name, owner)));
+                box.appendChild(card);
+            });
+        }
+        function openBukkenOwners(){
+            renderBukkenOwners();
+            NEW_BUKKEN_PICK=buildOwnerPicker('', '— 貸主を選択 —');
+            $('bkNewPick').innerHTML=''; $('bkNewPick').appendChild(NEW_BUKKEN_PICK);
+            show('bukkenModal');
+        }
+        function closeBukkenOwners(){ hide('bukkenModal'); }
+        /** 物件ごとの貸主を保存し、各案件の「物件の設定」を読み直す */
+        async function saveBukkenOwner(bukken, owner){
+            if(!GAS_URL) return;
+            try{
+                const j=await apiPost({ action:'bukkenOwner', bukken:bukken, owner:owner });
+                if(!j.ok) throw new Error(j.error||'');
+                toast(owner ? '「'+bukken+'」の貸主を「'+owner+'」にしました' : '「'+bukken+'」の貸主の設定を外しました');
+                await loadCases();
+                if(!$('bukkenModal').classList.contains('hidden')) renderBukkenOwners();
+            }catch(e){
+                toast(/unknown action/.test(e.message||'')
+                    ? 'GASが古い版です（taikyo.gs を貼り直して再デプロイしてください）'
+                    : '保存できませんでした');
+            }
+        }
+        function addBukkenOwner(){
+            const name=$('bkNewName').value.trim(), owner=NEW_BUKKEN_PICK ? NEW_BUKKEN_PICK.getOwner() : '';
+            if(!name){ toast('物件名を入力してください'); return; }
+            if(!owner){ toast('貸主を選んでください'); return; }
+            $('bkNewName').value='';
+            saveBukkenOwner(name, owner);
         }
 
         // ---------------- API ----------------
@@ -502,7 +632,7 @@
             try{
                 const j = await apiGet('list');
                 if(!j.ok) throw new Error(j.error||'error');
-                CASES = j.cases||[]; IMPORTABLE = j.importable||[];
+                CASES = j.cases||[]; IMPORTABLE = j.importable||[]; BUKKEN_OWNERS = j.bukkenOwners||[];
                 renderList();
             }catch(e){ hide('loadingList'); toast('読み込みに失敗しました'); }
         }
@@ -613,7 +743,9 @@
             if(d.tachiaiDate) dl.push('立会日 '+d.tachiaiDate);
             if(d.staffTachiai) dl.push('立会担当 '+d.staffTachiai);
             $('cvDates').textContent = dl.join('　/　');
+            setOwnerFollowLabel(CUR.propOwner);
             setOwnerUI(d.owner);
+            updateOwnerHint();
             $('cvToName').value = d.toName || CUR.name || '';
             $('cvToHon').value = HONORIFICS.includes(d.toHonorific) ? d.toHonorific : guessHonorific($('cvToName').value);
             // ステータス
