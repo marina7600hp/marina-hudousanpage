@@ -38,11 +38,30 @@ const T_CONFIG = {
   COMPANY_ADDR: '〒737-0821 広島県呉市三条4丁目7-20',
   // 見積書の作成者名（見積書のフッターに「見積作成者：〇〇」と記載）
   ESTIMATOR: 'エイホームトラスト株式会社',
+  // 精算書の作成者名（精算書の下部に「精算書作成者：〇〇（担当：△△）」と記載）
+  SETTLEMENT_CREATOR: 'エイホームトラスト株式会社',
   // 送付状（書類送付御案内）の差出人情報
   COMPANY_ZIP: '737-0821',
   COMPANY_ADDR_FULL: '広島県呉市三条4丁目7-20',
   COMPANY_FAX: '0823-27-7818',
-  COMPANY_CONTACT: '大森',   // 送付状の担当者（空なら精算書作成者を使用）
+  COMPANY_CONTACT: '大森',   // 送付状の担当者（空なら精算書の担当者を使用）
+
+  // ---------------- 御請求書（適格請求書） ----------------
+  // 発行者（請求書の右上に記載）。regNo は適格請求書発行事業者の登録番号（T＋13桁）
+  INVOICE_ISSUER: {
+    name: 'エイホームトラスト株式会社',
+    regNo: 'T6240001052738',
+    addr: '呉市三条3-3-5',
+    tels: ['0823-32-6013', '090-7972-7516'],
+    showLogo: true,   // 右上のロゴ（Eihometrast）。false で非表示
+  },
+  INVOICE_ITEM: '補修費',               // 品目名（原状回復費の借主負担分・税込）
+  INVOICE_SUBJECT: '退去修繕清掃費用',   // 【諸条件】の「物件名 号室」の後ろに付く文言
+  INVOICE_NOTES: [                      // 備考欄（先頭に「・」が付きます）
+    'お振込み手数料はお客様負担でお願い致します。',
+    'その他、特殊事項は別途相談になります。',
+    '内訳は同封の清算書・原状回復見積書をご確認ください。',
+  ],
   // 御請求書の入金先口座（原状回復費用の請求分の着金先）
   INVOICE_BANK: {
     bank: 'もみじ銀行',
@@ -52,6 +71,8 @@ const T_CONFIG = {
     holder: 'エイホームトラスト株式会社',
   },
   PROGRESS_SHEET_NAME: '退去精算_進捗管理',
+  // 物件ごとの貸主を保存するシート名（進捗管理スプレッドシートの中に自動で作ります）
+  BUKKEN_OWNER_SHEET: '物件の貸主',
   SENDER_NAME: '仁方大森マリーナー 退去精算',
 
   // ---------------- LINE通知（任意・未設定なら何もしません） ----------------
@@ -93,7 +114,10 @@ function doGet(e) {
   const action = (e && e.parameter && e.parameter.action) || 'list';
   try {
     if (action === 'list') {
-      return json_({ ok: true, cases: listCases_(), importable: importableCases_() });
+      // 各案件に「物件ごとの貸主」（propOwner）を付けて返す。案件で貸主を選んでいなければこれが使われる
+      const owners = bukkenOwnerList_();
+      const cases = listCases_().map(function (c) { c.propOwner = ownerForBukken_(c.bukken, owners); return c; });
+      return json_({ ok: true, cases: cases, importable: importableCases_(), bukkenOwners: owners });
     }
     if (action === 'ping') {
       return json_({ ok: true, message: '退去精算ワークフローは稼働中です。' });
@@ -118,6 +142,8 @@ function doPost(e) {
     if (action === 'estimate') return json_(saveEstimate_(data));
     if (action === 'settlement') return json_(saveSettlement_(data));
     if (action === 'complete') return json_(saveComplete_(data));
+    if (action === 'caseInfo') return json_(saveCaseInfo_(data));
+    if (action === 'bukkenOwner') return json_(saveBukkenOwner_(data));
     if (action === 'deleteCase') return json_(deleteCase_(data));
     if (action === 'dismissImport') return json_(dismissImport_(data));
     return json_({ ok: false, error: 'unknown action: ' + action });
@@ -461,6 +487,22 @@ function upsertCase_(caseId, patch) {
   }
 }
 
+// ---------------- 案件の貸主・宛名（書類は作らずに保存） ----------------
+/** 管理画面で貸主・宛名・敬称を選び直したときに、その場で案件へ保存する */
+function saveCaseInfo_(data) {
+  const caseId = data.caseId;
+  if (!caseId) return { ok: false, error: '案件IDがありません。' };
+  // upsertCase_ は見つからない案件を新規行として追加してしまうため、先に存在を確認する
+  if (findRow_(progressSheet_(), caseId) < 0) return { ok: false, error: '案件が見つかりません。' };
+  // 明示的な保存なので、貸主を「未選択」に戻したときは空で上書きする
+  upsertCase_(caseId, { data: {
+    owner: String(data.owner || '').trim(),
+    toName: String(data.toName || '').trim(),
+    toHonorific: String(data.toHonorific || '').trim(),
+  } });
+  return { ok: true };
+}
+
 // ---------------- ① 案件作成 ----------------
 function createCase_(data) {
   const caseId = data.receiptNo || ('T' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMddHHmmss'));
@@ -499,6 +541,90 @@ function esc_(s) {
 function safeName_(s) { return String(s || '').replace(/[\\\/:*?"<>|]/g, '_').trim(); }
 function today_() { return Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy年M月d日'); }
 function caseLabel_(c) { return safeName_(c.bukken) + '_' + safeName_(c.room) + '_' + safeName_(c.name); }
+/** 書類に印字する貸主名：①案件で選んだ貸主 → ②物件ごとの貸主 → ③自社名 の順に決める */
+function ownerName_(data) {
+  return String((data && data.owner) || '').trim() || ownerForBukken_(data && data.bukken) || T_CONFIG.COMPANY;
+}
+
+// ---------------- 物件ごとの貸主 ----------------
+/** 物件名の表記ゆれをそろえる（全角/半角・空白・中黒の違いを無視） */
+function normBukken_(s) { return String(s || '').normalize('NFKC').replace(/[\s・･]/g, ''); }
+/** 「物件の貸主」シート（進捗管理スプレッドシートの中。無ければ作る） */
+function bukkenOwnerSheet_() {
+  const ss = progressSheet_().getParent();
+  let sh = ss.getSheetByName(T_CONFIG.BUKKEN_OWNER_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(T_CONFIG.BUKKEN_OWNER_SHEET);
+    sh.appendRow(['物件名', '貸主', '更新日時']);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+/** 物件ごとの貸主の一覧 [{ bukken, owner }]（シートが読めないときは空にして書類作成を止めない） */
+function bukkenOwnerList_() {
+  try {
+    const sh = bukkenOwnerSheet_();
+    const last = sh.getLastRow();
+    if (last < 2) return [];
+    return sh.getRange(2, 1, last - 1, 2).getValues()
+      .map(function (r) { return { bukken: String(r[0] || '').trim(), owner: String(r[1] || '').trim() }; })
+      .filter(function (x) { return x.bukken && x.owner; });
+  } catch (e) { return []; }
+}
+/** 物件名からその物件の貸主を探す。完全一致がなければ、前方一致でいちばん長い物件名
+ *  （「エイホームビル701」のように部屋番号まで入っていても見つかるように） */
+function ownerForBukken_(bukken, list) {
+  const key = normBukken_(bukken);
+  if (!key) return '';
+  let best = null;
+  (list || bukkenOwnerList_()).forEach(function (x) {
+    const k = normBukken_(x.bukken);
+    const hit = k && (key === k || (k.length >= 2 && key.indexOf(k) === 0));
+    if (hit && (!best || k.length > best.len)) best = { len: k.length, owner: x.owner };
+  });
+  return best ? best.owner : '';
+}
+/** 物件ごとの貸主を保存（貸主を空にすると、その物件の設定を消す） */
+function saveBukkenOwner_(data) {
+  const bukken = String(data.bukken || '').trim();
+  const owner = String(data.owner || '').trim();
+  const key = normBukken_(bukken);
+  if (!key) return { ok: false, error: '物件名がありません。' };
+  const sh = bukkenOwnerSheet_();
+  const last = sh.getLastRow();
+  const names = last >= 2 ? sh.getRange(2, 1, last - 1, 1).getValues() : [];
+  for (let i = 0; i < names.length; i++) {
+    if (normBukken_(names[i][0]) !== key) continue;
+    if (owner) sh.getRange(i + 2, 2, 1, 2).setValues([[owner, new Date()]]);
+    else sh.deleteRow(i + 2);
+    return { ok: true };
+  }
+  if (owner) sh.appendRow([bukken, owner, new Date()]);
+  return { ok: true };
+}
+/** 書類の宛名（法人契約なら会社名＋「御中」「殿」など）。未入力なら契約者名＋様 */
+function addressee_(c, data) {
+  const name = String((data && data.toName) || '').trim() || String((c && c.name) || '').trim();
+  const hon = String((data && data.toHonorific) || '').trim() || '様';
+  return name + '　' + hon;
+}
+/** 精算書の「精算書作成者：会社名（担当：人名）」。会社名が未設定なら従来どおり担当者名だけ */
+function settlementCreator_(data) {
+  const co = String(T_CONFIG.SETTLEMENT_CREATOR || '').trim();
+  const staff = String((data && data.staff) || '').trim();
+  if (!co) return staff ? '　精算書作成者：' + esc_(staff) : '';
+  return '　精算書作成者：' + esc_(co) + (staff ? '（担当：' + esc_(staff) + '）' : '');
+}
+/** 案件に保存する貸主・宛名・敬称。貸主は入力があるときだけ（空で保存済みの貸主を消さない）、
+ *  宛名・敬称は送られてきたときだけ保存する（宛名欄のない古い画面からの送信で消さないため） */
+function infoPatch_(data) {
+  const p = {};
+  const o = String((data && data.owner) || '').trim();
+  if (o) p.owner = o;
+  if (data && data.toName !== undefined) p.toName = String(data.toName || '').trim();
+  if (data && data.toHonorific !== undefined) p.toHonorific = String(data.toHonorific || '').trim();
+  return p;
+}
 /** 'yyyy-mm-dd' → 'yyyy年M月d日'（それ以外はそのまま返す） */
 function fmtD_(s) {
   if (!s) return '';
@@ -572,7 +698,7 @@ function saveReport_(data) {
     '<div class="meta">作成日：' + today_() + '</div>' +
     '<h1>原状回復箇所報告書</h1>' +
     '<div class="sub">退去時の室内確認・原状回復に関わる箇所の記録</div>' +
-    '<div class="to">貸主様<br>' + esc_(T_CONFIG.COMPANY) + ' 御中</div>' +
+    '<div class="to">貸主様<br>' + esc_(ownerName_(data)) + ' 御中</div>' +
     '<table>' + infoRows + '</table>' +
     '<p class="note" style="margin-top:8px">退去時の室内確認の結果、原状回復に関わる主な箇所を写真にて記録しました。下記のとおりご確認をお願い申し上げます。</p>' +
     '<div style="margin-top:8px">' + (cards || '（写真なし）') + '</div>' +
@@ -583,8 +709,8 @@ function saveReport_(data) {
 
   upsertCase_(caseId, {
     name: c.name, kana: c.kana, bukken: c.bukken, room: c.room, reportUrl: file.getUrl(),
-    data: { moveoutDate: data.moveoutDate || '', tachiaiDate: data.tachiaiDate || '', staffTachiai: data.staff || '',
-            photoCount: photos.length, photoFolderUrl: caseFolder.getUrl(), tenancy: data.tenancy || '' },
+    data: Object.assign({ moveoutDate: data.moveoutDate || '', tachiaiDate: data.tachiaiDate || '', staffTachiai: data.staff || '',
+            photoCount: photos.length, photoFolderUrl: caseFolder.getUrl(), tenancy: data.tenancy || '' }, infoPatch_(data)),
   });
   return { ok: true, caseId: caseId, reportUrl: file.getUrl() };
 }
@@ -637,7 +763,7 @@ function saveConsent_(data) {
     '<div class="meta">案件ID：' + esc_(caseId) + '</div>' +
     '<div class="meta">立会い日：' + tachiaiDisp + '</div>' +
     '<h1>退去立会い同意書</h1>' +
-    '<div class="to">貸主様<br>' + esc_(T_CONFIG.COMPANY) + ' 御中</div>' +
+    '<div class="to">貸主様<br>' + esc_(ownerName_(data)) + ' 御中</div>' +
     '<table><tr><th style="width:22%">物件名</th><td>' + esc_(c.bukken) + '</td>' +
     '<th style="width:14%">部屋番号</th><td>' + esc_(c.room) + '</td></tr>' +
     (data.staff ? '<tr><th>立会担当者</th><td colspan="3">' + esc_(data.staff) + '</td></tr>' : '') + '</table>' +
@@ -666,7 +792,7 @@ function saveConsent_(data) {
   upsertCase_(caseId, {
     status: '立会い済', name: c.name, kana: c.kana, bukken: c.bukken, room: c.room,
     consentUrl: consentFile.getUrl(),
-    data: { charges: ch, tachiaiDate: data.tachiaiDate || '', staffTachiai: data.staff || '' },
+    data: Object.assign({ charges: ch, tachiaiDate: data.tachiaiDate || '', staffTachiai: data.staff || '' }, infoPatch_(data)),
   });
 
   // 通知メール
@@ -724,7 +850,7 @@ function saveEstimate_(data) {
     '<div class="meta">案件ID：' + esc_(caseId) + '</div>' +
     '<div class="meta">作成日：' + today_() + '</div>' +
     '<h1>御 見 積 書</h1>' +
-    '<div class="to">' + esc_(c.name) + ' 様</div>' +
+    '<div class="to">' + esc_(addressee_(c, data)) + '</div>' +
     '<div class="sub">' + esc_(c.bukken) + ' ' + esc_(c.room) + '　退去修繕費用</div>' +
     '<table><tr><th>品目</th><th class="right">数量</th><th class="center">単位</th><th class="right">単価</th>' +
     '<th class="right">金額</th><th class="right">借主負担率</th><th class="right">借主負担額</th></tr>' +
@@ -746,8 +872,8 @@ function saveEstimate_(data) {
 
   upsertCase_(caseId, {
     status: '見積済', estimateUrl: file.getUrl(),
-    data: { estimateItems: items, estimateNote: data.note || '', estimateStaff: data.staff || '',
-            tenantTotal: tenantTotal, ownerTotal: ownerTotal, estimateTotal: totalA },
+    data: Object.assign({ estimateItems: items, estimateNote: data.note || '', estimateStaff: data.staff || '',
+            tenantTotal: tenantTotal, ownerTotal: ownerTotal, estimateTotal: totalA }, infoPatch_(data)),
   });
   const label2 = c.bukken + ' ' + c.room + '（' + c.name + '様）';
   lineNotify_('estimate', { owner: caseOwner_(caseId) },
@@ -762,10 +888,12 @@ function saveSettlement_(data) {
   if (!caseId) return { ok: false, error: '案件IDがありません。' };
   const c = { name: data.name, bukken: data.bukken, room: data.room };
   const deposit = Number(data.deposit || 0);       // 預かり敷金
+  const overpaidRent = Number(data.overpaidRent || 0); // 過払家賃（借主へお返しする分）
   const penalty = Number(data.penalty || 0);        // 違約金
   const unpaidRent = Number(data.unpaidRent || 0);  // 未納賃料等
   const restoreCost = Number(data.restoreCost || 0);// 原状回復費（借主負担）
-  const balance = deposit - penalty - unpaidRent - restoreCost; // プラス=返金 / マイナス=不足
+  // お返しする分（敷金＋過払家賃）から、差引く分を控除する。プラス=返金 / マイナス=不足
+  const balance = deposit + overpaidRent - penalty - unpaidRent - restoreCost;
   const refund = balance > 0 ? balance : 0;
   const shortage = balance < 0 ? -balance : 0;
 
@@ -775,12 +903,13 @@ function saveSettlement_(data) {
   const html = docHead_() +
     '<div class="meta">作成日：' + today_() + '</div>' +
     '<h1>退 去 清 算 書</h1>' +
-    '<div class="to">' + esc_(c.name) + ' 様</div>' +
+    '<div class="to">' + esc_(addressee_(c, data)) + '</div>' +
     '<table><tr><th style="width:22%">物件名</th><td>' + esc_(c.bukken) + '</td><th style="width:16%">号室</th><td>' + esc_(c.room) + '</td></tr>' +
     '<tr><th>入居期間</th><td>' + esc_(data.tenancy || '') + '</td><th>解約日</th><td>' + esc_(data.endDate || '') + '</td></tr>' +
     '<tr><th>退去後連絡先</th><td>' + esc_(normalizeTel_(data.contact || '')) + '</td><th>書類送付先</th><td>' + nl2br_(data.newAddress || '') + '</td></tr></table>' +
     '<table style="margin-top:10px">' +
     '<tr><th style="width:50%">預かり敷金</th><td class="right">' + fmtYen_(deposit) + '</td></tr>' +
+    '<tr><th>過払家賃</th><td class="right">' + fmtYen_(overpaidRent) + '</td></tr>' +
     '<tr><th>違約金</th><td class="right">' + fmtYen_(penalty) + '</td></tr>' +
     '<tr><th>未納賃料等</th><td class="right">' + fmtYen_(unpaidRent) + '</td></tr>' +
     '<tr><th>原状回復費（借主負担・税込）</th><td class="right">' + fmtYen_(restoreCost) + '</td></tr>' +
@@ -788,10 +917,12 @@ function saveSettlement_(data) {
     '</table>' +
     '<table style="margin-top:10px"><tr><th style="width:22%">敷金返金口座</th><td>' + esc_(bankLine || '（後日ご連絡）') + '</td></tr></table>' +
     (data.note ? '<div class="foot">備考：' + esc_(data.note) + '</div>' : '') +
-    '<div class="foot">貸主：' + esc_(data.owner || T_CONFIG.COMPANY) + '　（お問い合わせ：' + esc_(T_CONFIG.COMPANY) + '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) + '）' +
-    (data.staff ? '　精算書作成者：' + esc_(data.staff) : '') +
-    '<br>' + (shortage > 0 ? '不足金額を上記のとおりご請求いたします。' : '預かり敷金から相殺のうえ、上記返金額を指定口座へお振込みいたします。') +
-    '（振込手数料は差引かせていただきます）</div></body></html>';
+    '<div class="foot">貸主：' + esc_(ownerName_(data)) + '　（お問い合わせ：' + esc_(T_CONFIG.COMPANY) + '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) + '）' +
+    settlementCreator_(data) +
+    '<br>' + (shortage > 0
+      ? '不足金額を上記のとおりご請求いたします（別紙「御請求書」をご確認ください）。'
+      : '預かり敷金から相殺のうえ、上記返金額を指定口座へお振込みいたします（振込手数料は差引かせていただきます）。') +
+    '</div></body></html>';
 
   const label = caseLabel_(c);
   const dstamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd');
@@ -799,10 +930,12 @@ function saveSettlement_(data) {
   const pdf = htmlToPdf_(html, '修繕精算書_' + label + '_' + dstamp + '.pdf');
   const file = folder.createFile(pdf);
 
-  // --- 御請求書（不足＝請求額が発生した場合のみ） ---
+  // --- 御請求書（適格請求書）：不足＝請求額が発生した場合のみ ---
   let invoiceUrl = '';
   if (shortage > 0) {
-    invoiceUrl = buildInvoice_(caseId, c, data, shortage, dstamp, label).getUrl();
+    const amounts = { deposit: deposit, overpaidRent: overpaidRent, penalty: penalty,
+                      unpaidRent: unpaidRent, restoreCost: restoreCost, shortage: shortage };
+    invoiceUrl = buildInvoice_(caseId, c, data, amounts, dstamp, label).getUrl();
   }
 
   // --- 送付状（書類送付御案内）：見積書・清算書・（請求書）を郵送する際の同封案内 ---
@@ -810,10 +943,10 @@ function saveSettlement_(data) {
 
   upsertCase_(caseId, {
     status: '精算済', settlementUrl: file.getUrl(),
-    data: { deposit: deposit, penalty: penalty, unpaidRent: unpaidRent, restoreCost: restoreCost,
+    data: Object.assign({ deposit: deposit, overpaidRent: overpaidRent, penalty: penalty, unpaidRent: unpaidRent, restoreCost: restoreCost,
             refund: refund, shortage: shortage, settlementStaff: data.staff || '',
-            tenancy: data.tenancy || '', endDate: data.endDate || '', newAddress: data.newAddress || '', contact: data.contact || '', owner: data.owner || '',
-            paymentDue: data.paymentDue || '', invoiceUrl: invoiceUrl, coverUrl: coverUrl },
+            tenancy: data.tenancy || '', endDate: data.endDate || '', newAddress: data.newAddress || '', contact: data.contact || '',
+            paymentDue: data.paymentDue || '', invoiceUrl: invoiceUrl, coverUrl: coverUrl }, infoPatch_(data)),
   });
   try {
     MailApp.sendEmail({
@@ -835,43 +968,143 @@ function saveSettlement_(data) {
            invoiceUrl: invoiceUrl, coverUrl: coverUrl };
 }
 
-/** 御請求書PDF（原状回復費用の不足額を借主に請求／入金先=INVOICE_BANK） */
-function buildInvoice_(caseId, c, data, shortage, dstamp, label) {
-  const b = T_CONFIG.INVOICE_BANK;
-  const bankRows =
-    '<tr><th style="width:28%">金融機関</th><td>' + esc_(b.bank) + '</td></tr>' +
-    '<tr><th>支店名</th><td>' + esc_(b.branch) + '</td></tr>' +
-    '<tr><th>口座</th><td>' + esc_(b.type) + '　No.' + esc_(b.number) + '</td></tr>' +
-    '<tr><th>口座名義人</th><td>' + esc_(b.holder) + '</td></tr>';
-  const due = data.paymentDue ? fmtD_(data.paymentDue) : '';
-  const html = docHead_() +
-    '<div class="meta">請求日：' + today_() + '</div>' +
-    '<div class="meta">案件ID：' + esc_(caseId) + '</div>' +
-    '<h1>御 請 求 書</h1>' +
-    '<div class="to">' + esc_(c.name) + ' 様</div>' +
-    (data.newAddress ? '<div class="note">送付先：' + nl2br_(data.newAddress) + '</div>' : '') +
-    '<p class="note" style="margin-top:8px">下記のとおり、退去に伴う原状回復費用の借主ご負担分（敷金充当後の不足額）をご請求申し上げます。</p>' +
-    '<table style="margin-top:6px"><tr><th style="width:28%">物件名</th><td>' + esc_(c.bukken) + '　' + esc_(c.room) + '</td></tr>' +
-    '<tr><th>ご請求金額（税込）</th><td class="right"><b style="font-size:15px">' + fmtYen_(shortage) + '</b></td></tr>' +
-    (due ? '<tr><th>お支払期限</th><td>' + esc_(due) + '</td></tr>' : '') +
-    '</table>' +
-    '<p class="note" style="margin-top:10px">下記口座へお振込みくださいますようお願い申し上げます。（振込手数料はご負担願います）</p>' +
-    '<table>' + bankRows + '</table>' +
-    '<div class="foot">※内訳は同封の「退去清算書」および「原状回復見積書」をご確認ください。<br>' +
-    esc_(T_CONFIG.COMPANY) + '　〒' + esc_(T_CONFIG.COMPANY_ZIP) + '　' + esc_(T_CONFIG.COMPANY_ADDR_FULL) +
-    '　TEL：' + esc_(T_CONFIG.COMPANY_TEL) + '</div></body></html>';
+/** 御請求書PDF（適格請求書）：原状回復費用などの不足額を借主へ請求。
+ *  発行者は INVOICE_ISSUER（登録番号つき）、入金先は INVOICE_BANK。 */
+function buildInvoice_(caseId, c, data, amounts, dstamp, label) {
   const folder = getOrCreateSubfolder_(parentFolder_(), T_CONFIG.SUBFOLDERS.invoice);
-  return folder.createFile(htmlToPdf_(html, '御請求書_' + label + '_' + dstamp + '.pdf'));
+  return folder.createFile(htmlToPdf_(invoiceHtml_(caseId, c, data, amounts), '御請求書_' + label + '_' + dstamp + '.pdf'));
 }
 
-/** 案件IDから貸主名を取り出す（進捗シートのデータJSONより） */
+/** 適格請求書のHTML（エイホームトラストの請求書様式に合わせたレイアウト）。
+ *  記載事項：①発行者名・登録番号（右上） ②取引年月日（右上の日付） ③取引内容（諸条件・品目）
+ *  ④税率ごとの合計額と税率 ⑤税率ごとの消費税額（補修費の行） ⑥宛名 */
+function invoiceHtml_(caseId, c, data, a) {
+  const iss = T_CONFIG.INVOICE_ISSUER || {};
+  const b = T_CONFIG.INVOICE_BANK;
+  const num = function (v) { return Number(v || 0); };
+  const restoreCost = num(a.restoreCost), penalty = num(a.penalty), unpaidRent = num(a.unpaidRent);
+  const deposit = num(a.deposit), overpaidRent = num(a.overpaidRent);
+  // 差引ご請求額と合計は同じ式から出す（2か所の金額が食い違わないように）
+  const total = restoreCost + penalty + unpaidRent - deposit - overpaidRent;
+  const ratePct = Math.round(Number(T_CONFIG.TAX_RATE || 0) * 100);
+  // 税込額から消費税額を逆算。見積書と同じ四捨五入なので、見積書の借主負担の消費税額と一致する
+  const tax = Math.round(restoreCost * ratePct / (100 + ratePct));
+
+  // 品目：課税分 → 空行 → 充当額（赤字）の順。10行に満たない分は空行で埋める
+  const rows = [];
+  if (restoreCost > 0) {
+    rows.push([T_CONFIG.INVOICE_ITEM || '補修費', '税込', fmtYen_(restoreCost)]);
+    rows.push(['', '', '（内消費税額' + fmtYen_(tax) + '／税率' + ratePct + '%）']);
+  }
+  if (penalty > 0) rows.push(['違約金', '不課税', fmtYen_(penalty)]);
+  if (unpaidRent > 0) rows.push(['未納賃料等', '非課税', fmtYen_(unpaidRent)]);
+  rows.push(['', '', '']);
+  if (deposit > 0) rows.push(['敷金充当額', '', fmtYen_(-deposit), true]);
+  if (overpaidRent > 0) rows.push(['過払家賃充当額', '', fmtYen_(-overpaidRent), true]);
+  // 品目は見本の様式と同じ14行（足りない分は空行）。行の高さを固定して、用紙上の位置がずれないようにする
+  while (rows.length < 14) rows.push(['', '', '']);
+
+  const LINE = 'border:1px solid #555;';
+  const NB = 'border:none;padding:0;vertical-align:top;';
+  const TH = LINE + 'background:#d9d9d9;height:7mm;padding:0 6px;font-weight:normal;text-align:center;font-size:12.5px;';
+  const TD = LINE + 'height:7.6mm;padding:0 6px;text-align:center;font-size:12.5px;';
+  const itemRows = rows.map(function (r) {
+    return '<tr><td style="' + TD + '">' + (esc_(r[0]) || '&nbsp;') + '</td>' +
+      '<td style="' + TD + '">' + (esc_(r[1]) || '&nbsp;') + '</td>' +
+      '<td style="' + TD + (r[3] ? 'color:#dc2626;' : '') + '">' + (esc_(r[2]) || '&nbsp;') + '</td></tr>';
+  }).join('');
+
+  // 【諸条件】物件名・号室（数字だけなら「号室」を付ける）・件名
+  const room = String(c.room || '').trim();
+  const subject = [c.bukken, /^[0-9０-９]+$/.test(room) ? room + '号室' : room, T_CONFIG.INVOICE_SUBJECT]
+    .map(function (s) { return String(s || '').trim(); }).filter(String).join('　');
+
+  // 発行者（右上）：登録番号・名称・住所・電話・ロゴ
+  const issLines = [];
+  if (iss.regNo) issLines.push('登録番号　' + esc_(iss.regNo));
+  issLines.push('<span style="font-size:14px;">' + esc_(iss.name || T_CONFIG.COMPANY) + '</span>');
+  if (iss.addr) issLines.push(esc_(iss.addr));
+  (iss.tels || []).forEach(function (t) { issLines.push('TEL：' + esc_(t)); });
+  const logo = iss.showLogo
+    ? '<div style="margin-top:1.5mm;"><img src="' + invoiceLogo_() + '" width="134" height="20" alt="Eihometrast"></div>' : '';
+
+  // 宛名：長い会社名でも下線の上で1行に収まるよう、文字を少し小さくする
+  const toText = addressee_(c, data);
+  const toSize = toText.length <= 22 ? 16 : (toText.length <= 26 ? 14 : 12.5);
+
+  // お支払い期日（2026-11-30 → 2026/11/30）
+  const due = String(data.paymentDue || '').trim();
+  const dueDisp = /^\d{4}-\d{2}-\d{2}$/.test(due) ? due.replace(/-/g, '/') : due;
+
+  const bankLines = ['金融機関名：' + esc_(b.bank), '支店名：' + esc_(b.branch), '口座種類：' + esc_(b.type),
+    '口座番号：' + esc_(b.number), '口座名：' + esc_(b.holder)].join('<br>');
+  const notes = (T_CONFIG.INVOICE_NOTES || []).map(function (s) { return '・' + esc_(s); }).join('<br>');
+  const PAY_TH = LINE + 'height:5mm;padding:0 6px;font-weight:normal;text-align:center;font-size:12.5px;width:50%;';
+  const PAY_TD = LINE + 'height:30mm;padding:1.5mm 2.5mm;vertical-align:top;font-size:12px;line-height:1.65;';
+
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
+    // 用紙はA4。余白を指定しないと上端に詰まり、下が大きく空く（見本の様式と同じ配置にする）
+    '@page{size:A4 portrait;margin:13mm 13mm 12mm 13mm;}' +
+    'body{font-family:sans-serif;color:#111;font-size:12.5px;margin:0;}' +
+    'table{border-collapse:collapse;}' +
+    '</style></head><body>' +
+    '<div style="padding-top:6mm;text-align:center;font-size:27px;letter-spacing:10px;line-height:1.2;">御 請 求 書</div>' +
+    '<div style="margin-top:4.3mm;text-align:right;">' + today_() + '</div>' +
+    '<table style="width:100%;margin-top:7.4mm;"><tr>' +
+      '<td style="' + NB + 'width:56%;">' +
+        '<table style="width:92%;"><tr><td style="border:none;border-bottom:2px solid #222;padding:0 4px 1.5mm;font-size:' + toSize + 'px;">' +
+          esc_(toText) + '</td></tr></table>' +
+        '<div style="margin-top:2.5mm;line-height:1.8;">【諸条件】<br>' + esc_(subject) + '</div>' +
+        '<table style="width:82%;margin-top:6.5mm;border:2px solid #222;"><tr>' +
+          '<td style="border:1px solid #222;background:#d9d9d9;height:8.4mm;padding:0 8px;font-size:11.5px;width:32%;">差引ご請求額</td>' +
+          '<td style="border:1px solid #222;height:8.4mm;padding:0 8px;font-size:21px;font-weight:bold;text-align:center;">¥' +
+            total.toLocaleString('ja-JP') + '</td>' +
+        '</tr></table>' +
+      '</td>' +
+      '<td style="' + NB + 'width:44%;text-align:right;font-size:12px;line-height:1.4;padding-top:1mm;">' + issLines.join('<br>') + logo + '</td>' +
+    '</tr></table>' +
+    '<table style="width:100%;margin-top:3.8mm;">' +
+      '<tr><th style="' + TH + 'width:40%;">品　目</th><th style="' + TH + 'width:22%;">適　用</th><th style="' + TH + 'width:38%;">金　額</th></tr>' +
+      itemRows +
+    '</table>' +
+    '<table style="width:100%;"><tr><td style="' + NB + 'width:62%;"></td><td style="' + NB + 'width:38%;">' +
+      '<table style="width:100%;"><tr>' +
+        '<td style="' + LINE + 'border-top:none;background:#d9d9d9;height:7.7mm;padding:0 6px;width:30%;">合　計</td>' +
+        '<td style="' + LINE + 'border-top:none;height:7.7mm;padding:0 6px;text-align:center;font-size:13px;font-weight:bold;">' + fmtYen_(total) + '</td>' +
+      '</tr></table>' +
+    '</td></tr></table>' +
+    // 期日が無いときも同じ高さを取り、下の表の位置を変えない
+    '<div style="margin:7mm 0 1mm 14mm;">' + (dueDisp ? 'お支払い期日　' + esc_(dueDisp) + ' まで' : '&nbsp;') + '</div>' +
+    '<table style="width:100%;">' +
+      '<tr><th style="' + PAY_TH + '">振込先</th><th style="' + PAY_TH + '">備考</th></tr>' +
+      '<tr><td style="' + PAY_TD + '">' + bankLines + '</td><td style="' + PAY_TD + '">' + notes + '</td></tr>' +
+    '</table>' +
+    '<div style="text-align:right;font-size:9px;color:#999;margin-top:2mm;">案件ID：' + esc_(caseId) + '</div>' +
+    '</body></html>';
+}
+
+/** 【動作確認用】サンプルの御請求書PDFを「御請求書」フォルダに作ります。
+ *  Apps Script のエディタでこの関数を選んで「実行」→ 実行ログに出るURLで見た目を確認してください。
+ *  （確認後、作られたテスト用PDFは削除してかまいません） */
+function testInvoice() {
+  const now = new Date();
+  const due = Utilities.formatDate(new Date(now.getFullYear(), now.getMonth() + 2, 0), 'Asia/Tokyo', 'yyyy-MM-dd'); // 翌月末
+  const c = { name: 'テスト 太郎', bukken: 'エイホームビル', room: '701' };
+  const data = { toName: 'サンプル株式会社', toHonorific: '殿', paymentDue: due };
+  const amounts = { restoreCost: 128535, penalty: 0, unpaidRent: 0, deposit: 72000, overpaidRent: 0 };
+  const dstamp = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyyMMdd');
+  const file = buildInvoice_('TEST', c, data, amounts, dstamp, 'テスト用');
+  Logger.log('テスト用の御請求書を作成しました：' + file.getUrl());
+}
+
+/** 案件IDから貸主名を取り出す（案件で選んだ貸主、なければ物件ごとの貸主） */
 function caseOwner_(caseId) {
   try {
     const sheet = progressSheet_();
     const row = findRow_(sheet, caseId);
     if (row < 0) return '';
     const d = JSON.parse(sheet.getRange(row, PS_COL.json).getValue() || '{}');
-    return d.owner || '';
+    return d.owner || ownerForBukken_(sheet.getRange(row, PS_COL.bukken).getValue());
   } catch (e) { return ''; }
 }
 
@@ -935,11 +1168,11 @@ function buildCover_(caseId, c, data, shortage, dstamp, label) {
       '<div class="to">' +
       // 控えの上部住所は1行にまとめる（正確な改行は下の封筒貼り付け用で表現）
       (isCopy && data.newAddress ? '<div class="toaddr">' + esc_(String(data.newAddress).replace(/\s*\r?\n\s*/g, '　').trim()) + '</div>' : '') +
-      '<div class="toname">' + esc_(c.name) + '　様</div></div>';
+      '<div class="toname">' + esc_(addressee_(c, data)) + '</div></div>';
     const env = isCopy
       ? '<div class="envwrap"><div class="env">' +
         (data.newAddress ? '<div>' + zipBreak_(data.newAddress) + '</div>' : '') +
-        '<div class="envname">' + esc_(c.name) + '　様</div></div>' +
+        '<div class="envname">' + esc_(addressee_(c, data)) + '</div></div>' +
         '<div class="envnote">← 封筒貼り付け用</div></div>'
       : '';
     return '<div class="half' + (isCopy ? ' copy' : '') + '">' +
@@ -1084,4 +1317,10 @@ function testTaikyo() {
   saveComplete_({ caseId: id, name: 'テスト 太郎', bukken: 'テストハイツ', room: '101',
     completionType: 'refund', completionDate: '2026-09-05', confirmer: '確認 四郎', invoiceMailDate: '' });
   Logger.log('テスト完了。案件ID: ' + id);
+}
+
+/** 御請求書の右上に入れるロゴ（エイホームトラスト「Eihometrast」・JPEG 251×37px）。
+ *  ロゴを差し替えるときは、画像を base64 にした文字列に置き換えてください */
+function invoiceLogo_() {
+  return 'data:image/jpeg;base64,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';
 }

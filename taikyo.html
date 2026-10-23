@@ -88,11 +88,21 @@
 
     <main class="max-w-5xl mx-auto px-4 py-5"><!-- PC対応で横幅拡大 -->
 
+        <!-- GAS が古い版のときの注意（画面だけ先に新しくなった場合） -->
+        <div id="gasOldBanner" class="hidden mb-4 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs leading-relaxed p-3">
+            ⚠️ <b>Google側のプログラム（GAS）が古い版です。</b>
+            <code>gas/taikyo.gs</code> を Apps Script に貼り直し、「デプロイを管理」→ ✏️ →「新バージョン」で再デプロイしてください。
+            それまでは、過払家賃・物件ごとの貸主・適格請求書などが書類に反映されません。
+        </div>
+
         <!-- ============ 一覧ビュー ============ -->
         <section id="listView">
-            <div class="flex items-center justify-between mb-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <h2 class="font-bold text-slate-700">退去案件一覧</h2>
-                <button onclick="openNewCase()" class="btn btn-primary text-sm">＋ 新規案件</button>
+                <div class="flex gap-2 ml-auto">
+                    <button onclick="openBukkenOwners()" class="btn btn-ghost text-sm whitespace-nowrap">🏢 物件ごとの貸主</button>
+                    <button onclick="openNewCase()" class="btn btn-primary text-sm whitespace-nowrap">＋ 新規案件</button>
+                </div>
             </div>
             <div class="flex items-center gap-2 mb-3">
                 <div class="inline-flex rounded-lg overflow-hidden border border-slate-300 text-xs">
@@ -124,6 +134,24 @@
                     <div class="flex justify-between text-[11px] text-slate-500 mb-1"><span id="cvStageTxt"></span><span id="cvPct" class="font-bold text-coastal-600"></span></div>
                     <div class="prog-track"><div id="cvProg" class="prog-fill" style="width:0%"></div></div>
                 </div>
+                <div class="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="field-label" for="cvOwner">貸主<span class="text-slate-400 font-normal ml-1">報告書・同意書・清算書に記載</span></label>
+                        <select id="cvOwner" class="field-input text-sm" onchange="onOwnerChange()"></select>
+                        <input id="cvOwnerOther" class="field-input text-sm hidden mt-2" placeholder="貸主名を入力" onchange="updateOwnerHint(); saveCaseInfo()">
+                        <p id="cvOwnerHint" class="hidden text-[11px] text-amber-700 mt-1"></p>
+                    </div>
+                    <div>
+                        <label class="field-label" for="cvToName">書類の宛名<span class="text-slate-400 font-normal ml-1">見積書・清算書・請求書・送付状</span></label>
+                        <div class="flex gap-2">
+                            <input id="cvToName" class="field-input text-sm flex-1 min-w-0" placeholder="契約者名" onchange="saveCaseInfo()">
+                            <select id="cvToHon" class="field-input text-sm" style="width:5.5rem" onchange="saveCaseInfo()">
+                                <option>様</option><option>御中</option><option>殿</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">貸主・宛名は選ぶとその場で保存されます。貸主は一覧の「🏢 物件ごとの貸主」で物件ごとに決めておけます。法人契約の場合は、宛名を会社名にして「御中」か「殿」を選んでください。</p>
                 <p class="text-[11px] text-slate-400 mt-3 mb-1">作成した書類（タップで開く）</p>
                 <div id="cvLinks" class="doc-tabs"></div>
             </div>
@@ -242,6 +270,7 @@
                 </div>
                 <div class="grid grid-cols-2 gap-3 mt-3">
                     <div><label class="field-label">預かり敷金</label><input id="stDeposit" type="number" class="field-input" oninput="calcSettlement()" placeholder="0"></div>
+                    <div><label class="field-label">過払家賃<span class="text-slate-400 font-normal ml-1">返金に加算</span></label><input id="stOverpaid" type="number" class="field-input" oninput="calcSettlement()" placeholder="0"></div>
                     <div><label class="field-label">違約金</label><input id="stPenalty" type="number" class="field-input" oninput="calcSettlement()" placeholder="0"></div>
                     <div><label class="field-label">未納賃料等</label><input id="stUnpaid" type="number" class="field-input" oninput="calcSettlement()" placeholder="0"></div>
                     <div><label class="field-label">原状回復費（借主負担・税込）</label><input id="stRestore" type="number" class="field-input" oninput="calcSettlement()" placeholder="0"></div>
@@ -257,11 +286,12 @@
                 </div>
                 <input id="stNote" class="field-input text-sm mt-2" placeholder="備考（任意）">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
-                    <div><label class="field-label">精算書作成者</label><input id="stStaff" class="field-input text-sm" placeholder="作成者名"></div>
+                    <div><label class="field-label">担当者<span class="text-slate-400 font-normal ml-1">精算書に「担当」として記載</span></label><input id="stStaff" class="field-input text-sm" placeholder="担当者名"></div>
                     <div><label class="field-label">お支払期限<span class="text-slate-400 font-normal ml-1">請求時・請求書に記載</span></label><input id="stPayDue" type="date" class="field-input text-sm"></div>
                 </div>
                 <p class="text-[11px] text-slate-500 mt-2 bg-slate-50 border border-slate-200 rounded p-2">
-                    精算がマイナス（不足）の場合は<b>御請求書</b>（入金先：もみじ銀行 呉中央支店 普通 No.3113449 エイホームトラスト株式会社）を自動作成します。<br>
+                    精算書は「精算書作成者：エイホームトラスト株式会社（担当：上の担当者）」として作成します。<br>
+                    精算がマイナス（不足）の場合は<b>御請求書（適格請求書・登録番号つき）</b>をエイホームトラスト株式会社の名義で自動作成します（入金先：もみじ銀行 呉中央支店 普通 No.3113449）。<br>
                     あわせて<b>送付状（書類送付御案内）</b>も作成し、見積書・清算書・（請求書）の同封案内を出します。
                 </p>
                 <button onclick="submitSettlement()" class="btn btn-primary w-full mt-3">精算書を作成（請求書・送付状も自動作成）</button>
@@ -323,6 +353,24 @@
         </div>
     </div>
 
+    <!-- 物件ごとの貸主 -->
+    <div id="bukkenModal" class="hidden fixed inset-0 z-40 bg-slate-900/60 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-lg p-5 flex flex-col" style="max-height:90vh">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-coastal-600">🏢 物件ごとの貸主</h3>
+                <button onclick="closeBukkenOwners()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none" aria-label="閉じる">&times;</button>
+            </div>
+            <p class="text-xs text-slate-500 mt-1 mb-3">物件ごとに貸主を選んでおくと、その物件の案件は自動でその貸主になります（報告書・同意書・清算書）。選ぶとすぐ保存されます。案件の画面で別の貸主を選んだ場合は、そちらが優先されます。</p>
+            <div id="bukkenRows" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+            <div class="border-t border-slate-200 mt-3 pt-3">
+                <p class="field-label">物件を追加</p>
+                <input id="bkNewName" class="field-input text-sm" placeholder="物件名（例：エイホームビル）">
+                <div id="bkNewPick" class="mt-2"></div>
+                <button onclick="addBukkenOwner()" class="btn btn-primary w-full mt-2 text-sm">追加</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ローディング -->
     <div id="loading" class="hidden fixed inset-0 z-50 bg-white/80 flex flex-col items-center justify-center">
         <div class="w-10 h-10 border-4 border-coastal-200 border-t-coastal-500 rounded-full animate-spin"></div>
@@ -376,7 +424,9 @@
         }
 
         const $ = (id) => document.getElementById(id);
-        let CASES = [], IMPORTABLE = [], CUR = null, PHOTOS = [];
+        let CASES = [], IMPORTABLE = [], CUR = null, PHOTOS = [], BUKKEN_OWNERS = [];
+        // GAS が新しい版か（新しい版は一覧に「物件の貸主」を付けて返す）
+        let GAS_UP_TO_DATE = true;
         let LIST_FILTER = 'active'; // 'active'=処理中のみ（完了を隠す） / 'all'=すべて
 
         // 後日見積となる原状回復箇所の定番項目
@@ -402,6 +452,178 @@
         function hide(el){ $(el).classList.add('hidden'); }
         const yen = (n)=>Number(n||0).toLocaleString('ja-JP')+'円';
         const numv = (id)=>{ const n=parseFloat($(id).value); return Number.isFinite(n)?n:0; };
+        // ---------------- 貸主・宛名（案件の上部で選ぶ） ----------------
+        // 貸主の選択肢。解約リンク作成画面（kaiyakulink.html）の貸主リストと同じにしてください
+        const OWNER_OPTIONS = ['エイホームトラスト株式会社', '大森栄作', '白島利江', '有限会社仁方大森マリーナー', '江口和弘', 'EASY　HOUSE合同会社'];
+        const OWNER_OTHER = '__other__';
+        const HONORIFICS = ['様', '御中', '殿'];
+        const OWNER_EMPTY_LABEL = '— 選択してください —';
+        /** 貸主の選択肢（先頭は「未選択」の行）を select に入れる */
+        function fillOwnerOptions(s, emptyLabel){
+            s.innerHTML='';
+            const add=(v,t)=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; s.appendChild(o); };
+            add('', emptyLabel);
+            OWNER_OPTIONS.forEach(o=>add(o,o));
+            add(OWNER_OTHER, 'その他（下に入力）');
+        }
+        function renderOwnerOptions(){ fillOwnerOptions($('cvOwner'), OWNER_EMPTY_LABEL); }
+        /** 保存済みの貸主名を選択欄に反映（リストにない名前は「その他」に入れる） */
+        function setOwnerUI(owner){
+            owner=String(owner||'').trim();
+            const known=OWNER_OPTIONS.includes(owner);
+            $('cvOwner').value = !owner ? '' : (known ? owner : OWNER_OTHER);
+            $('cvOwnerOther').value = (owner && !known) ? owner : '';
+            $('cvOwnerOther').classList.toggle('hidden', !owner || known);
+        }
+        /** 案件で貸主を選んでいないときの行：物件ごとの貸主があれば「物件の設定どおり」と表示（名前は下の行に出す） */
+        function setOwnerFollowLabel(propOwner){
+            $('cvOwner').options[0].textContent = propOwner ? '物件の設定どおり' : OWNER_EMPTY_LABEL;
+        }
+        /** 貸主欄の下の一行：物件の設定どおりなら実際の貸主名を、物件の設定と違う貸主なら注意を出す */
+        function updateOwnerHint(){
+            const prop=(CUR&&CUR.propOwner)||'', own=ownerVal(), h=$('cvOwnerHint');
+            let text='', color='';
+            if(prop && !own && $('cvOwner').value!==OWNER_OTHER){
+                text='→ 貸主は「'+prop+'」（物件ごとの設定）'; color='text-coastal-600';
+            } else if(prop && own && own!==prop){
+                text='※この物件の設定は「'+prop+'」です。この案件だけ別の貸主になります（物件の設定どおりにするなら一番上を選んでください）'; color='text-amber-700';
+            }
+            h.textContent=text;
+            h.className='text-[11px] mt-1 '+color+(text?'':' hidden');
+        }
+        /** 選ばれている貸主名（未選択なら空。GAS側で物件ごとの貸主→自社名の順に決まる） */
+        function ownerVal(){
+            const v=$('cvOwner').value;
+            return v===OWNER_OTHER ? $('cvOwnerOther').value.trim() : v;
+        }
+        function onOwnerChange(){
+            const other=$('cvOwner').value===OWNER_OTHER;
+            $('cvOwnerOther').classList.toggle('hidden', !other);
+            updateOwnerHint();
+            if(other){ $('cvOwnerOther').focus(); return; } // 「その他」は入力し終えたときに保存
+            saveCaseInfo();
+        }
+        /** 法人名らしい宛名なら敬称の初期値を「殿」に（エイホームトラストの請求書様式に合わせる） */
+        function guessHonorific(name){
+            return /株式会社|有限会社|合同会社|合資会社|合名会社|法人|組合|㈱|㈲|（株）|\(株\)|（有）|\(有\)/.test(name||'') ? '殿' : '様';
+        }
+        /** 書類に使う貸主・宛名・敬称（各書類の送信に含める） */
+        function docInfo(){
+            return { owner:ownerVal(), toName:$('cvToName').value.trim(), toHonorific:$('cvToHon').value };
+        }
+        /** 貸主・宛名・敬称をその場で案件に保存（書類は作らない） */
+        async function saveCaseInfo(){
+            if(!CUR || !GAS_URL) return;
+            const info=docInfo();
+            CUR.data=Object.assign({}, CUR.data||{}, info);
+            try{
+                const j=await apiPost(Object.assign({ action:'caseInfo', caseId:CUR.id }, info));
+                if(!j.ok) throw new Error(j.error||'');
+                toast('貸主・宛名を保存しました');
+            }catch(e){
+                toast(/unknown action/.test(e.message||'')
+                    ? 'GASが古い版です（taikyo.gs を貼り直して再デプロイしてください）'
+                    : '保存できませんでした（書類を作成したときにも保存されます）');
+            }
+        }
+        /** GAS が古い版のまま書類を作ろうとしたら確認する（新しい項目が書類に反映されないため） */
+        function confirmGasVersion(){
+            if(GAS_UP_TO_DATE) return true;
+            return confirm('Google側のプログラム（GAS）が古い版です。\nこのまま作成すると、過払家賃・物件ごとの貸主・適格請求書などが書類に反映されません。\n\nそれでも作成しますか？\n（先に taikyo.gs を貼り直して再デプロイするのがおすすめです）');
+        }
+        /** 貸主が案件でも物件でも決まっていないまま、貸主が載る書類を作ろうとしたら確認する */
+        function confirmOwner(){
+            if(ownerVal() || (CUR && CUR.propOwner)) return true;
+            return confirm('貸主が決まっていません。\nこのまま作成すると、書類の貸主は「有限会社仁方大森マリーナー」になります。\n\nよろしいですか？\n（キャンセルして、画面上部の「貸主」で選ぶか、一覧の「🏢 物件ごとの貸主」で物件ごとに設定できます）');
+        }
+
+        // ---------------- 物件ごとの貸主（一覧の「🏢 物件ごとの貸主」） ----------------
+        /** 物件名の表記ゆれをそろえる（GAS の normBukken_ と同じ） */
+        function normBukken(s){ return String(s||'').normalize('NFKC').replace(/[\s・･]/g,''); }
+        /** 設定済みの物件と、案件にある物件をまとめた一覧（表記ゆれや部屋番号つきの物件名は1つにまとめる） */
+        function bukkenGroups(){
+            const groups=new Map();
+            BUKKEN_OWNERS.forEach(x=>{ const k=normBukken(x.bukken); if(k) groups.set(k,{ name:String(x.bukken).trim(), owner:x.owner, count:0 }); });
+            CASES.forEach(c=>{
+                const k=normBukken(c.bukken); if(!k) return;
+                let key=k;
+                if(!groups.has(k)){
+                    // 「エイホームビル701」など、設定済みの物件名で始まるものはその物件として数える
+                    const hit=Array.from(groups.keys()).filter(g=>g.length>=2 && k.indexOf(g)===0).sort((a,b)=>b.length-a.length)[0];
+                    if(hit) key=hit;
+                }
+                if(!groups.has(key)) groups.set(key,{ name:String(c.bukken).trim(), owner:'', count:0 });
+                groups.get(key).count++;
+            });
+            return Array.from(groups.values()).sort((a,b)=>a.name.localeCompare(b.name,'ja'));
+        }
+        /** 貸主の選択欄（「その他」なら入力欄も）を作る。onPick があれば選んだ時点で呼ぶ */
+        function buildOwnerPicker(current, emptyLabel, onPick){
+            const wrap=document.createElement('div');
+            const s=document.createElement('select'); s.className='field-input text-sm';
+            fillOwnerOptions(s, emptyLabel);
+            const other=document.createElement('input'); other.className='field-input text-sm mt-2'; other.placeholder='貸主名を入力';
+            current=String(current||'').trim();
+            const known=OWNER_OPTIONS.includes(current);
+            s.value = !current ? '' : (known ? current : OWNER_OTHER);
+            other.value = (current && !known) ? current : '';
+            other.classList.toggle('hidden', !current || known);
+            const get=()=> s.value===OWNER_OTHER ? other.value.trim() : s.value;
+            s.addEventListener('change', ()=>{
+                const isOther=s.value===OWNER_OTHER;
+                other.classList.toggle('hidden', !isOther);
+                if(isOther){ other.focus(); return; }
+                if(onPick) onPick(get());
+            });
+            other.addEventListener('change', ()=>{ if(onPick) onPick(get()); });
+            wrap.append(s, other);
+            wrap.getOwner=get;
+            return wrap;
+        }
+        let NEW_BUKKEN_PICK=null;
+        function renderBukkenOwners(){
+            const box=$('bukkenRows'); box.innerHTML='';
+            const rows=bukkenGroups();
+            if(!rows.length){ box.innerHTML='<p class="text-sm text-slate-400 text-center py-6">物件がまだありません。下の「物件を追加」から登録できます。</p>'; return; }
+            rows.forEach(r=>{
+                const card=document.createElement('div'); card.className='border border-slate-200 rounded-lg p-2.5';
+                const head=document.createElement('div'); head.className='flex items-baseline justify-between gap-2 mb-1.5';
+                const nm=document.createElement('span'); nm.className='font-bold text-sm text-slate-800 break-all'; nm.textContent=r.name;
+                const cnt=document.createElement('span'); cnt.className='text-[11px] text-slate-400 shrink-0'; cnt.textContent=r.count?('案件 '+r.count+'件'):'';
+                head.append(nm,cnt);
+                card.append(head, buildOwnerPicker(r.owner, '— 未設定（マリーナーになります） —', owner=>saveBukkenOwner(r.name, owner)));
+                box.appendChild(card);
+            });
+        }
+        function openBukkenOwners(){
+            renderBukkenOwners();
+            NEW_BUKKEN_PICK=buildOwnerPicker('', '— 貸主を選択 —');
+            $('bkNewPick').innerHTML=''; $('bkNewPick').appendChild(NEW_BUKKEN_PICK);
+            show('bukkenModal');
+        }
+        function closeBukkenOwners(){ hide('bukkenModal'); }
+        /** 物件ごとの貸主を保存し、各案件の「物件の設定」を読み直す */
+        async function saveBukkenOwner(bukken, owner){
+            if(!GAS_URL) return;
+            try{
+                const j=await apiPost({ action:'bukkenOwner', bukken:bukken, owner:owner });
+                if(!j.ok) throw new Error(j.error||'');
+                toast(owner ? '「'+bukken+'」の貸主を「'+owner+'」にしました' : '「'+bukken+'」の貸主の設定を外しました');
+                await loadCases();
+                if(!$('bukkenModal').classList.contains('hidden')) renderBukkenOwners();
+            }catch(e){
+                toast(/unknown action/.test(e.message||'')
+                    ? 'GASが古い版です（taikyo.gs を貼り直して再デプロイしてください）'
+                    : '保存できませんでした');
+            }
+        }
+        function addBukkenOwner(){
+            const name=$('bkNewName').value.trim(), owner=NEW_BUKKEN_PICK ? NEW_BUKKEN_PICK.getOwner() : '';
+            if(!name){ toast('物件名を入力してください'); return; }
+            if(!owner){ toast('貸主を選んでください'); return; }
+            $('bkNewName').value='';
+            saveBukkenOwner(name, owner);
+        }
 
         // ---------------- API ----------------
         async function apiGet(action){
@@ -424,7 +646,9 @@
             try{
                 const j = await apiGet('list');
                 if(!j.ok) throw new Error(j.error||'error');
-                CASES = j.cases||[]; IMPORTABLE = j.importable||[];
+                CASES = j.cases||[]; IMPORTABLE = j.importable||[]; BUKKEN_OWNERS = j.bukkenOwners||[];
+                GAS_UP_TO_DATE = Array.isArray(j.bukkenOwners);
+                $('gasOldBanner').classList.toggle('hidden', GAS_UP_TO_DATE);
                 renderList();
             }catch(e){ hide('loadingList'); toast('読み込みに失敗しました'); }
         }
@@ -534,8 +758,12 @@
             if(d.moveoutDate) dl.push('退去日 '+d.moveoutDate);
             if(d.tachiaiDate) dl.push('立会日 '+d.tachiaiDate);
             if(d.staffTachiai) dl.push('立会担当 '+d.staffTachiai);
-            if(d.owner) dl.unshift('貸主 '+d.owner);
             $('cvDates').textContent = dl.join('　/　');
+            setOwnerFollowLabel(CUR.propOwner);
+            setOwnerUI(d.owner);
+            updateOwnerHint();
+            $('cvToName').value = d.toName || CUR.name || '';
+            $('cvToHon').value = HONORIFICS.includes(d.toHonorific) ? d.toHonorific : guessHonorific($('cvToName').value);
             // ステータス
             $('cvStatus').className = 'badge '+(STATUS_MAP[CUR.status]||'b-kaiyaku');
             $('cvStatus').textContent = CUR.status||'解約受付';
@@ -582,6 +810,7 @@
             $('stNewAddress').value = d.newAddress||'';
             $('stContact').value = normalizeTel(d.contact || d.tel || '');
             $('stDeposit').value = d.deposit||'';
+            $('stOverpaid').value = d.overpaidRent||0;
             $('stPenalty').value = d.penalty||0;
             $('stUnpaid').value = d.unpaidRent||0;
             $('stRestore').value = d.restoreCost!=null?d.restoreCost:(d.tenantTotal||'');
@@ -706,15 +935,20 @@
         // ①-A 原状回復箇所報告書（写真）
         async function submitReport(){
             if(!requireBackend()) return;
+            if(!confirmGasVersion()) return;
+            if(!confirmOwner()) return;
             if(!PHOTOS.length && !confirm('写真がありません。写真なしで報告書を作成しますか？')) return;
             const payload={ action:'report', caseId:CUR.id, name:CUR.name, kana:CUR.kana, bukken:CUR.bukken, room:CUR.room,
                 moveoutDate:$('tiMoveout').value, tachiaiDate:$('tiTachiai').value, staff:$('tiStaff').value.trim(),
                 tenancy:(CUR.data&&CUR.data.tenancy)||'', photos:PHOTOS };
+            Object.assign(payload, docInfo());
             await run(payload, '原状回復箇所報告書を作成しました');
         }
         // ①-B 退去立会い同意書（費用・署名）
         async function submitConsent(){
             if(!requireBackend()) return;
+            if(!confirmGasVersion()) return;
+            if(!confirmOwner()) return;
             const charges={ cleaning:numv('chCleaning'), acUnit:numv('chAcUnit'), acCount:numv('chAcCount'),
                 ac2Unit:numv('chAc2Unit'), ac2Count:numv('chAc2Count'),
                 tatamiUnit:numv('chTatamiUnit'), tatamiCount:numv('chTatamiCount'),
@@ -724,6 +958,7 @@
             const payload={ action:'consent', caseId:CUR.id, name:CUR.name, kana:CUR.kana, bukken:CUR.bukken, room:CUR.room,
                 tachiaiDate:$('tiTachiai').value, staff:$('tiStaff').value.trim(),
                 charges, signature: sigHas?$('sigCanvas').toDataURL('image/png'):'', signerName:$('signerName').value.trim() };
+            Object.assign(payload, docInfo());
             await run(payload, '立会い同意書を作成しました（署名を保存）');
         }
 
@@ -798,28 +1033,35 @@
         function addEstItem(){ $('estItems').appendChild(estRow()); }
         async function submitEstimate(){
             if(!requireBackend()) return;
+            if(!confirmGasVersion()) return;
             const items=collectEst();
             if(!items.length){ toast('品目を入力してください'); return; }
-            await run({ action:'estimate', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room, items, note:$('estNote').value.trim() }, '見積書を作成しました');
+            await run(Object.assign({ action:'estimate', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room, items, note:$('estNote').value.trim() }, docInfo()), '見積書を作成しました');
         }
 
         // ---------------- 精算 ----------------
+        // お返しする分（敷金＋過払家賃）から差引く分を控除。プラス=返金 / マイナス=不足
+        function settlementBalance(){
+            return numv('stDeposit')+numv('stOverpaid')-numv('stPenalty')-numv('stUnpaid')-numv('stRestore');
+        }
         function calcSettlement(){
-            const bal = numv('stDeposit')-numv('stPenalty')-numv('stUnpaid')-numv('stRestore');
+            const bal = settlementBalance();
             $('stBalance').textContent = bal>=0 ? '返金額：'+yen(bal) : '不足金額（ご請求）：'+yen(-bal);
             $('stBalance').className = 'text-right font-bold mt-2 '+(bal>=0?'text-coastal-600':'text-red-600');
         }
         async function submitSettlement(){
             if(!requireBackend()) return;
+            if(!confirmGasVersion()) return;
+            if(!confirmOwner()) return;
             const payload={ action:'settlement', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room,
                 tenancy:$('stTenancy').value.trim(), endDate:$('stEndDate').value.trim(),
                 newAddress:$('stNewAddress').value.trim(), contact:$('stContact').value.trim(),
-                deposit:numv('stDeposit'), penalty:numv('stPenalty'), unpaidRent:numv('stUnpaid'), restoreCost:numv('stRestore'),
+                deposit:numv('stDeposit'), overpaidRent:numv('stOverpaid'), penalty:numv('stPenalty'), unpaidRent:numv('stUnpaid'), restoreCost:numv('stRestore'),
                 bank:{ name:$('stBankName').value.trim(), branch:$('stBankBranch').value.trim(), type:$('stBankType').value.trim(),
                        number:$('stBankNumber').value.trim(), holder:$('stBankHolder').value.trim() },
-                note:$('stNote').value.trim(), staff:$('stStaff').value.trim(), paymentDue:$('stPayDue').value,
-                owner:((CUR.data&&CUR.data.owner)||'') };
-            const isShortagePreview = (numv('stDeposit')-numv('stPenalty')-numv('stUnpaid')-numv('stRestore'))<0;
+                note:$('stNote').value.trim(), staff:$('stStaff').value.trim(), paymentDue:$('stPayDue').value };
+            Object.assign(payload, docInfo());
+            const isShortagePreview = settlementBalance()<0;
             await run(payload, isShortagePreview?'精算書・御請求書・送付状を作成しました':'精算書・送付状を作成しました');
         }
 
@@ -943,6 +1185,7 @@
 
         document.addEventListener('DOMContentLoaded', ()=>{
             styleFilter();
+            renderOwnerOptions();
             // ログイン済みならそのまま読み込み。未ログインなら解錠後に読み込む
             if(gateInit()) loadCases();
         });
