@@ -88,6 +88,13 @@
 
     <main class="max-w-5xl mx-auto px-4 py-5"><!-- PC対応で横幅拡大 -->
 
+        <!-- GAS が古い版のときの注意（画面だけ先に新しくなった場合） -->
+        <div id="gasOldBanner" class="hidden mb-4 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs leading-relaxed p-3">
+            ⚠️ <b>Google側のプログラム（GAS）が古い版です。</b>
+            <code>gas/taikyo.gs</code> を Apps Script に貼り直し、「デプロイを管理」→ ✏️ →「新バージョン」で再デプロイしてください。
+            それまでは、過払家賃・物件ごとの貸主・適格請求書などが書類に反映されません。
+        </div>
+
         <!-- ============ 一覧ビュー ============ -->
         <section id="listView">
             <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -418,6 +425,8 @@
 
         const $ = (id) => document.getElementById(id);
         let CASES = [], IMPORTABLE = [], CUR = null, PHOTOS = [], BUKKEN_OWNERS = [];
+        // GAS が新しい版か（新しい版は一覧に「物件の貸主」を付けて返す）
+        let GAS_UP_TO_DATE = true;
         let LIST_FILTER = 'active'; // 'active'=処理中のみ（完了を隠す） / 'all'=すべて
 
         // 後日見積となる原状回復箇所の定番項目
@@ -516,6 +525,11 @@
                     ? 'GASが古い版です（taikyo.gs を貼り直して再デプロイしてください）'
                     : '保存できませんでした（書類を作成したときにも保存されます）');
             }
+        }
+        /** GAS が古い版のまま書類を作ろうとしたら確認する（新しい項目が書類に反映されないため） */
+        function confirmGasVersion(){
+            if(GAS_UP_TO_DATE) return true;
+            return confirm('Google側のプログラム（GAS）が古い版です。\nこのまま作成すると、過払家賃・物件ごとの貸主・適格請求書などが書類に反映されません。\n\nそれでも作成しますか？\n（先に taikyo.gs を貼り直して再デプロイするのがおすすめです）');
         }
         /** 貸主が案件でも物件でも決まっていないまま、貸主が載る書類を作ろうとしたら確認する */
         function confirmOwner(){
@@ -633,6 +647,8 @@
                 const j = await apiGet('list');
                 if(!j.ok) throw new Error(j.error||'error');
                 CASES = j.cases||[]; IMPORTABLE = j.importable||[]; BUKKEN_OWNERS = j.bukkenOwners||[];
+                GAS_UP_TO_DATE = Array.isArray(j.bukkenOwners);
+                $('gasOldBanner').classList.toggle('hidden', GAS_UP_TO_DATE);
                 renderList();
             }catch(e){ hide('loadingList'); toast('読み込みに失敗しました'); }
         }
@@ -919,6 +935,7 @@
         // ①-A 原状回復箇所報告書（写真）
         async function submitReport(){
             if(!requireBackend()) return;
+            if(!confirmGasVersion()) return;
             if(!confirmOwner()) return;
             if(!PHOTOS.length && !confirm('写真がありません。写真なしで報告書を作成しますか？')) return;
             const payload={ action:'report', caseId:CUR.id, name:CUR.name, kana:CUR.kana, bukken:CUR.bukken, room:CUR.room,
@@ -930,6 +947,7 @@
         // ①-B 退去立会い同意書（費用・署名）
         async function submitConsent(){
             if(!requireBackend()) return;
+            if(!confirmGasVersion()) return;
             if(!confirmOwner()) return;
             const charges={ cleaning:numv('chCleaning'), acUnit:numv('chAcUnit'), acCount:numv('chAcCount'),
                 ac2Unit:numv('chAc2Unit'), ac2Count:numv('chAc2Count'),
@@ -1015,6 +1033,7 @@
         function addEstItem(){ $('estItems').appendChild(estRow()); }
         async function submitEstimate(){
             if(!requireBackend()) return;
+            if(!confirmGasVersion()) return;
             const items=collectEst();
             if(!items.length){ toast('品目を入力してください'); return; }
             await run(Object.assign({ action:'estimate', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room, items, note:$('estNote').value.trim() }, docInfo()), '見積書を作成しました');
@@ -1032,6 +1051,7 @@
         }
         async function submitSettlement(){
             if(!requireBackend()) return;
+            if(!confirmGasVersion()) return;
             if(!confirmOwner()) return;
             const payload={ action:'settlement', caseId:CUR.id, name:CUR.name, bukken:CUR.bukken, room:CUR.room,
                 tenancy:$('stTenancy').value.trim(), endDate:$('stEndDate').value.trim(),
